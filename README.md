@@ -1,45 +1,61 @@
-# template
+# Waypoint
 
-Template repository for `ctrl-research` projects.
+Self-hosted travel planner, logger, and tracker.
 
-## What's Included
+- **Plan** trips: destinations, day-by-day itineraries, costs — laid out on a map
+- **Log** the journey: journal entries and photos tied to places and dates
+- **Track** where you've been: GPS ingestion (OwnTracks-compatible) rendered as routes
 
-- **Renovate** — automated dependency updates for Docker, Go modules, and GitHub Actions
-- **Branch protection** — `main` requires PRs and review
-- **CODEOWNERS** — `@ctrl-research/reviewers` auto-requested for review
-- **MIT License**
-- **.gitignore** — common exclusions for OS, IDE, build outputs, and secrets
+Waypoint ships as a single Docker image (Go binary with the web UI embedded)
+plus PostgreSQL. Sign in with Google, or local accounts for development.
 
-## Using This Template
+> **Status:** early development — M0 skeleton. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-1. Click **Use this template** to create a new repository
-2. Update `renovate.json` to configure managers and schedules for your project
-3. Enable the new repo in the Renovate GitHub App if using hosted Renovate
+## Stack
 
-## Renovate
+| Layer     | Choice                                                      |
+|-----------|-------------------------------------------------------------|
+| Backend   | Go (stdlib `net/http`), pgx, goose migrations               |
+| Database  | PostgreSQL 16                                               |
+| Frontend  | React + TypeScript + Vite, Tailwind, MapLibre GL            |
+| Auth      | Google OIDC (primary), local users for dev/testing          |
+| Deploy    | Docker Compose (app + postgres)                             |
 
-Dependency updates are managed via Renovate. Configuration is in `renovate.json` and `.github/renovate-config.js`.
+Design details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ·
+[docs/DATA_MODEL.md](docs/DATA_MODEL.md) · [docs/ROADMAP.md](docs/ROADMAP.md)
 
-Enabled managers:
-- `docker-compose`
-- `github-actions`
-- `gomod`
+## Development
 
-Add or remove managers as needed for your project.
+Requirements: Go 1.24+, Node 22+, Docker.
 
-## Files
-
+```sh
+cp .env.example .env      # then fill in values
+make db                   # start postgres via docker compose
+make run                  # run the Go server (applies migrations on boot)
+make web                  # vite dev server on :5173, proxies /api to :8080
 ```
-.
-├── .github/
-│   ├── CODEOWNERS           # Auto-request review from @ctrl-research/reviewers
-│   ├── renovate-config.js   # Renovate platform config
-│   └── workflows/
-│       └── renovate.yaml    # Renovate GitHub Action workflow
-├── .gitignore
-├── CONTRIBUTING.md
-├── LICENSE
-├── README.md
-├── renovate.json           # Renovate settings
-└── SECURITY.md
+
+Other targets:
+
+```sh
+make test                 # go vet + go test ./...
+make build                # build web UI + server binary with UI embedded
+make docker               # build the full docker image
 ```
+
+## Self-hosting
+
+```sh
+cp .env.example .env      # set WAYPOINT_SESSION_SECRET, Google OAuth creds, etc.
+docker compose up -d
+```
+
+The app listens on `:8080`. Put it behind your reverse proxy with TLS.
+Google sign-in requires an OAuth client (redirect URI:
+`https://your-host/auth/google/callback`); local accounts can be enabled with
+`WAYPOINT_LOCAL_AUTH=true` instead.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). All changes go through PRs against
+`main`.

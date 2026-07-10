@@ -11,8 +11,10 @@
   "prHourlyLimit": 2,
   "enabledManagers": [
     "docker-compose",
+    "dockerfile",
     "github-actions",
-    "gomod"
+    "gomod",
+    "npm"
   ],
   "packageRules": [
     {
@@ -62,6 +64,22 @@
       "semanticCommitScope": "deps",
       "addLabels": [
         "go"
+      ]
+    },
+    {
+      "matchDatasources": [
+        "npm"
+      ],
+      "commitMessageTopic": "npm package {{depName}}",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch"
+      ],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps",
+      "addLabels": [
+        "frontend"
       ]
     },
     {

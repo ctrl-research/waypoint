@@ -2,35 +2,45 @@
 
 ## Purpose
 
-GitHub template repository for bootstrapping `ctrl-research` projects. Provides Renovate-managed dependency updates, branch protection, CODEOWNERS, license, and standard `.gitignore` as a starting point — not a runnable application.
+Waypoint — a self-hosted travel planner, logger, and tracker. Go + Postgres
+backend, React SPA frontend, Google OIDC auth. Single-binary deployment with
+the web UI embedded.
 
 ## Tech stack
 
-- **Renovate** for dependency updates (managers: `docker-compose`, `github-actions`, `gomod`)
-- **GitHub Actions** for the Renovate workflow
-- **MIT License**
+- **Go 1.24+** — stdlib `net/http` (1.22+ ServeMux patterns), no framework
+- **PostgreSQL 16** — pgx/v5 pool, goose migrations embedded and run at startup
+- **React + TypeScript + Vite** in `web/` — Tailwind, TanStack Query/Router, MapLibre GL
+- **Auth** — Google OIDC + optional local users; server-side sessions in Postgres, cookie-based
 
 ## Structure
 
 ```
-.
-├── .agents/                  # Agent instructions and skills
-├── .github/
-│   ├── CODEOWNERS            # @ctrl-research/reviewers
-│   ├── renovate-config.js    # Renovate platform config
-│   └── workflows/
-│       └── renovate.yaml     # Renovate workflow
-├── AGENTS.md                 # Operational expectations for humans and AI agents
-├── CONTRIBUTING.md
-├── LICENSE
-├── README.md
-├── SECURITY.md
-└── renovate.json             # Renovate settings
+cmd/server/        entrypoint (config → db → migrate → serve)
+internal/config/   WAYPOINT_* env configuration
+internal/server/   router, middleware, handlers
+migrations/        goose SQL migrations (go:embed)
+web/               React SPA (Vite)
+docs/              ARCHITECTURE.md, DATA_MODEL.md, ROADMAP.md
+```
+
+## Commands
+
+```
+make db       start postgres (docker compose)
+make run      run Go server on :8080
+make web      vite dev server on :5173 (proxies /api → :8080)
+make test     go vet + go test ./...
+make build    build web + embed into server binary
 ```
 
 ## Conventions
 
-- See `AGENTS.md` for full agent workflow, code style, testing, and git/PR guidance.
+- Read `docs/ARCHITECTURE.md` before adding backend packages; `docs/DATA_MODEL.md`
+  before writing migrations. Migrations are append-only, numbered `NNNNN_name.sql`,
+  goose format.
+- Configuration only via `WAYPOINT_*` env vars — never config files.
+- API: JSON under `/api/v1`, errors as `{"error":{"code","message"}}`.
+- Store-layer tests run against real Postgres, not mocks.
 - Branch protection: never push directly to `main`; all changes via PR with review.
-- When adapting this template for a new project, update `renovate.json` managers/schedules and enable the repo in the Renovate GitHub App.
-- Project-specific `CLAUDE.md` / `AGENTS.md` content should be filled in once the actual stack is added (`src/`, `tests/`, build commands, etc. are placeholders in `AGENTS.md`, not present here).
+- Conventional commits (see CONTRIBUTING.md); branch names `feat|bug|hotfix|release|chore/short-description`.

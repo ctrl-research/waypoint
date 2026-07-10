@@ -56,8 +56,15 @@ venv/
 *.dll
 *.so
 *.dylib
-/free-games-test
-/free-games
+/waypoint
+/bin/
+
+# Embedded frontend build output
+internal/webui/dist/
+web/dist/
+
+# Local data (photos, uploads)
+/data/
 
 # Misc
 *.tmp
