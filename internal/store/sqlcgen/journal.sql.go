@@ -176,14 +176,13 @@ func (q *Queries) JournalEntryByID(ctx context.Context, arg JournalEntryByIDPara
 	return i, err
 }
 
-const journalPhotoWithOwner = `-- name: JournalPhotoWithOwner :one
-SELECT p.id, p.entry_id, p.file_path, p.content_type, p.size_bytes, p.taken_at, p.lat, p.lon, p.caption, p.created_at, t.owner_id FROM journal_photos p
+const journalPhotoWithTrip = `-- name: JournalPhotoWithTrip :one
+SELECT p.id, p.entry_id, p.file_path, p.content_type, p.size_bytes, p.taken_at, p.lat, p.lon, p.caption, p.created_at, e.trip_id AS photo_trip_id FROM journal_photos p
 JOIN journal_entries e ON e.id = p.entry_id
-JOIN trips t ON t.id = e.trip_id
 WHERE p.id = $1
 `
 
-type JournalPhotoWithOwnerRow struct {
+type JournalPhotoWithTripRow struct {
 	ID          uuid.UUID
 	EntryID     uuid.UUID
 	FilePath    string
@@ -194,13 +193,13 @@ type JournalPhotoWithOwnerRow struct {
 	Lon         *float64
 	Caption     string
 	CreatedAt   time.Time
-	OwnerID     uuid.UUID
+	PhotoTripID uuid.UUID
 }
 
-// Resolves a photo to its file plus the owning user, for authorized serving.
-func (q *Queries) JournalPhotoWithOwner(ctx context.Context, id uuid.UUID) (JournalPhotoWithOwnerRow, error) {
-	row := q.db.QueryRow(ctx, journalPhotoWithOwner, id)
-	var i JournalPhotoWithOwnerRow
+// Resolves a photo to its file plus its trip, for role-checked serving.
+func (q *Queries) JournalPhotoWithTrip(ctx context.Context, id uuid.UUID) (JournalPhotoWithTripRow, error) {
+	row := q.db.QueryRow(ctx, journalPhotoWithTrip, id)
+	var i JournalPhotoWithTripRow
 	err := row.Scan(
 		&i.ID,
 		&i.EntryID,
@@ -212,7 +211,7 @@ func (q *Queries) JournalPhotoWithOwner(ctx context.Context, id uuid.UUID) (Jour
 		&i.Lon,
 		&i.Caption,
 		&i.CreatedAt,
-		&i.OwnerID,
+		&i.PhotoTripID,
 	)
 	return i, err
 }

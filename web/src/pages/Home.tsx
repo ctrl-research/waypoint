@@ -54,9 +54,16 @@ function TripCard({ trip }: { trip: Trip }) {
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="font-medium text-slate-900">{trip.title}</h2>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.status]}`}>
-          {trip.status}
-        </span>
+        <div className="flex shrink-0 gap-1">
+          {trip.role !== 'owner' && (
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+              shared
+            </span>
+          )}
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.status]}`}>
+            {trip.status}
+          </span>
+        </div>
       </div>
       <p className="mt-1 text-sm text-slate-500">{formatRange(trip.startDate, trip.endDate)}</p>
       {trip.description && (

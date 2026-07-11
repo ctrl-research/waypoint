@@ -54,10 +54,12 @@ export function ItineraryBoard({
   trip,
   items,
   stops,
+  readOnly = false,
 }: {
   trip: Trip
   items: ItineraryItem[]
   stops: Stop[]
+  readOnly?: boolean
 }) {
   const queryClient = useQueryClient()
   // Local copy so drags feel instant; server state re-syncs it on refetch.
@@ -144,6 +146,7 @@ export function ItineraryBoard({
             day={day}
             items={byDay.get(day) ?? []}
             stops={stops}
+            readOnly={readOnly}
             onDelete={(id) => remove.mutate(id)}
           />
         ))}
@@ -156,11 +159,13 @@ function DayColumn({
   day,
   items,
   stops,
+  readOnly,
   onDelete,
 }: {
   day: string
   items: ItineraryItem[]
   stops: Stop[]
+  readOnly: boolean
   onDelete: (id: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${day}` })
@@ -183,7 +188,7 @@ function DayColumn({
             <p className="px-3 py-1.5 text-xs text-slate-300">drop items here</p>
           )}
           {items.map((item) => (
-            <BoardItem key={item.id} item={item} stops={stops} onDelete={onDelete} />
+            <BoardItem key={item.id} item={item} stops={stops} readOnly={readOnly} onDelete={onDelete} />
           ))}
         </div>
       </SortableContext>
@@ -194,10 +199,12 @@ function DayColumn({
 function BoardItem({
   item,
   stops,
+  readOnly,
   onDelete,
 }: {
   item: ItineraryItem
   stops: Stop[]
+  readOnly: boolean
   onDelete: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -214,6 +221,7 @@ function BoardItem({
       }`}
     >
       <div className="flex min-w-0 items-center gap-2 text-sm">
+        {!readOnly && (
         <button
           type="button"
           {...attributes}
@@ -223,11 +231,13 @@ function BoardItem({
         >
           ⠿
         </button>
+        )}
         <span>{categoryIcons[item.category]}</span>
         {item.startTime && <span className="tabular-nums text-slate-500">{item.startTime}</span>}
         <span className="truncate font-medium text-slate-900">{item.title}</span>
         {stopName && <span className="truncate text-xs text-slate-400">@ {stopName}</span>}
       </div>
+      {!readOnly && (
       <button
         type="button"
         onClick={() => onDelete(item.id)}
@@ -236,6 +246,7 @@ function BoardItem({
       >
         ✕
       </button>
+      )}
     </div>
   )
 }
