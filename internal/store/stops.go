@@ -5,20 +5,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+
+	"github.com/ctrl-research/waypoint/internal/store/sqlcgen"
 )
 
-type Stop struct {
-	ID            uuid.UUID
-	TripID        uuid.UUID
-	Name          string
-	Lat           *float64
-	Lon           *float64
-	ArrivalDate   *time.Time
-	DepartureDate *time.Time
-	Position      int32
-	Notes         string
-}
+type Stop = sqlcgen.Stop
 
 type StopParams struct {
 	Name          string
@@ -29,78 +20,50 @@ type StopParams struct {
 	Notes         string
 }
 
-const stopColumns = `id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes`
-
-func scanStop(row pgx.Row) (Stop, error) {
-	var st Stop
-	err := row.Scan(&st.ID, &st.TripID, &st.Name, &st.Lat, &st.Lon,
-		&st.ArrivalDate, &st.DepartureDate, &st.Position, &st.Notes)
-	if err == pgx.ErrNoRows {
-		return Stop{}, ErrNotFound
-	}
-	return st, err
-}
-
 // CreateStop appends the stop at the end of the trip's ordering.
 func (s *Trips) CreateStop(ctx context.Context, tripID uuid.UUID, p StopParams) (Stop, error) {
-	st, err := scanStop(s.pool.QueryRow(ctx, `
-		INSERT INTO stops (trip_id, name, lat, lon, arrival_date, departure_date, notes, position)
-		VALUES ($1, $2, $3, $4, $5, $6, $7,
-		        (SELECT COALESCE(MAX(position) + 1, 0) FROM stops WHERE trip_id = $1))
-		RETURNING `+stopColumns,
-		tripID, p.Name, p.Lat, p.Lon, p.ArrivalDate, p.DepartureDate, p.Notes))
+	st, err := s.q.CreateStop(ctx, sqlcgen.CreateStopParams{
+		TripID: tripID, Name: p.Name, Lat: p.Lat, Lon: p.Lon,
+		ArrivalDate: p.ArrivalDate, DepartureDate: p.DepartureDate, Notes: p.Notes,
+	})
 	if err == nil {
 		s.touch(ctx, tripID)
 	}
-	return st, err
+	return st, translate(err)
 }
 
 func (s *Trips) ListStops(ctx context.Context, tripID uuid.UUID) ([]Stop, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT `+stopColumns+` FROM stops WHERE trip_id = $1 ORDER BY position`, tripID)
-	if err != nil {
-		return nil, err
+	stops, err := s.q.ListStops(ctx, tripID)
+	if stops == nil {
+		stops = []Stop{}
 	}
-	defer rows.Close()
-
-	stops := []Stop{}
-	for rows.Next() {
-		st, err := scanStop(rows)
-		if err != nil {
-			return nil, err
-		}
-		stops = append(stops, st)
-	}
-	return stops, rows.Err()
+	return stops, err
 }
 
 func (s *Trips) StopByID(ctx context.Context, tripID, stopID uuid.UUID) (Stop, error) {
-	return scanStop(s.pool.QueryRow(ctx,
-		`SELECT `+stopColumns+` FROM stops WHERE id = $2 AND trip_id = $1`, tripID, stopID))
+	st, err := s.q.StopByID(ctx, sqlcgen.StopByIDParams{TripID: tripID, ID: stopID})
+	return st, translate(err)
 }
 
 // UpdateStop replaces the stop's mutable fields. The trip ID is part of the
 // WHERE clause so a stop can never be edited through another trip's URL.
 func (s *Trips) UpdateStop(ctx context.Context, tripID, stopID uuid.UUID, p StopParams) (Stop, error) {
-	st, err := scanStop(s.pool.QueryRow(ctx, `
-		UPDATE stops
-		SET name = $3, lat = $4, lon = $5, arrival_date = $6, departure_date = $7, notes = $8
-		WHERE id = $2 AND trip_id = $1
-		RETURNING `+stopColumns,
-		tripID, stopID, p.Name, p.Lat, p.Lon, p.ArrivalDate, p.DepartureDate, p.Notes))
+	st, err := s.q.UpdateStop(ctx, sqlcgen.UpdateStopParams{
+		TripID: tripID, ID: stopID, Name: p.Name, Lat: p.Lat, Lon: p.Lon,
+		ArrivalDate: p.ArrivalDate, DepartureDate: p.DepartureDate, Notes: p.Notes,
+	})
 	if err == nil {
 		s.touch(ctx, tripID)
 	}
-	return st, err
+	return st, translate(err)
 }
 
 func (s *Trips) DeleteStop(ctx context.Context, tripID, stopID uuid.UUID) error {
-	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM stops WHERE id = $2 AND trip_id = $1`, tripID, stopID)
+	n, err := s.q.DeleteStop(ctx, sqlcgen.DeleteStopParams{TripID: tripID, ID: stopID})
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
+	if n == 0 {
 		return ErrNotFound
 	}
 	s.touch(ctx, tripID)
@@ -115,28 +78,30 @@ func (s *Trips) ReorderStops(ctx context.Context, tripID uuid.UUID, ids []uuid.U
 		return err
 	}
 	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
 
-	var count int
-	if err := tx.QueryRow(ctx,
-		`SELECT count(*) FROM stops WHERE trip_id = $1`, tripID).Scan(&count); err != nil {
+	count, err := q.CountStops(ctx, tripID)
+	if err != nil {
 		return err
 	}
-	if count != len(ids) {
+	if count != int64(len(ids)) {
 		return ErrNotFound
 	}
 
 	// Offset first to avoid transient collisions with the target positions.
-	if _, err := tx.Exec(ctx,
-		`UPDATE stops SET position = position + $2 WHERE trip_id = $1`, tripID, len(ids)); err != nil {
+	if err := q.OffsetStopPositions(ctx, sqlcgen.OffsetStopPositionsParams{
+		TripID: tripID, Position: int32(len(ids)),
+	}); err != nil {
 		return err
 	}
 	for i, id := range ids {
-		tag, err := tx.Exec(ctx,
-			`UPDATE stops SET position = $3 WHERE id = $2 AND trip_id = $1`, tripID, id, i)
+		n, err := q.SetStopPosition(ctx, sqlcgen.SetStopPositionParams{
+			TripID: tripID, ID: id, Position: int32(i),
+		})
 		if err != nil {
 			return err
 		}
-		if tag.RowsAffected() == 0 {
+		if n == 0 {
 			return ErrNotFound
 		}
 	}

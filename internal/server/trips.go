@@ -44,15 +44,15 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 const dateFormat = "2006-01-02"
 
 type tripJSON struct {
-	ID          uuid.UUID  `json:"id"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Status      string     `json:"status"`
-	StartDate   *string    `json:"startDate"`
-	EndDate     *string    `json:"endDate"`
-	CoverPhoto  *string    `json:"coverPhoto"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
+	ID          uuid.UUID `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	StartDate   *string   `json:"startDate"`
+	EndDate     *string   `json:"endDate"`
+	CoverPhoto  *string   `json:"coverPhoto"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 func toTripJSON(t store.Trip) tripJSON {
@@ -97,7 +97,7 @@ type itemJSON struct {
 
 func toItemJSON(it store.ItineraryItem) itemJSON {
 	return itemJSON{
-		ID: it.ID, StopID: it.StopID, Day: it.Day.Format(dateFormat), StartTime: it.StartTime,
+		ID: it.ID, StopID: it.StopID, Day: it.Day.Format(dateFormat), StartTime: nilIfEmpty(it.StartTime),
 		Title: it.Title, Category: string(it.Category), Notes: it.Notes,
 		CostCents: it.CostCents, Currency: it.Currency, Position: it.Position,
 	}

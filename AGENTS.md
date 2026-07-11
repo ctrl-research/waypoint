@@ -9,7 +9,9 @@ the web UI embedded.
 ## Tech stack
 
 - **Go 1.24+** — stdlib `net/http` (1.22+ ServeMux patterns), no framework
-- **PostgreSQL 16** — pgx/v5 pool, goose migrations embedded and run at startup
+- **PostgreSQL 16** — pgx/v5 pool, goose migrations embedded and run at startup;
+  store queries are sqlc-generated from `internal/store/queries/*.sql`
+  (`make generate` after editing them; CI fails on stale generated code)
 - **React + TypeScript + Vite** in `web/` — Tailwind, TanStack Query/Router, MapLibre GL
 - **Auth** — Google OIDC + optional local users; server-side sessions in Postgres, cookie-based
 
