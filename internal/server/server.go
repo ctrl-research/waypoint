@@ -12,14 +12,17 @@ import (
 
 	"github.com/ctrl-research/waypoint/internal/auth"
 	"github.com/ctrl-research/waypoint/internal/geocode"
+	"github.com/ctrl-research/waypoint/internal/photos"
 	"github.com/ctrl-research/waypoint/internal/store"
 	"github.com/ctrl-research/waypoint/internal/webui"
 )
 
-// Options carries instance configuration the frontend needs at runtime.
+// Options carries instance configuration the server needs at runtime.
 type Options struct {
 	// TileURL is the raster tile URL template exposed to map views.
 	TileURL string
+	// DataDir is where uploaded files are stored.
+	DataDir string
 }
 
 func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Options) http.Handler {
@@ -30,7 +33,7 @@ func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Op
 	mux.Handle("GET /api/v1/me", auth.RequireUser(http.HandlerFunc(handleMe)))
 	mux.Handle("GET /api/v1/geocode", auth.RequireUser(handleGeocode(geo)))
 	mux.Handle("GET /api/v1/config", auth.RequireUser(handleConfig(opts)))
-	(&tripsAPI{trips: store.NewTrips(pool)}).routes(mux)
+	(&tripsAPI{trips: store.NewTrips(pool), photos: photos.NewStore(opts.DataDir)}).routes(mux)
 	authSvc.Routes(mux)
 	mux.Handle("/", webui.Handler())
 

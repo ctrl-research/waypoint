@@ -34,6 +34,9 @@ type Config struct {
 	// Defaults to OpenStreetMap; point it at your own tile server or a
 	// commercial provider for heavier usage.
 	TileURL string
+	// DataDir is where uploaded files (journal photos) are stored. The
+	// docker image mounts a volume at /data.
+	DataDir string
 }
 
 // GoogleEnabled reports whether Google sign-in is configured.
@@ -52,6 +55,7 @@ func Load() (Config, error) {
 		AllowedEmails:      splitList(os.Getenv("WAYPOINT_ALLOWED_EMAILS")),
 		NominatimURL:       strings.TrimSuffix(getenv("WAYPOINT_NOMINATIM_URL", "https://nominatim.openstreetmap.org"), "/"),
 		TileURL:            getenv("WAYPOINT_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
+		DataDir:            getenv("WAYPOINT_DATA_DIR", "data"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("WAYPOINT_DATABASE_URL is required")
