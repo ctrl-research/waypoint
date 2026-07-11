@@ -5,7 +5,6 @@ import {
   ApiError,
   createItem,
   createStop,
-  deleteItem,
   deleteStop,
   deleteTrip,
   fetchMe,
@@ -13,20 +12,13 @@ import {
   getTrip,
   updateTrip,
   type ItineraryCategory,
-  type ItineraryItem,
   type Stop,
   type StopInput,
   type TripStatus,
 } from '../api'
 import { formatRange, statusStyles } from './Home'
+import { ItineraryBoard, categoryIcons } from './ItineraryBoard'
 
-const categoryIcons: Record<ItineraryCategory, string> = {
-  activity: '🎟️',
-  food: '🍜',
-  lodging: '🛏️',
-  transport: '🚆',
-  other: '📌',
-}
 
 export function TripDetailPage() {
   const { tripId } = useParams({ from: '/trips/$tripId' })
@@ -66,8 +58,11 @@ export function TripDetailPage() {
 
         <section>
           <h2 className="text-lg font-semibold text-slate-900">Itinerary</h2>
-          <p className="text-sm text-slate-500">Day by day. Reordering arrives with the board (#10).</p>
-          <ItinerarySection tripId={trip.id} items={items} stops={stops} />
+          <p className="text-sm text-slate-500">Day by day — drag items to reorder or move days.</p>
+          <ItineraryBoard trip={trip} items={items} stops={stops} />
+          <div className="mt-4">
+            <NewItemForm tripId={trip.id} stops={stops} />
+          </div>
         </section>
       </div>
     </div>
@@ -392,71 +387,6 @@ function shortName(displayName: string): string {
   return parts.length <= 2 ? displayName : `${parts[0]}, ${parts[parts.length - 1]}`
 }
 
-function ItinerarySection({
-  tripId,
-  items,
-  stops,
-}: {
-  tripId: string
-  items: ItineraryItem[]
-  stops: Stop[]
-}) {
-  const queryClient = useQueryClient()
-  const stopName = (id: string | null) => stops.find((s) => s.id === id)?.name
-
-  const byDay = new Map<string, ItineraryItem[]>()
-  for (const item of items) {
-    byDay.set(item.day, [...(byDay.get(item.day) ?? []), item])
-  }
-
-  const remove = useMutation({
-    mutationFn: (itemId: string) => deleteItem(tripId, itemId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] }),
-  })
-
-  return (
-    <div className="mt-4 space-y-4">
-      {[...byDay.entries()].map(([day, dayItems]) => (
-        <div key={day}>
-          <h3 className="text-sm font-semibold text-slate-700">
-            {new Date(day + 'T00:00:00').toLocaleDateString(undefined, {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-            })}
-          </h3>
-          <div className="mt-1 space-y-1">
-            {dayItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2"
-              >
-                <div className="flex items-center gap-2 text-sm">
-                  <span>{categoryIcons[item.category]}</span>
-                  {item.startTime && <span className="tabular-nums text-slate-500">{item.startTime}</span>}
-                  <span className="font-medium text-slate-900">{item.title}</span>
-                  {stopName(item.stopId) && (
-                    <span className="text-xs text-slate-400">@ {stopName(item.stopId)}</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => remove.mutate(item.id)}
-                  className="text-sm text-slate-400 hover:text-red-600"
-                  aria-label={`Remove ${item.title}`}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      <NewItemForm tripId={tripId} stops={stops} />
-    </div>
-  )
-}
 
 function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
   const queryClient = useQueryClient()

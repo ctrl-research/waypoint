@@ -213,6 +213,38 @@ func TestTripsAPI(t *testing.T) {
 		}
 	})
 
+	t.Run("items reorder within a day", func(t *testing.T) {
+		var ids []string
+		for _, title := range []string{"Breakfast", "Museum"} {
+			code, it := call(t, h, alice, "POST", tripPath+"/items",
+				fmt.Sprintf(`{"title":%q,"day":"2027-03-26"}`, title))
+			if code != 201 {
+				t.Fatalf("create %s: code = %d", title, code)
+			}
+			ids = append(ids, it["id"].(string))
+		}
+		body := fmt.Sprintf(`{"day":"2027-03-26","ids":[%q,%q]}`, ids[1], ids[0])
+		if code, _ := call(t, h, alice, "PUT", tripPath+"/items/order", body); code != 204 {
+			t.Fatalf("reorder items: code = %d, want 204", code)
+		}
+		_, detail := call(t, h, alice, "GET", tripPath, "")
+		var day26 []string
+		for _, raw := range detail["items"].([]any) {
+			it := raw.(map[string]any)
+			if it["day"] == "2027-03-26" {
+				day26 = append(day26, it["title"].(string))
+			}
+		}
+		if len(day26) != 2 || day26[0] != "Museum" {
+			t.Fatalf("day order after reorder = %v", day26)
+		}
+		// Wrong day for those ids → 400.
+		wrongDay := fmt.Sprintf(`{"day":"2027-03-25","ids":[%q,%q]}`, ids[0], ids[1])
+		if code, _ := call(t, h, alice, "PUT", tripPath+"/items/order", wrongDay); code != 400 {
+			t.Fatalf("reorder wrong day: code = %d, want 400", code)
+		}
+	})
+
 	t.Run("delete cascades", func(t *testing.T) {
 		if code, _ := call(t, h, alice, "DELETE", tripPath, ""); code != 204 {
 			t.Fatalf("delete trip: code = %d", code)
