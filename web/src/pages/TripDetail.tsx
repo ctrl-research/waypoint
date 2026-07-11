@@ -19,6 +19,7 @@ import {
 } from '../api'
 import { formatRange, statusStyles } from './Home'
 import { ItineraryBoard, categoryIcons } from './ItineraryBoard'
+import { JournalTimeline } from './Journal'
 
 // MapLibre is ~1MB minified; load it only when a trip page renders.
 const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
@@ -100,6 +101,8 @@ export function TripDetailPage() {
           </div>
         </section>
       </div>
+
+      <JournalTimeline tripId={trip.id} items={items} stops={stops} />
     </div>
   )
 }

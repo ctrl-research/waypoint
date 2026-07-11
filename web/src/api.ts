@@ -217,3 +217,84 @@ export function updateStop(tripId: string, stopId: string, input: StopInput): Pr
     body: JSON.stringify(input),
   })
 }
+
+// ---- journal -------------------------------------------------------------------
+
+export type JournalPhoto = {
+  id: string
+  url: string
+  contentType: string
+  takenAt: string | null
+  lat: number | null
+  lon: number | null
+  caption: string
+}
+
+export type JournalEntry = {
+  id: string
+  entryDate: string
+  title: string
+  body: string
+  lat: number | null
+  lon: number | null
+  createdAt: string
+  updatedAt: string
+  photos: JournalPhoto[]
+}
+
+export type JournalEntryInput = Partial<{
+  entryDate: string
+  title: string
+  body: string
+  lat: number
+  lon: number
+  clearLatLon: boolean
+}>
+
+export async function listJournal(tripId: string): Promise<JournalEntry[]> {
+  const body = await requestJSON<{ entries: JournalEntry[] }>(`/api/v1/trips/${tripId}/journal`)
+  return body.entries
+}
+
+export function createJournalEntry(tripId: string, input: JournalEntryInput): Promise<JournalEntry> {
+  return requestJSON(`/api/v1/trips/${tripId}/journal`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateJournalEntry(
+  tripId: string,
+  entryId: string,
+  input: JournalEntryInput,
+): Promise<JournalEntry> {
+  return requestJSON(`/api/v1/trips/${tripId}/journal/${entryId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteJournalEntry(tripId: string, entryId: string): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/journal/${entryId}`, { method: 'DELETE' })
+}
+
+export async function uploadJournalPhoto(
+  tripId: string,
+  entryId: string,
+  file: File,
+  caption: string,
+): Promise<JournalPhoto> {
+  const form = new FormData()
+  form.append('photo', file)
+  form.append('caption', caption)
+  const res = await fetch(`/api/v1/trips/${tripId}/journal/${entryId}/photos`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) await throwApiError(res)
+  return res.json()
+}
+
+export function deleteJournalPhoto(tripId: string, photoId: string): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/photos/${photoId}`, { method: 'DELETE' })
+}
