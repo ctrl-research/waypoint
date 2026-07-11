@@ -1,4 +1,6 @@
-package store
+// Package storetest provides a real-Postgres pool for store-layer tests,
+// per the convention in docs/ARCHITECTURE.md (no database mocks).
+package storetest
 
 import (
 	"context"
@@ -14,11 +16,11 @@ import (
 	"github.com/ctrl-research/waypoint/migrations"
 )
 
-// testPool connects to WAYPOINT_TEST_DATABASE_URL, creating the database and
+// Pool connects to WAYPOINT_TEST_DATABASE_URL, creating the database and
 // applying migrations if needed, and truncates all tables so each test starts
 // clean. Tests are skipped when the variable is unset (e.g. `go test` without
 // a local postgres). CI and `make test-db` set it.
-func testPool(t *testing.T) *pgxpool.Pool {
+func Pool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
 	dbURL := os.Getenv("WAYPOINT_TEST_DATABASE_URL")

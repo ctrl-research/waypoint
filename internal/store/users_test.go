@@ -6,12 +6,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/ctrl-research/waypoint/internal/store/storetest"
 )
 
 func strPtr(s string) *string { return &s }
 
 func TestUsers(t *testing.T) {
-	pool := testPool(t)
+	pool := storetest.Pool(t)
 	users := NewUsers(pool)
 	ctx := context.Background()
 

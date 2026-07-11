@@ -13,8 +13,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/ctrl-research/waypoint/internal/auth"
 	"github.com/ctrl-research/waypoint/internal/config"
 	"github.com/ctrl-research/waypoint/internal/server"
+	"github.com/ctrl-research/waypoint/internal/store"
 	"github.com/ctrl-research/waypoint/migrations"
 )
 
@@ -48,9 +50,22 @@ func run() error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
+	authSvc, err := auth.NewService(ctx, store.NewUsers(pool), store.NewSessions(pool), auth.Options{
+		BaseURL:            cfg.BaseURL,
+		GoogleClientID:     cfg.GoogleClientID,
+		GoogleClientSecret: cfg.GoogleClientSecret,
+	})
+	if err != nil {
+		return fmt.Errorf("auth: %w", err)
+	}
+	if !cfg.GoogleEnabled() {
+		slog.Warn("google sign-in not configured (set WAYPOINT_GOOGLE_CLIENT_ID/SECRET)")
+	}
+	go authSvc.GCLoop(ctx)
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(pool),
+		Handler:           server.New(pool, authSvc),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
