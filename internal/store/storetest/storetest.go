@@ -1,10 +1,15 @@
-package store
+// Package storetest provides a real-Postgres pool for store-layer tests,
+// per the convention in docs/ARCHITECTURE.md (no database mocks).
+package storetest
 
 import (
 	"context"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -14,17 +19,22 @@ import (
 	"github.com/ctrl-research/waypoint/migrations"
 )
 
-// testPool connects to WAYPOINT_TEST_DATABASE_URL, creating the database and
+// Pool connects to WAYPOINT_TEST_DATABASE_URL, creating the database and
 // applying migrations if needed, and truncates all tables so each test starts
 // clean. Tests are skipped when the variable is unset (e.g. `go test` without
 // a local postgres). CI and `make test-db` set it.
-func testPool(t *testing.T) *pgxpool.Pool {
+//
+// Each calling package gets its own database (waypoint_<pkg>_test): `go test
+// ./...` runs package test binaries in parallel, and a shared database would
+// race on migrations and truncate other packages' rows mid-test.
+func Pool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
 	dbURL := os.Getenv("WAYPOINT_TEST_DATABASE_URL")
 	if dbURL == "" {
 		t.Skip("WAYPOINT_TEST_DATABASE_URL not set; skipping postgres-backed tests")
 	}
+	dbURL = perPackageURL(t, dbURL)
 
 	ctx := context.Background()
 	ensureDatabase(t, ctx, dbURL)
@@ -43,6 +53,29 @@ func testPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("truncate: %v", err)
 	}
 	return pool
+}
+
+var pkgNameRe = regexp.MustCompile(`[^a-z0-9_]+`)
+
+// perPackageURL rewrites the database name in dbURL to include the calling
+// test package's directory name, e.g. waypoint_test -> waypoint_store_test.
+func perPackageURL(t *testing.T, dbURL string) string {
+	t.Helper()
+
+	// Caller(0) = this func, 1 = Pool, 2 = the test function's file.
+	_, file, _, ok := runtime.Caller(2)
+	if !ok {
+		t.Fatal("cannot determine calling package")
+	}
+	pkg := pkgNameRe.ReplaceAllString(strings.ToLower(filepath.Base(filepath.Dir(file))), "_")
+
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		t.Fatalf("parse WAYPOINT_TEST_DATABASE_URL: %v", err)
+	}
+	name := strings.TrimPrefix(u.Path, "/")
+	u.Path = "/" + strings.TrimSuffix(name, "_test") + "_" + pkg + "_test"
+	return u.String()
 }
 
 // ensureDatabase creates the target database if it does not exist, by

@@ -80,6 +80,16 @@ func (s *Users) UpdateProfile(ctx context.Context, id uuid.UUID, displayName str
 		id, displayName, avatarURL))
 }
 
+// LinkGoogle attaches a Google identity to an existing account (matched by
+// email at sign-in) and refreshes the profile fields Google reports.
+func (s *Users) LinkGoogle(ctx context.Context, id uuid.UUID, googleSub string, displayName string, avatarURL *string) (User, error) {
+	return scanUser(s.pool.QueryRow(ctx, `
+		UPDATE users SET google_sub = $2, display_name = $3, avatar_url = $4
+		WHERE id = $1
+		RETURNING `+userColumns,
+		id, googleSub, displayName, avatarURL))
+}
+
 func (s *Users) Count(ctx context.Context) (int64, error) {
 	var n int64
 	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM users`).Scan(&n)

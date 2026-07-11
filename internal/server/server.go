@@ -10,17 +10,20 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/ctrl-research/waypoint/internal/auth"
 	"github.com/ctrl-research/waypoint/internal/webui"
 )
 
-func New(pool *pgxpool.Pool) http.Handler {
+func New(pool *pgxpool.Pool, authSvc *auth.Service) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", handleHealthz(pool))
 	mux.HandleFunc("GET /api/v1/ping", handlePing)
+	mux.Handle("GET /api/v1/me", auth.RequireUser(http.HandlerFunc(handleMe)))
+	authSvc.Routes(mux)
 	mux.Handle("/", webui.Handler())
 
-	return logRequests(mux)
+	return logRequests(authSvc.WithUser(mux))
 }
 
 func handleHealthz(pool *pgxpool.Pool) http.HandlerFunc {
@@ -37,6 +40,17 @@ func handleHealthz(pool *pgxpool.Pool) http.HandlerFunc {
 
 func handlePing(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "pong"})
+}
+
+func handleMe(w http.ResponseWriter, r *http.Request) {
+	user, _ := auth.UserFrom(r.Context())
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":          user.ID,
+		"email":       user.Email,
+		"displayName": user.DisplayName,
+		"avatarUrl":   user.AvatarURL,
+		"isAdmin":     user.IsAdmin,
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
