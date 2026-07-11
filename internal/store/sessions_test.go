@@ -6,6 +6,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/ctrl-research/waypoint/internal/store/storetest"
 )
 
 func tokenHash(s string) []byte {
@@ -14,7 +16,7 @@ func tokenHash(s string) []byte {
 }
 
 func TestSessions(t *testing.T) {
-	pool := testPool(t)
+	pool := storetest.Pool(t)
 	users := NewUsers(pool)
 	sessions := NewSessions(pool)
 	ctx := context.Background()
