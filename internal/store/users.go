@@ -90,6 +90,14 @@ func (s *Users) LinkGoogle(ctx context.Context, id uuid.UUID, googleSub string, 
 		id, googleSub, displayName, avatarURL))
 }
 
+// SetPassword replaces the user's password hash (used by the seed command).
+func (s *Users) SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) (User, error) {
+	return scanUser(s.pool.QueryRow(ctx, `
+		UPDATE users SET password_hash = $2 WHERE id = $1
+		RETURNING `+userColumns,
+		id, passwordHash))
+}
+
 func (s *Users) Count(ctx context.Context) (int64, error) {
 	var n int64
 	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM users`).Scan(&n)

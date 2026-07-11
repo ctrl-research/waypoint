@@ -1,4 +1,4 @@
-.PHONY: db run web test test-db build docker clean
+.PHONY: db run web seed test test-db build docker clean
 
 # Start postgres only (for local development)
 db:
@@ -8,6 +8,12 @@ db:
 run:
 	WAYPOINT_DATABASE_URL=$${WAYPOINT_DATABASE_URL:-postgres://waypoint:waypoint@localhost:5432/waypoint?sslmode=disable} \
 		go run ./cmd/server
+
+# Create/reset the local dev user (dev@waypoint.local / waypoint-dev).
+# Sign in with it by running the server with WAYPOINT_LOCAL_AUTH=true.
+seed:
+	WAYPOINT_DATABASE_URL=$${WAYPOINT_DATABASE_URL:-postgres://waypoint:waypoint@localhost:5432/waypoint?sslmode=disable} \
+		go run ./cmd/server seed
 
 # Vite dev server on :5173, proxying /api and /auth to :8080
 web:

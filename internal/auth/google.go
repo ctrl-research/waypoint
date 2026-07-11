@@ -116,6 +116,10 @@ func (s *Service) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := s.upsertGoogleUser(r.Context(), idToken.Subject, claims.Email, claims.Name, claims.Picture)
+	if errors.Is(err, ErrEmailNotAllowed) {
+		http.Error(w, "this Waypoint instance does not allow sign-ups for "+claims.Email, http.StatusForbidden)
+		return
+	}
 	if err != nil {
 		slog.Error("upsert google user", "err", err)
 		http.Error(w, "sign-in failed", http.StatusInternalServerError)
@@ -129,9 +133,13 @@ func (s *Service) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
+// ErrEmailNotAllowed is returned when a new sign-up is not on the allowlist.
+var ErrEmailNotAllowed = errors.New("email not allowed to sign up")
+
 // upsertGoogleUser finds the user by Google subject, links an existing
 // account with the same email, or creates a new user. The first user on the
-// instance becomes admin (sign-up restrictions beyond that are #4).
+// instance becomes admin; after that, new sign-ups must be on the
+// WAYPOINT_ALLOWED_EMAILS allowlist (existing users always sign in).
 func (s *Service) upsertGoogleUser(ctx context.Context, sub, email, name string, picture string) (store.User, error) {
 	var avatar *string
 	if picture != "" {
@@ -155,6 +163,9 @@ func (s *Service) upsertGoogleUser(ctx context.Context, sub, email, name string,
 	count, err := s.users.Count(ctx)
 	if err != nil {
 		return store.User{}, err
+	}
+	if count > 0 && !s.emailAllowed(email) {
+		return store.User{}, ErrEmailNotAllowed
 	}
 	return s.users.Create(ctx, store.CreateUserParams{
 		Email:       email,
