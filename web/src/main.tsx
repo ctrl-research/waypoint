@@ -12,6 +12,7 @@ import { Shell } from './Shell'
 import { HomePage } from './pages/Home'
 import { LoginPage } from './pages/Login'
 import { TripDetailPage } from './pages/TripDetail'
+import { PublicTripPage } from './pages/PublicTrip'
 
 const rootRoute = createRootRoute({ component: Shell })
 
@@ -33,7 +34,13 @@ const tripRoute = createRoute({
   component: TripDetailPage,
 })
 
-const router = createRouter({ routeTree: rootRoute.addChildren([indexRoute, loginRoute, tripRoute]) })
+const shareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/share/$token',
+  component: PublicTripPage,
+})
+
+const router = createRouter({ routeTree: rootRoute.addChildren([indexRoute, loginRoute, tripRoute, shareRoute]) })
 
 declare module '@tanstack/react-router' {
   interface Register {

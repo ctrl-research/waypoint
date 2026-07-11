@@ -332,3 +332,37 @@ export function addMember(
 export function removeMember(tripId: string, userId: string): Promise<void> {
   return requestJSON(`/api/v1/trips/${tripId}/members/${userId}`, { method: 'DELETE' })
 }
+
+// ---- share links ----------------------------------------------------------------
+
+export type ShareLink = {
+  id: string
+  token: string
+  url: string
+  createdAt: string
+}
+
+export async function listShares(tripId: string): Promise<ShareLink[]> {
+  const body = await requestJSON<{ shares: ShareLink[] }>(`/api/v1/trips/${tripId}/shares`)
+  return body.shares
+}
+
+export function createShare(tripId: string): Promise<ShareLink> {
+  return requestJSON(`/api/v1/trips/${tripId}/shares`, { method: 'POST' })
+}
+
+export function revokeShare(tripId: string, shareId: string): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/shares/${shareId}`, { method: 'DELETE' })
+}
+
+export type PublicTripPayload = {
+  trip: Trip
+  stops: Stop[]
+  items: ItineraryItem[]
+  entries: JournalEntry[]
+  tileUrl: string
+}
+
+export function fetchPublicTrip(token: string): Promise<PublicTripPayload> {
+  return requestJSON(`/api/v1/public/${token}`)
+}

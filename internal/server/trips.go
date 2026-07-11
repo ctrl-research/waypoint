@@ -18,9 +18,10 @@ import (
 // the journal. Trips are visible to their owner only until sharing lands
 // (M6, #23).
 type tripsAPI struct {
-	trips  *store.Trips
-	users  *store.Users
-	photos *photos.Store
+	trips   *store.Trips
+	users   *store.Users
+	photos  *photos.Store
+	tileURL string
 }
 
 func (api *tripsAPI) routes(mux *http.ServeMux) {
@@ -53,6 +54,14 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/trips/{tripID}/members", protected(api.listMembers))
 	mux.Handle("POST /api/v1/trips/{tripID}/members", protected(api.addMember))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/members/{userID}", protected(api.removeMember))
+
+	mux.Handle("GET /api/v1/trips/{tripID}/shares", protected(api.listShares))
+	mux.Handle("POST /api/v1/trips/{tripID}/shares", protected(api.createShare))
+	mux.Handle("DELETE /api/v1/trips/{tripID}/shares/{shareID}", protected(api.revokeShare))
+
+	// Public, token-scoped read-only access — deliberately NOT session-guarded.
+	mux.HandleFunc("GET /api/v1/public/{token}", api.servePublicTrip)
+	mux.HandleFunc("GET /api/v1/public/{token}/photos/{photoID}", api.servePublicPhoto)
 }
 
 // ---- JSON shapes ----------------------------------------------------------

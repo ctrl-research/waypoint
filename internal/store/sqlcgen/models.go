@@ -190,6 +190,13 @@ type Session struct {
 	LastSeenAt time.Time
 }
 
+type ShareLink struct {
+	ID        uuid.UUID
+	TripID    uuid.UUID
+	Token     string
+	CreatedAt time.Time
+}
+
 type Stop struct {
 	ID            uuid.UUID
 	TripID        uuid.UUID

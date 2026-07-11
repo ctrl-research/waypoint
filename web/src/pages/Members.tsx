@@ -3,9 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ApiError,
   addMember,
+  createShare,
   fetchMe,
   listMembers,
+  listShares,
   removeMember,
+  revokeShare,
   type TripRole,
 } from '../api'
 
@@ -126,6 +129,74 @@ export function MembersSection({ tripId, role }: { tripId: string; role: TripRol
             {add.error instanceof ApiError ? add.error.message : 'Could not add member'}
           </p>
         )}
+      </div>
+    </section>
+  )
+}
+
+/** ShareSection (owner only): create, copy, and revoke public read-only
+ * links to this trip (#24). */
+export function ShareSection({ tripId }: { tripId: string }) {
+  const queryClient = useQueryClient()
+  const shares = useQuery({ queryKey: ['shares', tripId], queryFn: () => listShares(tripId) })
+  const [copied, setCopied] = useState<string | null>(null)
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['shares', tripId] })
+
+  const create = useMutation({ mutationFn: () => createShare(tripId), onSuccess: invalidate })
+  const revoke = useMutation({
+    mutationFn: (shareId: string) => revokeShare(tripId, shareId),
+    onSuccess: invalidate,
+  })
+
+  const copy = async (url: string) => {
+    await navigator.clipboard.writeText(window.location.origin + url)
+    setCopied(url)
+    window.setTimeout(() => setCopied(null), 2000)
+  }
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-lg font-semibold text-slate-900">Public link</h2>
+      <p className="text-sm text-slate-500">
+        Anyone with a link can view this trip read-only — no account needed. Revoke it any time.
+      </p>
+
+      <div className="mt-4 space-y-2">
+        {shares.data?.map((share) => (
+          <div
+            key={share.id}
+            className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5"
+          >
+            <code className="truncate text-xs text-slate-500">
+              {window.location.origin}
+              {share.url}
+            </code>
+            <div className="flex shrink-0 gap-2 text-sm">
+              <button
+                type="button"
+                onClick={() => copy(share.url)}
+                className="text-slate-500 hover:text-slate-900"
+              >
+                {copied === share.url ? 'Copied!' : 'Copy'}
+              </button>
+              <button
+                type="button"
+                onClick={() => revoke.mutate(share.id)}
+                className="text-slate-400 hover:text-red-600"
+              >
+                Revoke
+              </button>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => create.mutate()}
+          disabled={create.isPending}
+          className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+        >
+          {shares.data?.length ? 'Create another link' : 'Create share link'}
+        </button>
       </div>
     </section>
   )

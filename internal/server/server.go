@@ -34,9 +34,10 @@ func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Op
 	mux.Handle("GET /api/v1/geocode", auth.RequireUser(handleGeocode(geo)))
 	mux.Handle("GET /api/v1/config", auth.RequireUser(handleConfig(opts)))
 	(&tripsAPI{
-		trips:  store.NewTrips(pool),
-		users:  store.NewUsers(pool),
-		photos: photos.NewStore(opts.DataDir),
+		trips:   store.NewTrips(pool),
+		users:   store.NewUsers(pool),
+		photos:  photos.NewStore(opts.DataDir),
+		tileURL: opts.TileURL,
 	}).routes(mux)
 	authSvc.Routes(mux)
 	mux.Handle("/", webui.Handler())
