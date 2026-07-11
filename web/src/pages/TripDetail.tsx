@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useParams } from '@tanstack/react-router'
 import {
@@ -10,6 +10,7 @@ import {
   fetchMe,
   geocode,
   getTrip,
+  updateStop,
   updateTrip,
   type ItineraryCategory,
   type Stop,
@@ -19,14 +20,29 @@ import {
 import { formatRange, statusStyles } from './Home'
 import { ItineraryBoard, categoryIcons } from './ItineraryBoard'
 
+// MapLibre is ~1MB minified; load it only when a trip page renders.
+const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
+
 
 export function TripDetailPage() {
   const { tripId } = useParams({ from: '/trips/$tripId' })
   const { data: me, isLoading: meLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
+  const queryClient = useQueryClient()
   const detail = useQuery({
     queryKey: ['trip', tripId],
     queryFn: () => getTrip(tripId),
     enabled: !!me,
+  })
+
+  // Stop currently being placed via map click (#14).
+  const [pickingStop, setPickingStop] = useState<string | null>(null)
+  const placeStop = useMutation({
+    mutationFn: ({ stopId, lat, lon }: { stopId: string; lat: number; lon: number }) =>
+      updateStop(tripId, stopId, { lat, lon }),
+    onSuccess: async () => {
+      setPickingStop(null)
+      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
+    },
   })
 
   if (meLoading) return null
@@ -49,11 +65,30 @@ export function TripDetailPage() {
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
       <TripHeader tripId={tripId} />
 
+      <div className="mt-6">
+        <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 bg-slate-50" />}>
+          <TripMap
+            stops={stops}
+            picking={pickingStop !== null}
+            onPick={(lat, lon) => {
+              if (pickingStop) placeStop.mutate({ stopId: pickingStop, lat, lon })
+            }}
+          />
+        </Suspense>
+      </div>
+
       <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
         <section>
           <h2 className="text-lg font-semibold text-slate-900">Stops</h2>
-          <p className="text-sm text-slate-500">The places this trip visits, in order.</p>
-          <StopsSection tripId={trip.id} stops={stops} />
+          <p className="text-sm text-slate-500">
+            The places this trip visits, in order. Use 📍 to place a stop by clicking the map.
+          </p>
+          <StopsSection
+            tripId={trip.id}
+            stops={stops}
+            pickingStop={pickingStop}
+            onTogglePick={(stopId) => setPickingStop((cur) => (cur === stopId ? null : stopId))}
+          />
         </section>
 
         <section>
@@ -249,7 +284,17 @@ function EditTripForm({
   )
 }
 
-function StopsSection({ tripId, stops }: { tripId: string; stops: Stop[] }) {
+function StopsSection({
+  tripId,
+  stops,
+  pickingStop,
+  onTogglePick,
+}: {
+  tripId: string
+  stops: Stop[]
+  pickingStop: string | null
+  onTogglePick: (stopId: string) => void
+}) {
   const queryClient = useQueryClient()
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
 
@@ -280,14 +325,37 @@ function StopsSection({ tripId, stops }: { tripId: string; stops: Stop[] }) {
               )}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => remove.mutate(stop.id)}
-            className="text-sm text-slate-400 hover:text-red-600"
-            aria-label={`Remove ${stop.name}`}
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onTogglePick(stop.id)}
+              className={`rounded px-1 text-sm ${
+                pickingStop === stop.id
+                  ? 'bg-slate-900 text-white'
+                  : stop.lat === null
+                    ? 'text-amber-500 hover:text-slate-900'
+                    : 'text-slate-300 hover:text-slate-900'
+              }`}
+              title={
+                pickingStop === stop.id
+                  ? 'Cancel placing'
+                  : stop.lat === null
+                    ? `Place ${stop.name} on the map (no location yet)`
+                    : `Move ${stop.name} on the map`
+              }
+              aria-label={`Place ${stop.name} on the map`}
+            >
+              📍
+            </button>
+            <button
+              type="button"
+              onClick={() => remove.mutate(stop.id)}
+              className="px-1 text-sm text-slate-400 hover:text-red-600"
+              aria-label={`Remove ${stop.name}`}
+            >
+              ✕
+            </button>
+          </div>
         </div>
       ))}
 

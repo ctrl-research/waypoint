@@ -30,6 +30,10 @@ type Config struct {
 	// the public OSM instance; self-hosters with heavy usage should point
 	// this at their own.
 	NominatimURL string
+	// TileURL is the raster tile URL template ({z}/{x}/{y}) for map views.
+	// Defaults to OpenStreetMap; point it at your own tile server or a
+	// commercial provider for heavier usage.
+	TileURL string
 }
 
 // GoogleEnabled reports whether Google sign-in is configured.
@@ -47,6 +51,7 @@ func Load() (Config, error) {
 		LocalAuth:          os.Getenv("WAYPOINT_LOCAL_AUTH") == "true",
 		AllowedEmails:      splitList(os.Getenv("WAYPOINT_ALLOWED_EMAILS")),
 		NominatimURL:       strings.TrimSuffix(getenv("WAYPOINT_NOMINATIM_URL", "https://nominatim.openstreetmap.org"), "/"),
+		TileURL:            getenv("WAYPOINT_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("WAYPOINT_DATABASE_URL is required")

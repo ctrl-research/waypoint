@@ -16,18 +16,33 @@ import (
 	"github.com/ctrl-research/waypoint/internal/webui"
 )
 
-func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client) http.Handler {
+// Options carries instance configuration the frontend needs at runtime.
+type Options struct {
+	// TileURL is the raster tile URL template exposed to map views.
+	TileURL string
+}
+
+func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Options) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", handleHealthz(pool))
 	mux.HandleFunc("GET /api/v1/ping", handlePing)
 	mux.Handle("GET /api/v1/me", auth.RequireUser(http.HandlerFunc(handleMe)))
 	mux.Handle("GET /api/v1/geocode", auth.RequireUser(handleGeocode(geo)))
+	mux.Handle("GET /api/v1/config", auth.RequireUser(handleConfig(opts)))
 	(&tripsAPI{trips: store.NewTrips(pool)}).routes(mux)
 	authSvc.Routes(mux)
 	mux.Handle("/", webui.Handler())
 
 	return logRequests(authSvc.WithUser(mux))
+}
+
+// handleConfig exposes instance settings the SPA needs (currently the map
+// tile template).
+func handleConfig(opts Options) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"tileUrl": opts.TileURL})
+	}
 }
 
 func handleHealthz(pool *pgxpool.Pool) http.HandlerFunc {

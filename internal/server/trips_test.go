@@ -44,7 +44,7 @@ func setup(t *testing.T) (http.Handler, *http.Cookie, *http.Cookie) {
 		return &http.Cookie{Name: "waypoint_session", Value: token}
 	}
 
-	return New(pool, authSvc, geocode.New("http://unused.invalid")),
+	return New(pool, authSvc, geocode.New("http://unused.invalid"), Options{TileURL: "https://tiles.test/{z}/{x}/{y}.png"}),
 		cookieFor("alice@example.com", "tok-alice"), cookieFor("bob@example.com", "tok-bob")
 }
 
@@ -69,6 +69,16 @@ func call(t *testing.T, h http.Handler, cookie *http.Cookie, method, path, body 
 
 func TestTripsAPI(t *testing.T) {
 	h, alice, bob := setup(t)
+
+	t.Run("config exposes tile url", func(t *testing.T) {
+		code, cfg := call(t, h, alice, "GET", "/api/v1/config", "")
+		if code != 200 || cfg["tileUrl"] != "https://tiles.test/{z}/{x}/{y}.png" {
+			t.Fatalf("config: code = %d %v", code, cfg)
+		}
+		if code, _ := call(t, h, nil, "GET", "/api/v1/config", ""); code != 401 {
+			t.Fatalf("unauthenticated config: code = %d, want 401", code)
+		}
+	})
 
 	t.Run("requires auth", func(t *testing.T) {
 		if code, _ := call(t, h, nil, "GET", "/api/v1/trips", ""); code != 401 {
