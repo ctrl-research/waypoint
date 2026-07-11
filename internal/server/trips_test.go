@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/geocode"
 	"github.com/ctrl-research/waypoint/internal/store"
 	"github.com/ctrl-research/waypoint/internal/store/storetest"
 )
@@ -43,7 +44,8 @@ func setup(t *testing.T) (http.Handler, *http.Cookie, *http.Cookie) {
 		return &http.Cookie{Name: "waypoint_session", Value: token}
 	}
 
-	return New(pool, authSvc), cookieFor("alice@example.com", "tok-alice"), cookieFor("bob@example.com", "tok-bob")
+	return New(pool, authSvc, geocode.New("http://unused.invalid")),
+		cookieFor("alice@example.com", "tok-alice"), cookieFor("bob@example.com", "tok-bob")
 }
 
 // call sends a JSON request and decodes the JSON response (nil for 204s).
@@ -208,6 +210,38 @@ func TestTripsAPI(t *testing.T) {
 		_, detail := call(t, h, alice, "GET", tripPath, "")
 		if len(detail["stops"].([]any)) != 3 || len(detail["items"].([]any)) != 1 {
 			t.Fatalf("detail: %d stops, %d items", len(detail["stops"].([]any)), len(detail["items"].([]any)))
+		}
+	})
+
+	t.Run("items reorder within a day", func(t *testing.T) {
+		var ids []string
+		for _, title := range []string{"Breakfast", "Museum"} {
+			code, it := call(t, h, alice, "POST", tripPath+"/items",
+				fmt.Sprintf(`{"title":%q,"day":"2027-03-26"}`, title))
+			if code != 201 {
+				t.Fatalf("create %s: code = %d", title, code)
+			}
+			ids = append(ids, it["id"].(string))
+		}
+		body := fmt.Sprintf(`{"day":"2027-03-26","ids":[%q,%q]}`, ids[1], ids[0])
+		if code, _ := call(t, h, alice, "PUT", tripPath+"/items/order", body); code != 204 {
+			t.Fatalf("reorder items: code = %d, want 204", code)
+		}
+		_, detail := call(t, h, alice, "GET", tripPath, "")
+		var day26 []string
+		for _, raw := range detail["items"].([]any) {
+			it := raw.(map[string]any)
+			if it["day"] == "2027-03-26" {
+				day26 = append(day26, it["title"].(string))
+			}
+		}
+		if len(day26) != 2 || day26[0] != "Museum" {
+			t.Fatalf("day order after reorder = %v", day26)
+		}
+		// Wrong day for those ids → 400.
+		wrongDay := fmt.Sprintf(`{"day":"2027-03-25","ids":[%q,%q]}`, ids[0], ids[1])
+		if code, _ := call(t, h, alice, "PUT", tripPath+"/items/order", wrongDay); code != 400 {
+			t.Fatalf("reorder wrong day: code = %d, want 400", code)
 		}
 	})
 

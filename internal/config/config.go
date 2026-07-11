@@ -26,6 +26,10 @@ type Config struct {
 	// AllowedEmails restricts who may sign up beyond the first user. Empty
 	// means the instance is closed after the first sign-in.
 	AllowedEmails []string
+	// NominatimURL is the geocoding endpoint for place search. Defaults to
+	// the public OSM instance; self-hosters with heavy usage should point
+	// this at their own.
+	NominatimURL string
 }
 
 // GoogleEnabled reports whether Google sign-in is configured.
@@ -42,6 +46,7 @@ func Load() (Config, error) {
 		GoogleClientSecret: os.Getenv("WAYPOINT_GOOGLE_CLIENT_SECRET"),
 		LocalAuth:          os.Getenv("WAYPOINT_LOCAL_AUTH") == "true",
 		AllowedEmails:      splitList(os.Getenv("WAYPOINT_ALLOWED_EMAILS")),
+		NominatimURL:       strings.TrimSuffix(getenv("WAYPOINT_NOMINATIM_URL", "https://nominatim.openstreetmap.org"), "/"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("WAYPOINT_DATABASE_URL is required")

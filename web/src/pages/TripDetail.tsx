@@ -1,30 +1,24 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useParams } from '@tanstack/react-router'
 import {
   ApiError,
   createItem,
   createStop,
-  deleteItem,
   deleteStop,
   deleteTrip,
   fetchMe,
+  geocode,
   getTrip,
   updateTrip,
   type ItineraryCategory,
-  type ItineraryItem,
   type Stop,
+  type StopInput,
   type TripStatus,
 } from '../api'
 import { formatRange, statusStyles } from './Home'
+import { ItineraryBoard, categoryIcons } from './ItineraryBoard'
 
-const categoryIcons: Record<ItineraryCategory, string> = {
-  activity: '🎟️',
-  food: '🍜',
-  lodging: '🛏️',
-  transport: '🚆',
-  other: '📌',
-}
 
 export function TripDetailPage() {
   const { tripId } = useParams({ from: '/trips/$tripId' })
@@ -64,8 +58,11 @@ export function TripDetailPage() {
 
         <section>
           <h2 className="text-lg font-semibold text-slate-900">Itinerary</h2>
-          <p className="text-sm text-slate-500">Day by day. Reordering arrives with the board (#10).</p>
-          <ItinerarySection tripId={trip.id} items={items} stops={stops} />
+          <p className="text-sm text-slate-500">Day by day — drag items to reorder or move days.</p>
+          <ItineraryBoard trip={trip} items={items} stops={stops} />
+          <div className="mt-4">
+            <NewItemForm tripId={trip.id} stops={stops} />
+          </div>
         </section>
       </div>
     </div>
@@ -254,15 +251,11 @@ function EditTripForm({
 
 function StopsSection({ tripId, stops }: { tripId: string; stops: Stop[] }) {
   const queryClient = useQueryClient()
-  const [name, setName] = useState('')
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
 
   const add = useMutation({
-    mutationFn: () => createStop(tripId, { name }),
-    onSuccess: async () => {
-      setName('')
-      await invalidate()
-    },
+    mutationFn: (input: StopInput) => createStop(tripId, input),
+    onSuccess: invalidate,
   })
   const remove = useMutation({
     mutationFn: (stopId: string) => deleteStop(tripId, stopId),
@@ -298,27 +291,7 @@ function StopsSection({ tripId, stops }: { tripId: string; stops: Stop[] }) {
         </div>
       ))}
 
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (name.trim()) add.mutate()
-        }}
-      >
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Add a stop (e.g. Kyoto)"
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={add.isPending || !name.trim()}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-        >
-          Add
-        </button>
-      </form>
+      <StopSearch pending={add.isPending} onAdd={(input) => add.mutate(input)} />
       {add.error && (
         <p className="text-sm text-red-600">
           {add.error instanceof ApiError ? add.error.message : 'Could not add stop'}
@@ -328,71 +301,92 @@ function StopsSection({ tripId, stops }: { tripId: string; stops: Stop[] }) {
   )
 }
 
-function ItinerarySection({
-  tripId,
-  items,
-  stops,
-}: {
-  tripId: string
-  items: ItineraryItem[]
-  stops: Stop[]
-}) {
-  const queryClient = useQueryClient()
-  const stopName = (id: string | null) => stops.find((s) => s.id === id)?.name
+// StopSearch is a geocoding autocomplete: picking a result adds the stop
+// with coordinates; submitting free text adds it without (pick-on-map is #14).
+function StopSearch({ pending, onAdd }: { pending: boolean; onAdd: (input: StopInput) => void }) {
+  const [query, setQuery] = useState('')
+  const [debounced, setDebounced] = useState('')
+  const [open, setOpen] = useState(false)
 
-  const byDay = new Map<string, ItineraryItem[]>()
-  for (const item of items) {
-    byDay.set(item.day, [...(byDay.get(item.day) ?? []), item])
-  }
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(query.trim()), 400)
+    return () => window.clearTimeout(id)
+  }, [query])
 
-  const remove = useMutation({
-    mutationFn: (itemId: string) => deleteItem(tripId, itemId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] }),
+  const results = useQuery({
+    queryKey: ['geocode', debounced],
+    queryFn: () => geocode(debounced),
+    enabled: debounced.length >= 2,
+    staleTime: 5 * 60 * 1000,
   })
 
-  return (
-    <div className="mt-4 space-y-4">
-      {[...byDay.entries()].map(([day, dayItems]) => (
-        <div key={day}>
-          <h3 className="text-sm font-semibold text-slate-700">
-            {new Date(day + 'T00:00:00').toLocaleDateString(undefined, {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-            })}
-          </h3>
-          <div className="mt-1 space-y-1">
-            {dayItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2"
-              >
-                <div className="flex items-center gap-2 text-sm">
-                  <span>{categoryIcons[item.category]}</span>
-                  {item.startTime && <span className="tabular-nums text-slate-500">{item.startTime}</span>}
-                  <span className="font-medium text-slate-900">{item.title}</span>
-                  {stopName(item.stopId) && (
-                    <span className="text-xs text-slate-400">@ {stopName(item.stopId)}</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => remove.mutate(item.id)}
-                  className="text-sm text-slate-400 hover:text-red-600"
-                  aria-label={`Remove ${item.title}`}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+  const pick = (input: StopInput) => {
+    onAdd(input)
+    setQuery('')
+    setOpen(false)
+  }
 
-      <NewItemForm tripId={tripId} stops={stops} />
+  return (
+    <div className="relative">
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (query.trim()) pick({ name: query.trim() })
+        }}
+      >
+        <input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+          placeholder="Search for a place (e.g. Kyoto)"
+          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={pending || !query.trim()}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          Add
+        </button>
+      </form>
+
+      {open && debounced.length >= 2 && (
+        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          {results.isLoading && <p className="px-4 py-2 text-sm text-slate-400">Searching…</p>}
+          {results.data?.map((r) => (
+            <button
+              key={`${r.lat},${r.lon}`}
+              type="button"
+              // onMouseDown so the click wins over the input's onBlur
+              onMouseDown={() => pick({ name: shortName(r.name), lat: r.lat, lon: r.lon })}
+              className="block w-full truncate px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            >
+              📍 {r.name}
+            </button>
+          ))}
+          {results.data?.length === 0 && (
+            <p className="px-4 py-2 text-sm text-slate-400">
+              No places found — “Add” saves it without coordinates.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
+
+// shortName trims a Nominatim display_name ("Kyoto, Kyoto Prefecture, Japan")
+// to its two most significant segments.
+function shortName(displayName: string): string {
+  const parts = displayName.split(', ')
+  return parts.length <= 2 ? displayName : `${parts[0]}, ${parts[parts.length - 1]}`
+}
+
 
 function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
   const queryClient = useQueryClient()

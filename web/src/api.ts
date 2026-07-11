@@ -174,6 +174,31 @@ export function createItem(tripId: string, input: ItemInput): Promise<ItineraryI
   return requestJSON(`/api/v1/trips/${tripId}/items`, { method: 'POST', body: JSON.stringify(input) })
 }
 
+export function updateItem(tripId: string, itemId: string, input: ItemInput): Promise<ItineraryItem> {
+  return requestJSON(`/api/v1/trips/${tripId}/items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
 export function deleteItem(tripId: string, itemId: string): Promise<void> {
   return requestJSON(`/api/v1/trips/${tripId}/items/${itemId}`, { method: 'DELETE' })
+}
+
+export function reorderItems(tripId: string, day: string, ids: string[]): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/items/order`, {
+    method: 'PUT',
+    body: JSON.stringify({ day, ids }),
+  })
+}
+
+// ---- geocoding ---------------------------------------------------------------
+
+export type GeocodeResult = { name: string; lat: number; lon: number }
+
+export async function geocode(q: string): Promise<GeocodeResult[]> {
+  const body = await requestJSON<{ results: GeocodeResult[] }>(
+    `/api/v1/geocode?q=${encodeURIComponent(q)}`,
+  )
+  return body.results
 }
