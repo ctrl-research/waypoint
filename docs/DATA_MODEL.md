@@ -49,17 +49,20 @@ enforced by a CHECK constraint.
 | created_at / updated_at | timestamptz                     |
 
 ### stops (M2) — the places a trip visits, ordered
-`id · trip_id FK · name · lat/lon (double precision) · arrival_date NULL ·
-departure_date NULL · position (int, ordering) · notes`
+`id · trip_id FK · name · lat/lon (double precision, CHECK both-or-neither) ·
+arrival_date NULL · departure_date NULL · position (int, ordering) · notes`
 
 Geometry stays as plain lat/lon columns until we need spatial queries
 (nearby search, route simplification) — then enable PostGIS. Don't add the
 extension before something uses it.
 
 ### itinerary_items (M2) — what happens at a stop, day by day
-`id · trip_id FK · stop_id FK NULL · day (date) · start_time NULL · title ·
-category (enum: activity, food, lodging, transport, other) · notes ·
-cost_cents NULL · currency (char(3)) · position`
+`id · trip_id FK · stop_id FK NULL (ON DELETE SET NULL) · day (date) ·
+start_time NULL · title · category (enum: activity, food, lodging, transport,
+other) · notes · cost_cents NULL · currency (char(3)) · position`
+
+cost_cents/currency are both-or-neither (CHECK). Position ordering is scoped
+per day for items, per trip for stops.
 
 ### journal_entries (M4) — the "logger"
 `id · trip_id FK · author_id FK · entry_date · title NULL · body (markdown) ·
