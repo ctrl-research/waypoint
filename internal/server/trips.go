@@ -10,13 +10,16 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/photos"
 	"github.com/ctrl-research/waypoint/internal/store"
 )
 
-// tripsAPI serves owner-scoped CRUD for trips, stops, and itinerary items.
-// Trips are visible to their owner only until sharing lands (M6, #23).
+// tripsAPI serves owner-scoped CRUD for trips, stops, itinerary items, and
+// the journal. Trips are visible to their owner only until sharing lands
+// (M6, #23).
 type tripsAPI struct {
-	trips *store.Trips
+	trips  *store.Trips
+	photos *photos.Store
 }
 
 func (api *tripsAPI) routes(mux *http.ServeMux) {
@@ -37,6 +40,14 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("PUT /api/v1/trips/{tripID}/items/order", protected(api.reorderItems))
 	mux.Handle("PATCH /api/v1/trips/{tripID}/items/{itemID}", protected(api.updateItem))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/items/{itemID}", protected(api.deleteItem))
+
+	mux.Handle("GET /api/v1/trips/{tripID}/journal", protected(api.listJournal))
+	mux.Handle("POST /api/v1/trips/{tripID}/journal", protected(api.createEntry))
+	mux.Handle("PATCH /api/v1/trips/{tripID}/journal/{entryID}", protected(api.updateEntry))
+	mux.Handle("DELETE /api/v1/trips/{tripID}/journal/{entryID}", protected(api.deleteEntry))
+	mux.Handle("POST /api/v1/trips/{tripID}/journal/{entryID}/photos", protected(api.uploadPhoto))
+	mux.Handle("DELETE /api/v1/trips/{tripID}/photos/{photoID}", protected(api.deletePhoto))
+	mux.Handle("GET /api/v1/photos/{photoID}", protected(api.servePhoto))
 }
 
 // ---- JSON shapes ----------------------------------------------------------
@@ -252,6 +263,8 @@ func (api *tripsAPI) delete(w http.ResponseWriter, r *http.Request) {
 		apiInternalError(w, "delete trip", err)
 		return
 	}
+	// The DB cascade removed the photo rows; remove the files too.
+	_ = api.photos.RemoveTrip(trip.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 

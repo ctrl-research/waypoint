@@ -114,6 +114,32 @@ type ItineraryItem struct {
 	Position  int32
 }
 
+type JournalEntry struct {
+	ID        uuid.UUID
+	TripID    uuid.UUID
+	AuthorID  uuid.UUID
+	EntryDate time.Time
+	Title     string
+	Body      string
+	Lat       *float64
+	Lon       *float64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type JournalPhoto struct {
+	ID          uuid.UUID
+	EntryID     uuid.UUID
+	FilePath    string
+	ContentType string
+	SizeBytes   int64
+	TakenAt     *time.Time
+	Lat         *float64
+	Lon         *float64
+	Caption     string
+	CreatedAt   time.Time
+}
+
 type Session struct {
 	TokenHash  []byte
 	UserID     uuid.UUID
