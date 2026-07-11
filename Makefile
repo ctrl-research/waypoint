@@ -1,8 +1,12 @@
-.PHONY: db run web seed test test-db build docker clean
+.PHONY: db run web seed generate test test-db build docker clean
 
 # Start postgres only (for local development)
 db:
 	docker compose up -d postgres
+
+# Regenerate the sqlc store code from internal/store/queries/*.sql
+generate:
+	go tool sqlc generate
 
 # Run the Go server against the compose postgres
 run:

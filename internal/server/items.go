@@ -47,13 +47,10 @@ func (req itemRequest) merge(p *store.ItineraryItemParams) error {
 		return errors.New("day is required")
 	}
 	if req.StartTime != nil {
-		if *req.StartTime == "" {
-			p.StartTime = nil
-		} else if !timeRe.MatchString(*req.StartTime) {
+		if *req.StartTime != "" && !timeRe.MatchString(*req.StartTime) {
 			return errors.New("startTime must be HH:MM")
-		} else {
-			p.StartTime = req.StartTime
 		}
+		p.StartTime = *req.StartTime
 	}
 	if req.Title != nil {
 		p.Title = *req.Title

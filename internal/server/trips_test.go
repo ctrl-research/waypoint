@@ -179,6 +179,9 @@ func TestTripsAPI(t *testing.T) {
 	if code != 201 {
 		t.Fatalf("create item: code = %d %v", code, item)
 	}
+	if item["startTime"] != "09:00" {
+		t.Fatalf("startTime = %v, want 09:00", item["startTime"])
+	}
 	itemID := item["id"].(string)
 
 	t.Run("item validation", func(t *testing.T) {

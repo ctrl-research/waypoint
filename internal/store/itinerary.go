@@ -5,17 +5,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+
+	"github.com/ctrl-research/waypoint/internal/store/sqlcgen"
 )
 
-type ItineraryCategory string
+type (
+	ItineraryItem     = sqlcgen.ItineraryItem
+	ItineraryCategory = sqlcgen.ItineraryCategory
+)
 
 const (
-	CategoryActivity  ItineraryCategory = "activity"
-	CategoryFood      ItineraryCategory = "food"
-	CategoryLodging   ItineraryCategory = "lodging"
-	CategoryTransport ItineraryCategory = "transport"
-	CategoryOther     ItineraryCategory = "other"
+	CategoryActivity  = sqlcgen.ItineraryCategoryActivity
+	CategoryFood      = sqlcgen.ItineraryCategoryFood
+	CategoryLodging   = sqlcgen.ItineraryCategoryLodging
+	CategoryTransport = sqlcgen.ItineraryCategoryTransport
+	CategoryOther     = sqlcgen.ItineraryCategoryOther
 )
 
 func ValidItineraryCategory(c string) bool {
@@ -26,93 +30,66 @@ func ValidItineraryCategory(c string) bool {
 	return false
 }
 
-type ItineraryItem struct {
-	ID        uuid.UUID
-	TripID    uuid.UUID
-	StopID    *uuid.UUID
-	Day       time.Time
-	StartTime *string // "HH:MM", nil when unscheduled
-	Title     string
-	Category  ItineraryCategory
-	Notes     string
-	CostCents *int64
-	Currency  *string
-	Position  int32
-}
-
 type ItineraryItemParams struct {
 	StopID    *uuid.UUID
 	Day       time.Time
-	StartTime *string // "HH:MM"
+	StartTime string // "HH:MM"; "" means unscheduled
 	Title     string
 	Category  ItineraryCategory
 	Notes     string
 	CostCents *int64
 	Currency  *string
-}
-
-const itemColumns = `id, trip_id, stop_id, day, to_char(start_time, 'HH24:MI'), title, category, notes, cost_cents, currency, position`
-
-func scanItem(row pgx.Row) (ItineraryItem, error) {
-	var it ItineraryItem
-	err := row.Scan(&it.ID, &it.TripID, &it.StopID, &it.Day, &it.StartTime,
-		&it.Title, &it.Category, &it.Notes, &it.CostCents, &it.Currency, &it.Position)
-	if err == pgx.ErrNoRows {
-		return ItineraryItem{}, ErrNotFound
-	}
-	return it, err
 }
 
 // CreateItem appends the item at the end of its day's ordering.
 func (s *Trips) CreateItem(ctx context.Context, tripID uuid.UUID, p ItineraryItemParams) (ItineraryItem, error) {
-	it, err := scanItem(s.pool.QueryRow(ctx, `
-		INSERT INTO itinerary_items (trip_id, stop_id, day, start_time, title, category, notes, cost_cents, currency, position)
-		VALUES ($1, $2, $3, $4::time, $5, $6, $7, $8, $9,
-		        (SELECT COALESCE(MAX(position) + 1, 0) FROM itinerary_items WHERE trip_id = $1 AND day = $3))
-		RETURNING `+itemColumns,
-		tripID, p.StopID, p.Day, p.StartTime, p.Title, p.Category, p.Notes, p.CostCents, p.Currency))
+	row, err := s.q.CreateItem(ctx, sqlcgen.CreateItemParams{
+		TripID: tripID, StopID: p.StopID, Day: p.Day, StartTime: p.StartTime,
+		Title: p.Title, Category: p.Category, Notes: p.Notes,
+		CostCents: p.CostCents, Currency: p.Currency,
+	})
 	if err == nil {
 		s.touch(ctx, tripID)
 	}
-	return it, err
+	return ItineraryItem(row), translate(err)
 }
 
 func (s *Trips) ListItems(ctx context.Context, tripID uuid.UUID) ([]ItineraryItem, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT `+itemColumns+` FROM itinerary_items WHERE trip_id = $1 ORDER BY day, position`, tripID)
-	if err != nil {
-		return nil, err
+	rows, err := s.q.ListItems(ctx, tripID)
+	items := make([]ItineraryItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, ItineraryItem(row))
 	}
-	defer rows.Close()
-
-	items := []ItineraryItem{}
-	for rows.Next() {
-		it, err := scanItem(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, it)
-	}
-	return items, rows.Err()
+	return items, err
 }
 
 func (s *Trips) ItemByID(ctx context.Context, tripID, itemID uuid.UUID) (ItineraryItem, error) {
-	return scanItem(s.pool.QueryRow(ctx,
-		`SELECT `+itemColumns+` FROM itinerary_items WHERE id = $2 AND trip_id = $1`, tripID, itemID))
+	row, err := s.q.ItemByID(ctx, sqlcgen.ItemByIDParams{TripID: tripID, ID: itemID})
+	return ItineraryItem(row), translate(err)
 }
 
 func (s *Trips) UpdateItem(ctx context.Context, tripID, itemID uuid.UUID, p ItineraryItemParams) (ItineraryItem, error) {
-	it, err := scanItem(s.pool.QueryRow(ctx, `
-		UPDATE itinerary_items
-		SET stop_id = $3, day = $4, start_time = $5::time, title = $6, category = $7,
-		    notes = $8, cost_cents = $9, currency = $10
-		WHERE id = $2 AND trip_id = $1
-		RETURNING `+itemColumns,
-		tripID, itemID, p.StopID, p.Day, p.StartTime, p.Title, p.Category, p.Notes, p.CostCents, p.Currency))
+	row, err := s.q.UpdateItem(ctx, sqlcgen.UpdateItemParams{
+		TripID: tripID, ID: itemID, StopID: p.StopID, Day: p.Day, StartTime: p.StartTime,
+		Title: p.Title, Category: p.Category, Notes: p.Notes,
+		CostCents: p.CostCents, Currency: p.Currency,
+	})
 	if err == nil {
 		s.touch(ctx, tripID)
 	}
-	return it, err
+	return ItineraryItem(row), translate(err)
+}
+
+func (s *Trips) DeleteItem(ctx context.Context, tripID, itemID uuid.UUID) error {
+	n, err := s.q.DeleteItem(ctx, sqlcgen.DeleteItemParams{TripID: tripID, ID: itemID})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	s.touch(ctx, tripID)
+	return nil
 }
 
 // ReorderItems sets the ordering of one day's items to exactly ids. It fails
@@ -123,47 +100,34 @@ func (s *Trips) ReorderItems(ctx context.Context, tripID uuid.UUID, day time.Tim
 		return err
 	}
 	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
 
-	var count int
-	if err := tx.QueryRow(ctx,
-		`SELECT count(*) FROM itinerary_items WHERE trip_id = $1 AND day = $2`, tripID, day).Scan(&count); err != nil {
+	count, err := q.CountItemsForDay(ctx, sqlcgen.CountItemsForDayParams{TripID: tripID, Day: day})
+	if err != nil {
 		return err
 	}
-	if count != len(ids) {
+	if count != int64(len(ids)) {
 		return ErrNotFound
 	}
 
-	if _, err := tx.Exec(ctx,
-		`UPDATE itinerary_items SET position = position + $3 WHERE trip_id = $1 AND day = $2`,
-		tripID, day, len(ids)); err != nil {
+	if err := q.OffsetItemPositions(ctx, sqlcgen.OffsetItemPositionsParams{
+		TripID: tripID, Day: day, Position: int32(len(ids)),
+	}); err != nil {
 		return err
 	}
 	for i, id := range ids {
-		tag, err := tx.Exec(ctx,
-			`UPDATE itinerary_items SET position = $4 WHERE id = $3 AND trip_id = $1 AND day = $2`,
-			tripID, day, id, i)
+		n, err := q.SetItemPosition(ctx, sqlcgen.SetItemPositionParams{
+			TripID: tripID, Day: day, ID: id, Position: int32(i),
+		})
 		if err != nil {
 			return err
 		}
-		if tag.RowsAffected() == 0 {
+		if n == 0 {
 			return ErrNotFound
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
-	}
-	s.touch(ctx, tripID)
-	return nil
-}
-
-func (s *Trips) DeleteItem(ctx context.Context, tripID, itemID uuid.UUID) error {
-	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM itinerary_items WHERE id = $2 AND trip_id = $1`, tripID, itemID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
 	}
 	s.touch(ctx, tripID)
 	return nil

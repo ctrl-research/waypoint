@@ -30,8 +30,9 @@ database.
 - **Go 1.24+**, standard-library `net/http` with the 1.22+ `ServeMux` method
   patterns. No web framework; middleware is plain `func(http.Handler) http.Handler`.
 - **Database access:** [pgx/v5](https://github.com/jackc/pgx) connection pool.
-  Queries start as hand-written SQL in store packages; we adopt
-  [sqlc](https://sqlc.dev) once the query surface grows (see ROADMAP M2).
+  Queries live as SQL in `internal/store/queries/` and are compiled to Go by
+  [sqlc](https://sqlc.dev) (`make generate`, drift-checked in CI); the store
+  package is a thin façade owning transactions and error translation.
 - **Migrations:** [goose](https://github.com/pressly/goose) with SQL files
   embedded in the binary (`migrations/`). Applied automatically at startup —
   a self-hosted app should never require a manual migration step.

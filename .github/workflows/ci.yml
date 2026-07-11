@@ -34,6 +34,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Check generated code is current
+        run: |
+          go tool sqlc generate
+          git diff --exit-code internal/store/sqlcgen || {
+            echo "::error::internal/store/sqlcgen is stale — run 'make generate' and commit the result"
+            exit 1
+          }
+
       - name: Vet
         run: go vet ./...
 

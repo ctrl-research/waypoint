@@ -2,104 +2,69 @@ package store
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/ctrl-research/waypoint/internal/store/sqlcgen"
 )
 
-type User struct {
-	ID           uuid.UUID
-	Email        string
-	DisplayName  string
-	AvatarURL    *string
-	GoogleSub    *string
-	PasswordHash *string
-	IsAdmin      bool
-	CreatedAt    time.Time
-}
-
-type CreateUserParams struct {
-	Email        string
-	DisplayName  string
-	AvatarURL    *string
-	GoogleSub    *string
-	PasswordHash *string
-	IsAdmin      bool
-}
+type (
+	User             = sqlcgen.User
+	CreateUserParams = sqlcgen.CreateUserParams
+)
 
 type Users struct {
-	pool *pgxpool.Pool
+	q *sqlcgen.Queries
 }
 
 func NewUsers(pool *pgxpool.Pool) *Users {
-	return &Users{pool: pool}
-}
-
-const userColumns = `id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at`
-
-func scanUser(row pgx.Row) (User, error) {
-	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.DisplayName, &u.AvatarURL, &u.GoogleSub, &u.PasswordHash, &u.IsAdmin, &u.CreatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return User{}, ErrNotFound
-	}
-	return u, err
+	return &Users{q: sqlcgen.New(pool)}
 }
 
 func (s *Users) Create(ctx context.Context, p CreateUserParams) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx, `
-		INSERT INTO users (email, display_name, avatar_url, google_sub, password_hash, is_admin)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING `+userColumns,
-		p.Email, p.DisplayName, p.AvatarURL, p.GoogleSub, p.PasswordHash, p.IsAdmin))
+	u, err := s.q.CreateUser(ctx, p)
+	return u, translate(err)
 }
 
 func (s *Users) ByID(ctx context.Context, id uuid.UUID) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx,
-		`SELECT `+userColumns+` FROM users WHERE id = $1`, id))
+	u, err := s.q.UserByID(ctx, id)
+	return u, translate(err)
 }
 
 func (s *Users) ByEmail(ctx context.Context, email string) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx,
-		`SELECT `+userColumns+` FROM users WHERE email = $1`, email))
+	u, err := s.q.UserByEmail(ctx, email)
+	return u, translate(err)
 }
 
 func (s *Users) ByGoogleSub(ctx context.Context, sub string) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx,
-		`SELECT `+userColumns+` FROM users WHERE google_sub = $1`, sub))
+	u, err := s.q.UserByGoogleSub(ctx, &sub)
+	return u, translate(err)
 }
 
 // UpdateProfile refreshes the fields Google reports on each sign-in.
 func (s *Users) UpdateProfile(ctx context.Context, id uuid.UUID, displayName string, avatarURL *string) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx, `
-		UPDATE users SET display_name = $2, avatar_url = $3 WHERE id = $1
-		RETURNING `+userColumns,
-		id, displayName, avatarURL))
+	u, err := s.q.UpdateUserProfile(ctx, sqlcgen.UpdateUserProfileParams{
+		ID: id, DisplayName: displayName, AvatarURL: avatarURL,
+	})
+	return u, translate(err)
 }
 
 // LinkGoogle attaches a Google identity to an existing account (matched by
 // email at sign-in) and refreshes the profile fields Google reports.
 func (s *Users) LinkGoogle(ctx context.Context, id uuid.UUID, googleSub string, displayName string, avatarURL *string) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx, `
-		UPDATE users SET google_sub = $2, display_name = $3, avatar_url = $4
-		WHERE id = $1
-		RETURNING `+userColumns,
-		id, googleSub, displayName, avatarURL))
+	u, err := s.q.LinkGoogle(ctx, sqlcgen.LinkGoogleParams{
+		ID: id, GoogleSub: &googleSub, DisplayName: displayName, AvatarURL: avatarURL,
+	})
+	return u, translate(err)
 }
 
 // SetPassword replaces the user's password hash (used by the seed command).
 func (s *Users) SetPassword(ctx context.Context, id uuid.UUID, passwordHash string) (User, error) {
-	return scanUser(s.pool.QueryRow(ctx, `
-		UPDATE users SET password_hash = $2 WHERE id = $1
-		RETURNING `+userColumns,
-		id, passwordHash))
+	u, err := s.q.SetPassword(ctx, sqlcgen.SetPasswordParams{ID: id, PasswordHash: &passwordHash})
+	return u, translate(err)
 }
 
 func (s *Users) Count(ctx context.Context) (int64, error) {
-	var n int64
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM users`).Scan(&n)
-	return n, err
+	return s.q.CountUsers(ctx)
 }
