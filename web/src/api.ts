@@ -174,8 +174,22 @@ export function createItem(tripId: string, input: ItemInput): Promise<ItineraryI
   return requestJSON(`/api/v1/trips/${tripId}/items`, { method: 'POST', body: JSON.stringify(input) })
 }
 
+export function updateItem(tripId: string, itemId: string, input: ItemInput): Promise<ItineraryItem> {
+  return requestJSON(`/api/v1/trips/${tripId}/items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
 export function deleteItem(tripId: string, itemId: string): Promise<void> {
   return requestJSON(`/api/v1/trips/${tripId}/items/${itemId}`, { method: 'DELETE' })
+}
+
+export function reorderItems(tripId: string, day: string, ids: string[]): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/items/order`, {
+    method: 'PUT',
+    body: JSON.stringify({ day, ids }),
+  })
 }
 
 // ---- geocoding ---------------------------------------------------------------

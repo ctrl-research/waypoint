@@ -115,6 +115,47 @@ func (s *Trips) UpdateItem(ctx context.Context, tripID, itemID uuid.UUID, p Itin
 	return it, err
 }
 
+// ReorderItems sets the ordering of one day's items to exactly ids. It fails
+// with ErrNotFound unless ids is a permutation of that day's current items.
+func (s *Trips) ReorderItems(ctx context.Context, tripID uuid.UUID, day time.Time, ids []uuid.UUID) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var count int
+	if err := tx.QueryRow(ctx,
+		`SELECT count(*) FROM itinerary_items WHERE trip_id = $1 AND day = $2`, tripID, day).Scan(&count); err != nil {
+		return err
+	}
+	if count != len(ids) {
+		return ErrNotFound
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE itinerary_items SET position = position + $3 WHERE trip_id = $1 AND day = $2`,
+		tripID, day, len(ids)); err != nil {
+		return err
+	}
+	for i, id := range ids {
+		tag, err := tx.Exec(ctx,
+			`UPDATE itinerary_items SET position = $4 WHERE id = $3 AND trip_id = $1 AND day = $2`,
+			tripID, day, id, i)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.touch(ctx, tripID)
+	return nil
+}
+
 func (s *Trips) DeleteItem(ctx context.Context, tripID, itemID uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx,
 		`DELETE FROM itinerary_items WHERE id = $2 AND trip_id = $1`, tripID, itemID)

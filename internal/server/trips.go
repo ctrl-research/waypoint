@@ -34,6 +34,7 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/v1/trips/{tripID}/stops/{stopID}", protected(api.deleteStop))
 
 	mux.Handle("POST /api/v1/trips/{tripID}/items", protected(api.createItem))
+	mux.Handle("PUT /api/v1/trips/{tripID}/items/order", protected(api.reorderItems))
 	mux.Handle("PATCH /api/v1/trips/{tripID}/items/{itemID}", protected(api.updateItem))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/items/{itemID}", protected(api.deleteItem))
 }

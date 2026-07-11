@@ -186,6 +186,35 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toItemJSON(updated))
 }
 
+// reorderItems replaces one day's ordering (used by the board's drag-drop).
+func (api *tripsAPI) reorderItems(w http.ResponseWriter, r *http.Request) {
+	trip, ok := api.ownedTrip(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Day string      `json:"day"`
+		IDs []uuid.UUID `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		return
+	}
+	day, err := time.Parse(dateFormat, req.Day)
+	if err != nil {
+		apiError(w, http.StatusBadRequest, "invalid", "day must be YYYY-MM-DD")
+		return
+	}
+	switch err := api.trips.ReorderItems(r.Context(), trip.ID, day, req.IDs); {
+	case errors.Is(err, store.ErrNotFound):
+		apiError(w, http.StatusBadRequest, "invalid", "ids must be a permutation of that day's items")
+	case err != nil:
+		apiInternalError(w, "reorder items", err)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 func (api *tripsAPI) deleteItem(w http.ResponseWriter, r *http.Request) {
 	trip, ok := api.ownedTrip(w, r)
 	if !ok {
