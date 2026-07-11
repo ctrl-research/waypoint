@@ -15,10 +15,13 @@ export function TripMap({
   stops,
   picking,
   onPick,
+  tileUrl,
 }: {
   stops: Stop[]
   picking: boolean
   onPick: (lat: number, lon: number) => void
+  /** Overrides the authed /api/v1/config lookup (used by the public page). */
+  tileUrl?: string
 }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -33,11 +36,13 @@ export function TripMap({
     queryKey: ['config'],
     queryFn: fetchConfig,
     staleTime: Infinity,
+    enabled: !tileUrl,
   })
+  const effectiveTileURL = tileUrl ?? config?.tileUrl
 
   // Create the map once the tile URL is known.
   useEffect(() => {
-    if (!config || !container.current || mapRef.current) return
+    if (!effectiveTileURL || !container.current || mapRef.current) return
 
     const map = new maplibregl.Map({
       container: container.current,
@@ -46,7 +51,7 @@ export function TripMap({
         sources: {
           raster: {
             type: 'raster',
-            tiles: [config.tileUrl],
+            tiles: [effectiveTileURL],
             tileSize: 256,
             attribution: '© OpenStreetMap contributors',
           },
@@ -82,7 +87,7 @@ export function TripMap({
       map.remove()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config])
+  }, [effectiveTileURL])
 
   // Keep markers and route in sync with the stops.
   const stopsRef = useRef(stops)
