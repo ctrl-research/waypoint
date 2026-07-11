@@ -202,3 +202,18 @@ export async function geocode(q: string): Promise<GeocodeResult[]> {
   )
   return body.results
 }
+
+// ---- instance config -----------------------------------------------------------
+
+export type InstanceConfig = { tileUrl: string }
+
+export function fetchConfig(): Promise<InstanceConfig> {
+  return requestJSON('/api/v1/config')
+}
+
+export function updateStop(tripId: string, stopId: string, input: StopInput): Promise<Stop> {
+  return requestJSON(`/api/v1/trips/${tripId}/stops/${stopId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
