@@ -58,3 +58,122 @@ export async function logout(): Promise<void> {
   const res = await fetch('/auth/logout', { method: 'POST' })
   if (!res.ok) await throwApiError(res)
 }
+
+// ---- trips ------------------------------------------------------------------
+
+export type TripStatus = 'planning' | 'active' | 'completed'
+
+export type Trip = {
+  id: string
+  title: string
+  description: string
+  status: TripStatus
+  startDate: string | null
+  endDate: string | null
+  coverPhoto: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type Stop = {
+  id: string
+  name: string
+  lat: number | null
+  lon: number | null
+  arrivalDate: string | null
+  departureDate: string | null
+  position: number
+  notes: string
+}
+
+export type ItineraryCategory = 'activity' | 'food' | 'lodging' | 'transport' | 'other'
+
+export type ItineraryItem = {
+  id: string
+  stopId: string | null
+  day: string
+  startTime: string | null
+  title: string
+  category: ItineraryCategory
+  notes: string
+  costCents: number | null
+  currency: string | null
+  position: number
+}
+
+export type TripDetail = { trip: Trip; stops: Stop[]; items: ItineraryItem[] }
+
+/** Fields for creating/patching; dates are "YYYY-MM-DD", "" clears. */
+export type TripInput = Partial<{
+  title: string
+  description: string
+  status: TripStatus
+  startDate: string
+  endDate: string
+}>
+
+async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+    ...init,
+  })
+  if (!res.ok) await throwApiError(res)
+  return res.status === 204 ? (undefined as T) : res.json()
+}
+
+export async function listTrips(): Promise<Trip[]> {
+  const body = await requestJSON<{ trips: Trip[] }>('/api/v1/trips')
+  return body.trips
+}
+
+export function getTrip(id: string): Promise<TripDetail> {
+  return requestJSON(`/api/v1/trips/${id}`)
+}
+
+export function createTrip(input: TripInput): Promise<Trip> {
+  return requestJSON('/api/v1/trips', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function updateTrip(id: string, input: TripInput): Promise<Trip> {
+  return requestJSON(`/api/v1/trips/${id}`, { method: 'PATCH', body: JSON.stringify(input) })
+}
+
+export function deleteTrip(id: string): Promise<void> {
+  return requestJSON(`/api/v1/trips/${id}`, { method: 'DELETE' })
+}
+
+export type StopInput = Partial<{
+  name: string
+  lat: number
+  lon: number
+  arrivalDate: string
+  departureDate: string
+  notes: string
+}>
+
+export function createStop(tripId: string, input: StopInput): Promise<Stop> {
+  return requestJSON(`/api/v1/trips/${tripId}/stops`, { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function deleteStop(tripId: string, stopId: string): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/stops/${stopId}`, { method: 'DELETE' })
+}
+
+export type ItemInput = Partial<{
+  stopId: string
+  day: string
+  startTime: string
+  title: string
+  category: ItineraryCategory
+  notes: string
+  costCents: number
+  currency: string
+}>
+
+export function createItem(tripId: string, input: ItemInput): Promise<ItineraryItem> {
+  return requestJSON(`/api/v1/trips/${tripId}/items`, { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function deleteItem(tripId: string, itemId: string): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/items/${itemId}`, { method: 'DELETE' })
+}

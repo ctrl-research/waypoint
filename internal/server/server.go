@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/store"
 	"github.com/ctrl-research/waypoint/internal/webui"
 )
 
@@ -20,6 +21,7 @@ func New(pool *pgxpool.Pool, authSvc *auth.Service) http.Handler {
 	mux.HandleFunc("GET /healthz", handleHealthz(pool))
 	mux.HandleFunc("GET /api/v1/ping", handlePing)
 	mux.Handle("GET /api/v1/me", auth.RequireUser(http.HandlerFunc(handleMe)))
+	(&tripsAPI{trips: store.NewTrips(pool)}).routes(mux)
 	authSvc.Routes(mux)
 	mux.Handle("/", webui.Handler())
 
