@@ -105,7 +105,7 @@ func (api *tripsAPI) stopBelongsToTrip(r *http.Request, tripID uuid.UUID, stopID
 }
 
 func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -135,7 +135,7 @@ func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -185,7 +185,7 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 
 // reorderItems replaces one day's ordering (used by the board's drag-drop).
 func (api *tripsAPI) reorderItems(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -213,7 +213,7 @@ func (api *tripsAPI) reorderItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) deleteItem(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}

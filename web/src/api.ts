@@ -62,6 +62,7 @@ export async function logout(): Promise<void> {
 // ---- trips ------------------------------------------------------------------
 
 export type TripStatus = 'planning' | 'active' | 'completed'
+export type TripRole = 'owner' | 'editor' | 'viewer'
 
 export type Trip = {
   id: string
@@ -73,6 +74,8 @@ export type Trip = {
   coverPhoto: string | null
   createdAt: string
   updatedAt: string
+  /** The signed-in user's role on this trip. */
+  role: TripRole
 }
 
 export type Stop = {
@@ -297,4 +300,35 @@ export async function uploadJournalPhoto(
 
 export function deleteJournalPhoto(tripId: string, photoId: string): Promise<void> {
   return requestJSON(`/api/v1/trips/${tripId}/photos/${photoId}`, { method: 'DELETE' })
+}
+
+// ---- trip members -------------------------------------------------------------
+
+export type TripMember = {
+  userId: string
+  email: string
+  displayName: string
+  avatarUrl: string | null
+  role: 'viewer' | 'editor'
+  addedAt: string
+}
+
+export async function listMembers(tripId: string): Promise<TripMember[]> {
+  const body = await requestJSON<{ members: TripMember[] }>(`/api/v1/trips/${tripId}/members`)
+  return body.members
+}
+
+export function addMember(
+  tripId: string,
+  email: string,
+  role: 'viewer' | 'editor',
+): Promise<TripMember> {
+  return requestJSON(`/api/v1/trips/${tripId}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ email, role }),
+  })
+}
+
+export function removeMember(tripId: string, userId: string): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/members/${userId}`, { method: 'DELETE' })
 }

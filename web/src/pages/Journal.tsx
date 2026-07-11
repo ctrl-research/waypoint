@@ -29,10 +29,12 @@ export function JournalTimeline({
   tripId,
   items,
   stops,
+  canEdit,
 }: {
   tripId: string
   items: ItineraryItem[]
   stops: Stop[]
+  canEdit: boolean
 }) {
   const entriesQuery = useQuery({
     queryKey: ['journal', tripId],
@@ -55,13 +57,15 @@ export function JournalTimeline({
           <h2 className="text-lg font-semibold text-slate-900">Journal</h2>
           <p className="text-sm text-slate-500">The plan and what actually happened, day by day.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setComposing((v) => !v)}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          {composing ? 'Cancel' : 'New entry'}
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setComposing((v) => !v)}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          >
+            {composing ? 'Cancel' : 'New entry'}
+          </button>
+        )}
       </div>
 
       {composing && (
@@ -84,6 +88,7 @@ export function JournalTimeline({
             items={items.filter((i) => i.day === day)}
             entries={entries.filter((e) => e.entryDate === day)}
             stops={stops}
+            canEdit={canEdit}
           />
         ))}
       </div>
@@ -97,12 +102,14 @@ function TimelineDay({
   items,
   entries,
   stops,
+  canEdit,
 }: {
   tripId: string
   day: string
   items: ItineraryItem[]
   entries: JournalEntry[]
   stops: Stop[]
+  canEdit: boolean
 }) {
   const stopName = (id: string | null) => stops.find((s) => s.id === id)?.name
 
@@ -133,14 +140,14 @@ function TimelineDay({
 
       <div className="mt-3 space-y-4">
         {entries.map((entry) => (
-          <EntryCard key={entry.id} tripId={tripId} entry={entry} />
+          <EntryCard key={entry.id} tripId={tripId} entry={entry} canEdit={canEdit} />
         ))}
       </div>
     </div>
   )
 }
 
-function EntryCard({ tripId, entry }: { tripId: string; entry: JournalEntry }) {
+function EntryCard({ tripId, entry, canEdit }: { tripId: string; entry: JournalEntry; canEdit: boolean }) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
 
@@ -161,6 +168,7 @@ function EntryCard({ tripId, entry }: { tripId: string; entry: JournalEntry }) {
         ) : (
           <span className="text-sm text-slate-400">Untitled entry</span>
         )}
+        {canEdit && (
         <div className="flex shrink-0 gap-2 text-sm">
           <button
             type="button"
@@ -179,6 +187,7 @@ function EntryCard({ tripId, entry }: { tripId: string; entry: JournalEntry }) {
             Delete
           </button>
         </div>
+        )}
       </div>
 
       {entry.body && (

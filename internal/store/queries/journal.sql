@@ -36,11 +36,10 @@ ORDER BY p.taken_at NULLS LAST, p.created_at;
 -- name: ListJournalPhotosForEntry :many
 SELECT * FROM journal_photos WHERE entry_id = $1 ORDER BY taken_at NULLS LAST, created_at;
 
--- name: JournalPhotoWithOwner :one
--- Resolves a photo to its file plus the owning user, for authorized serving.
-SELECT p.*, t.owner_id FROM journal_photos p
+-- name: JournalPhotoWithTrip :one
+-- Resolves a photo to its file plus its trip, for role-checked serving.
+SELECT p.*, e.trip_id AS photo_trip_id FROM journal_photos p
 JOIN journal_entries e ON e.id = p.entry_id
-JOIN trips t ON t.id = e.trip_id
 WHERE p.id = $1;
 
 -- name: DeleteJournalPhoto :one

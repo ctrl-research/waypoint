@@ -19,6 +19,7 @@ import (
 // (M6, #23).
 type tripsAPI struct {
 	trips  *store.Trips
+	users  *store.Users
 	photos *photos.Store
 }
 
@@ -48,6 +49,10 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/trips/{tripID}/journal/{entryID}/photos", protected(api.uploadPhoto))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/photos/{photoID}", protected(api.deletePhoto))
 	mux.Handle("GET /api/v1/photos/{photoID}", protected(api.servePhoto))
+
+	mux.Handle("GET /api/v1/trips/{tripID}/members", protected(api.listMembers))
+	mux.Handle("POST /api/v1/trips/{tripID}/members", protected(api.addMember))
+	mux.Handle("DELETE /api/v1/trips/{tripID}/members/{userID}", protected(api.removeMember))
 }
 
 // ---- JSON shapes ----------------------------------------------------------
@@ -64,13 +69,16 @@ type tripJSON struct {
 	CoverPhoto  *string   `json:"coverPhoto"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+	// Role is the requesting user's role on this trip: owner|editor|viewer.
+	Role string `json:"role"`
 }
 
-func toTripJSON(t store.Trip) tripJSON {
+func toTripJSON(t store.Trip, role string) tripJSON {
 	return tripJSON{
 		ID: t.ID, Title: t.Title, Description: t.Description, Status: string(t.Status),
 		StartDate: formatDate(t.StartDate), EndDate: formatDate(t.EndDate),
 		CoverPhoto: t.CoverPhoto, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+		Role: role,
 	}
 }
 
@@ -168,14 +176,14 @@ func (req tripRequest) merge(p *store.TripParams) error {
 
 func (api *tripsAPI) list(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFrom(r.Context())
-	trips, err := api.trips.ListByOwner(r.Context(), user.ID)
+	trips, err := api.trips.ListAccessible(r.Context(), user.ID)
 	if err != nil {
 		apiInternalError(w, "list trips", err)
 		return
 	}
 	out := make([]tripJSON, 0, len(trips))
 	for _, t := range trips {
-		out = append(out, toTripJSON(t))
+		out = append(out, toTripJSON(t.Trip, t.Role))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"trips": out})
 }
@@ -197,11 +205,11 @@ func (api *tripsAPI) create(w http.ResponseWriter, r *http.Request) {
 		apiInternalError(w, "create trip", err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toTripJSON(trip))
+	writeJSON(w, http.StatusCreated, toTripJSON(trip, "owner"))
 }
 
 func (api *tripsAPI) get(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, role, ok := api.tripAccess(w, r, "viewer")
 	if !ok {
 		return
 	}
@@ -224,12 +232,12 @@ func (api *tripsAPI) get(w http.ResponseWriter, r *http.Request) {
 		itemsOut = append(itemsOut, toItemJSON(it))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"trip": toTripJSON(trip), "stops": stopsOut, "items": itemsOut,
+		"trip": toTripJSON(trip, role), "stops": stopsOut, "items": itemsOut,
 	})
 }
 
 func (api *tripsAPI) update(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, role, ok := api.tripAccess(w, r, "editor")
 	if !ok {
 		return
 	}
@@ -251,11 +259,11 @@ func (api *tripsAPI) update(w http.ResponseWriter, r *http.Request) {
 		apiInternalError(w, "update trip", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toTripJSON(updated))
+	writeJSON(w, http.StatusOK, toTripJSON(updated, role))
 }
 
 func (api *tripsAPI) delete(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, _, ok := api.tripAccess(w, r, "owner")
 	if !ok {
 		return
 	}
@@ -270,25 +278,48 @@ func (api *tripsAPI) delete(w http.ResponseWriter, r *http.Request) {
 
 // ---- helpers ---------------------------------------------------------------
 
-// ownedTrip resolves {tripID} and enforces ownership. Missing and forbidden
-// are both 404 so trip IDs don't leak.
-func (api *tripsAPI) ownedTrip(w http.ResponseWriter, r *http.Request) (store.Trip, bool) {
+func roleRank(role string) int {
+	switch role {
+	case "owner":
+		return 3
+	case "editor":
+		return 2
+	case "viewer":
+		return 1
+	}
+	return 0
+}
+
+// tripAccess resolves {tripID} and enforces the minimum role. Missing trips
+// and no-access are both 404 so trip IDs don't leak; an insufficient role on
+// a trip the user CAN see is 403.
+func (api *tripsAPI) tripAccess(w http.ResponseWriter, r *http.Request, min string) (store.Trip, string, bool) {
 	user, _ := auth.UserFrom(r.Context())
 	id, err := uuid.Parse(r.PathValue("tripID"))
 	if err != nil {
 		apiError(w, http.StatusNotFound, "not_found", "trip not found")
-		return store.Trip{}, false
+		return store.Trip{}, "", false
 	}
-	trip, err := api.trips.ByID(r.Context(), id)
-	if errors.Is(err, store.ErrNotFound) || (err == nil && trip.OwnerID != user.ID) {
+	trip, role, err := api.trips.WithRole(r.Context(), id, user.ID)
+	if errors.Is(err, store.ErrNotFound) || (err == nil && role == "") {
 		apiError(w, http.StatusNotFound, "not_found", "trip not found")
-		return store.Trip{}, false
+		return store.Trip{}, "", false
 	}
 	if err != nil {
 		apiInternalError(w, "load trip", err)
-		return store.Trip{}, false
+		return store.Trip{}, "", false
 	}
-	return trip, true
+	if roleRank(role) < roleRank(min) {
+		apiError(w, http.StatusForbidden, "forbidden", "your role on this trip does not allow that")
+		return store.Trip{}, "", false
+	}
+	return trip, role, true
+}
+
+// editableTrip is the common case: any mutation needs at least editor.
+func (api *tripsAPI) editableTrip(w http.ResponseWriter, r *http.Request) (store.Trip, bool) {
+	trip, _, ok := api.tripAccess(w, r, "editor")
+	return trip, ok
 }
 
 func mergeDate(req *string, current *time.Time, field string) (*time.Time, error) {

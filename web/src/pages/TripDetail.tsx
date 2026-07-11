@@ -20,6 +20,7 @@ import {
 import { formatRange, statusStyles } from './Home'
 import { ItineraryBoard, categoryIcons } from './ItineraryBoard'
 import { JournalTimeline } from './Journal'
+import { MembersSection } from './Members'
 
 // MapLibre is ~1MB minified; load it only when a trip page renders.
 const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
@@ -61,6 +62,7 @@ export function TripDetailPage() {
   if (!detail.data) return null
 
   const { trip, stops, items } = detail.data
+  const canEdit = trip.role !== 'viewer'
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
@@ -82,11 +84,13 @@ export function TripDetailPage() {
         <section>
           <h2 className="text-lg font-semibold text-slate-900">Stops</h2>
           <p className="text-sm text-slate-500">
-            The places this trip visits, in order. Use 📍 to place a stop by clicking the map.
+            The places this trip visits, in order.
+            {canEdit && ' Use 📍 to place a stop by clicking the map.'}
           </p>
           <StopsSection
             tripId={trip.id}
             stops={stops}
+            canEdit={canEdit}
             pickingStop={pickingStop}
             onTogglePick={(stopId) => setPickingStop((cur) => (cur === stopId ? null : stopId))}
           />
@@ -94,15 +98,20 @@ export function TripDetailPage() {
 
         <section>
           <h2 className="text-lg font-semibold text-slate-900">Itinerary</h2>
-          <p className="text-sm text-slate-500">Day by day — drag items to reorder or move days.</p>
-          <ItineraryBoard trip={trip} items={items} stops={stops} />
-          <div className="mt-4">
-            <NewItemForm tripId={trip.id} stops={stops} />
-          </div>
+          <p className="text-sm text-slate-500">
+            {canEdit ? 'Day by day — drag items to reorder or move days.' : 'Day by day.'}
+          </p>
+          <ItineraryBoard trip={trip} items={items} stops={stops} readOnly={!canEdit} />
+          {canEdit && (
+            <div className="mt-4">
+              <NewItemForm tripId={trip.id} stops={stops} />
+            </div>
+          )}
         </section>
       </div>
 
-      <JournalTimeline tripId={trip.id} items={items} stops={stops} />
+      <JournalTimeline tripId={trip.id} items={items} stops={stops} canEdit={canEdit} />
+      <MembersSection tripId={trip.id} role={trip.role} />
     </div>
   )
 }
@@ -149,27 +158,36 @@ function TripHeader({ tripId }: { tripId: string }) {
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.status]}`}>
                 {trip.status}
               </span>
+              {trip.role !== 'owner' && (
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                  shared · {trip.role}
+                </span>
+              )}
             </div>
             <p className="mt-1 text-sm text-slate-500">{formatRange(trip.startDate, trip.endDate)}</p>
             {trip.description && <p className="mt-2 max-w-2xl text-slate-600">{trip.description}</p>}
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm(`Delete “${trip.title}” and everything in it?`)) remove.mutate()
-              }}
-              className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-            >
-              Delete
-            </button>
+            {trip.role !== 'viewer' && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Edit
+              </button>
+            )}
+            {trip.role === 'owner' && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Delete “${trip.title}” and everything in it?`)) remove.mutate()
+                }}
+                className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+              >
+                Delete
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -290,11 +308,13 @@ function EditTripForm({
 function StopsSection({
   tripId,
   stops,
+  canEdit,
   pickingStop,
   onTogglePick,
 }: {
   tripId: string
   stops: Stop[]
+  canEdit: boolean
   pickingStop: string | null
   onTogglePick: (stopId: string) => void
 }) {
@@ -328,6 +348,7 @@ function StopsSection({
               )}
             </div>
           </div>
+          {canEdit && (
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -359,10 +380,11 @@ function StopsSection({
               ✕
             </button>
           </div>
+          )}
         </div>
       ))}
 
-      <StopSearch pending={add.isPending} onAdd={(input) => add.mutate(input)} />
+      {canEdit && <StopSearch pending={add.isPending} onAdd={(input) => add.mutate(input)} />}
       {add.error && (
         <p className="text-sm text-red-600">
           {add.error instanceof ApiError ? add.error.message : 'Could not add stop'}

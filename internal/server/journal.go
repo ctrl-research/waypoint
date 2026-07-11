@@ -101,7 +101,7 @@ func (req entryRequest) merge(p *store.JournalEntryParams) error {
 }
 
 func (api *tripsAPI) listJournal(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, _, ok := api.tripAccess(w, r, "viewer")
 	if !ok {
 		return
 	}
@@ -127,7 +127,7 @@ func (api *tripsAPI) listJournal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) createEntry(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -151,7 +151,7 @@ func (api *tripsAPI) createEntry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) updateEntry(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -197,7 +197,7 @@ func (api *tripsAPI) updateEntry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) deleteEntry(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -240,7 +240,7 @@ func (api *tripsAPI) entryPhotos(r *http.Request, entryID uuid.UUID) ([]photoJSO
 // uploadPhoto accepts a multipart form with a "photo" file field and an
 // optional "caption". EXIF timestamp/GPS are extracted when present (#16).
 func (api *tripsAPI) uploadPhoto(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -300,7 +300,7 @@ func (api *tripsAPI) uploadPhoto(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) deletePhoto(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -322,7 +322,7 @@ func (api *tripsAPI) deletePhoto(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// servePhoto streams a stored photo to its trip's owner.
+// servePhoto streams a stored photo to anyone with a role on its trip.
 func (api *tripsAPI) servePhoto(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.UserFrom(r.Context())
 	photoID, err := uuid.Parse(r.PathValue("photoID"))
@@ -330,13 +330,20 @@ func (api *tripsAPI) servePhoto(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusNotFound, "not_found", "photo not found")
 		return
 	}
-	photo, err := api.trips.JournalPhotoWithOwner(r.Context(), photoID)
-	if errors.Is(err, store.ErrNotFound) || (err == nil && photo.OwnerID != user.ID) {
-		apiError(w, http.StatusNotFound, "not_found", "photo not found")
+	photo, err := api.trips.JournalPhotoWithTrip(r.Context(), photoID)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		apiInternalError(w, "load photo", err)
 		return
 	}
-	if err != nil {
-		apiInternalError(w, "load photo", err)
+	role := ""
+	if err == nil {
+		if _, role, err = api.trips.WithRole(r.Context(), photo.PhotoTripID, user.ID); err != nil && !errors.Is(err, store.ErrNotFound) {
+			apiInternalError(w, "check access", err)
+			return
+		}
+	}
+	if role == "" {
+		apiError(w, http.StatusNotFound, "not_found", "photo not found")
 		return
 	}
 	f, err := api.photos.Open(photo.FilePath)

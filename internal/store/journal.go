@@ -103,12 +103,12 @@ func (s *Trips) ListJournalPhotosForEntry(ctx context.Context, entryID uuid.UUID
 	return photos, err
 }
 
-// JournalPhotoWithOwner resolves a photo plus the trip owner's user ID, for
-// authorized serving.
-type JournalPhotoWithOwner = sqlcgen.JournalPhotoWithOwnerRow
+// JournalPhotoWithTrip resolves a photo plus its trip ID, for role-checked
+// serving.
+type JournalPhotoWithTrip = sqlcgen.JournalPhotoWithTripRow
 
-func (s *Trips) JournalPhotoWithOwner(ctx context.Context, photoID uuid.UUID) (JournalPhotoWithOwner, error) {
-	row, err := s.q.JournalPhotoWithOwner(ctx, photoID)
+func (s *Trips) JournalPhotoWithTrip(ctx context.Context, photoID uuid.UUID) (JournalPhotoWithTrip, error) {
+	row, err := s.q.JournalPhotoWithTrip(ctx, photoID)
 	return row, translate(err)
 }
 

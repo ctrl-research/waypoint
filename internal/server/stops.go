@@ -56,7 +56,7 @@ func (req stopRequest) merge(p *store.StopParams) error {
 }
 
 func (api *tripsAPI) createStop(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -79,7 +79,7 @@ func (api *tripsAPI) createStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) updateStop(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -120,7 +120,7 @@ func (api *tripsAPI) updateStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) deleteStop(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
@@ -140,7 +140,7 @@ func (api *tripsAPI) deleteStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) reorderStops(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.ownedTrip(w, r)
+	trip, ok := api.editableTrip(w, r)
 	if !ok {
 		return
 	}
