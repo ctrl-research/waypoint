@@ -15,6 +15,7 @@ import (
 
 	"github.com/ctrl-research/waypoint/internal/auth"
 	"github.com/ctrl-research/waypoint/internal/config"
+	"github.com/ctrl-research/waypoint/internal/geocode"
 	"github.com/ctrl-research/waypoint/internal/server"
 	"github.com/ctrl-research/waypoint/internal/store"
 	"github.com/ctrl-research/waypoint/migrations"
@@ -71,7 +72,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(pool, authSvc),
+		Handler:           server.New(pool, authSvc, geocode.New(cfg.NominatimURL)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

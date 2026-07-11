@@ -177,3 +177,14 @@ export function createItem(tripId: string, input: ItemInput): Promise<ItineraryI
 export function deleteItem(tripId: string, itemId: string): Promise<void> {
   return requestJSON(`/api/v1/trips/${tripId}/items/${itemId}`, { method: 'DELETE' })
 }
+
+// ---- geocoding ---------------------------------------------------------------
+
+export type GeocodeResult = { name: string; lat: number; lon: number }
+
+export async function geocode(q: string): Promise<GeocodeResult[]> {
+  const body = await requestJSON<{ results: GeocodeResult[] }>(
+    `/api/v1/geocode?q=${encodeURIComponent(q)}`,
+  )
+  return body.results
+}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/geocode"
 	"github.com/ctrl-research/waypoint/internal/store"
 	"github.com/ctrl-research/waypoint/internal/store/storetest"
 )
@@ -43,7 +44,8 @@ func setup(t *testing.T) (http.Handler, *http.Cookie, *http.Cookie) {
 		return &http.Cookie{Name: "waypoint_session", Value: token}
 	}
 
-	return New(pool, authSvc), cookieFor("alice@example.com", "tok-alice"), cookieFor("bob@example.com", "tok-bob")
+	return New(pool, authSvc, geocode.New("http://unused.invalid")),
+		cookieFor("alice@example.com", "tok-alice"), cookieFor("bob@example.com", "tok-bob")
 }
 
 // call sends a JSON request and decodes the JSON response (nil for 204s).

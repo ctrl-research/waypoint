@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useParams } from '@tanstack/react-router'
 import {
@@ -9,11 +9,13 @@ import {
   deleteStop,
   deleteTrip,
   fetchMe,
+  geocode,
   getTrip,
   updateTrip,
   type ItineraryCategory,
   type ItineraryItem,
   type Stop,
+  type StopInput,
   type TripStatus,
 } from '../api'
 import { formatRange, statusStyles } from './Home'
@@ -254,15 +256,11 @@ function EditTripForm({
 
 function StopsSection({ tripId, stops }: { tripId: string; stops: Stop[] }) {
   const queryClient = useQueryClient()
-  const [name, setName] = useState('')
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
 
   const add = useMutation({
-    mutationFn: () => createStop(tripId, { name }),
-    onSuccess: async () => {
-      setName('')
-      await invalidate()
-    },
+    mutationFn: (input: StopInput) => createStop(tripId, input),
+    onSuccess: invalidate,
   })
   const remove = useMutation({
     mutationFn: (stopId: string) => deleteStop(tripId, stopId),
@@ -298,27 +296,7 @@ function StopsSection({ tripId, stops }: { tripId: string; stops: Stop[] }) {
         </div>
       ))}
 
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (name.trim()) add.mutate()
-        }}
-      >
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Add a stop (e.g. Kyoto)"
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={add.isPending || !name.trim()}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-        >
-          Add
-        </button>
-      </form>
+      <StopSearch pending={add.isPending} onAdd={(input) => add.mutate(input)} />
       {add.error && (
         <p className="text-sm text-red-600">
           {add.error instanceof ApiError ? add.error.message : 'Could not add stop'}
@@ -326,6 +304,92 @@ function StopsSection({ tripId, stops }: { tripId: string; stops: Stop[] }) {
       )}
     </div>
   )
+}
+
+// StopSearch is a geocoding autocomplete: picking a result adds the stop
+// with coordinates; submitting free text adds it without (pick-on-map is #14).
+function StopSearch({ pending, onAdd }: { pending: boolean; onAdd: (input: StopInput) => void }) {
+  const [query, setQuery] = useState('')
+  const [debounced, setDebounced] = useState('')
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(query.trim()), 400)
+    return () => window.clearTimeout(id)
+  }, [query])
+
+  const results = useQuery({
+    queryKey: ['geocode', debounced],
+    queryFn: () => geocode(debounced),
+    enabled: debounced.length >= 2,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const pick = (input: StopInput) => {
+    onAdd(input)
+    setQuery('')
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (query.trim()) pick({ name: query.trim() })
+        }}
+      >
+        <input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+          placeholder="Search for a place (e.g. Kyoto)"
+          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={pending || !query.trim()}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          Add
+        </button>
+      </form>
+
+      {open && debounced.length >= 2 && (
+        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          {results.isLoading && <p className="px-4 py-2 text-sm text-slate-400">Searching…</p>}
+          {results.data?.map((r) => (
+            <button
+              key={`${r.lat},${r.lon}`}
+              type="button"
+              // onMouseDown so the click wins over the input's onBlur
+              onMouseDown={() => pick({ name: shortName(r.name), lat: r.lat, lon: r.lon })}
+              className="block w-full truncate px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            >
+              📍 {r.name}
+            </button>
+          ))}
+          {results.data?.length === 0 && (
+            <p className="px-4 py-2 text-sm text-slate-400">
+              No places found — “Add” saves it without coordinates.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// shortName trims a Nominatim display_name ("Kyoto, Kyoto Prefecture, Japan")
+// to its two most significant segments.
+function shortName(displayName: string): string {
+  const parts = displayName.split(', ')
+  return parts.length <= 2 ? displayName : `${parts[0]}, ${parts[parts.length - 1]}`
 }
 
 function ItinerarySection({

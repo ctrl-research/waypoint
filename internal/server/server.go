@@ -11,16 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/geocode"
 	"github.com/ctrl-research/waypoint/internal/store"
 	"github.com/ctrl-research/waypoint/internal/webui"
 )
 
-func New(pool *pgxpool.Pool, authSvc *auth.Service) http.Handler {
+func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", handleHealthz(pool))
 	mux.HandleFunc("GET /api/v1/ping", handlePing)
 	mux.Handle("GET /api/v1/me", auth.RequireUser(http.HandlerFunc(handleMe)))
+	mux.Handle("GET /api/v1/geocode", auth.RequireUser(handleGeocode(geo)))
 	(&tripsAPI{trips: store.NewTrips(pool)}).routes(mux)
 	authSvc.Routes(mux)
 	mux.Handle("/", webui.Handler())
