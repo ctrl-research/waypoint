@@ -29,7 +29,11 @@ users ─┬─ sessions
 | created_at    | timestamptz |                                         |
 
 ### sessions (M1)
-`id (random 256-bit token hash) · user_id FK · created_at · expires_at · last_seen_at`
+`token_hash (bytea PK, SHA-256 of the cookie token) · user_id FK · created_at ·
+expires_at · last_seen_at`
+
+Users must have at least one credential (`google_sub` or `password_hash`),
+enforced by a CHECK constraint.
 
 ### trips (M2)
 | column      | type                                        |

@@ -42,5 +42,7 @@ make build    build web + embed into server binary
 - Configuration only via `WAYPOINT_*` env vars — never config files.
 - API: JSON under `/api/v1`, errors as `{"error":{"code","message"}}`.
 - Store-layer tests run against real Postgres, not mocks.
+- Work is tracked as GitHub issues under milestones M1–M6 (`gh issue list`);
+  reference the issue in the PR (`Closes #N`). docs/ROADMAP.md maps items to issues.
 - Branch protection: never push directly to `main`; all changes via PR with review.
 - Conventional commits (see CONTRIBUTING.md); branch names `feat|bug|hotfix|release|chore/short-description`.

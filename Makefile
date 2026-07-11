@@ -1,4 +1,4 @@
-.PHONY: db run web test build docker clean
+.PHONY: db run web test test-db build docker clean
 
 # Start postgres only (for local development)
 db:
@@ -16,6 +16,13 @@ web:
 test:
 	go vet ./...
 	go test ./...
+
+# Like test, but includes postgres-backed store tests (needs `make db` running;
+# creates the waypoint_test database automatically)
+test-db:
+	go vet ./...
+	WAYPOINT_TEST_DATABASE_URL=$${WAYPOINT_TEST_DATABASE_URL:-postgres://waypoint:waypoint@localhost:5432/waypoint_test?sslmode=disable} \
+		go test ./...
 
 # Build the web UI and the server binary with the UI embedded
 build:
