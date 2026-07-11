@@ -31,6 +31,10 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if len(os.Args) > 1 && os.Args[1] == "seed" {
+		return runSeed(ctx, os.Args[2:])
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
@@ -54,6 +58,8 @@ func run() error {
 		BaseURL:            cfg.BaseURL,
 		GoogleClientID:     cfg.GoogleClientID,
 		GoogleClientSecret: cfg.GoogleClientSecret,
+		LocalAuth:          cfg.LocalAuth,
+		AllowedEmails:      cfg.AllowedEmails,
 	})
 	if err != nil {
 		return fmt.Errorf("auth: %w", err)

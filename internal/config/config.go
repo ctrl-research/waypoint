@@ -21,6 +21,11 @@ type Config struct {
 	// both are set.
 	GoogleClientID     string
 	GoogleClientSecret string
+	// LocalAuth enables email/password sign-in (intended for dev/testing).
+	LocalAuth bool
+	// AllowedEmails restricts who may sign up beyond the first user. Empty
+	// means the instance is closed after the first sign-in.
+	AllowedEmails []string
 }
 
 // GoogleEnabled reports whether Google sign-in is configured.
@@ -35,6 +40,8 @@ func Load() (Config, error) {
 		BaseURL:            strings.TrimSuffix(getenv("WAYPOINT_BASE_URL", "http://localhost:8080"), "/"),
 		GoogleClientID:     os.Getenv("WAYPOINT_GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("WAYPOINT_GOOGLE_CLIENT_SECRET"),
+		LocalAuth:          os.Getenv("WAYPOINT_LOCAL_AUTH") == "true",
+		AllowedEmails:      splitList(os.Getenv("WAYPOINT_ALLOWED_EMAILS")),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("WAYPOINT_DATABASE_URL is required")
@@ -43,6 +50,16 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("WAYPOINT_GOOGLE_CLIENT_ID and WAYPOINT_GOOGLE_CLIENT_SECRET must be set together")
 	}
 	return cfg, nil
+}
+
+func splitList(s string) []string {
+	var out []string
+	for _, v := range strings.Split(s, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func getenv(key, fallback string) string {

@@ -19,6 +19,9 @@ func newTestService(t *testing.T) (*Service, *store.Users) {
 	users := store.NewUsers(pool)
 	svc, err := NewService(context.Background(), users, store.NewSessions(pool), Options{
 		BaseURL: "http://localhost:8080",
+		// Sign-ups beyond the first user require an allowlist entry
+		// (closed-instance policy); TestAllowlist covers the rejection path.
+		AllowedEmails: []string{"second@example.com", "local@example.com"},
 	})
 	if err != nil {
 		t.Fatalf("NewService: %v", err)

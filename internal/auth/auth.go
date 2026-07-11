@@ -29,14 +29,24 @@ type Service struct {
 	// secureCookies is false only for plain-http development instances.
 	secureCookies bool
 	baseURL       string
+	localAuth     bool
+	// allowedEmails restricts sign-ups beyond the first user (lowercased).
+	// Empty means the instance is closed once the first user exists.
+	allowedEmails map[string]bool
 }
 
 func NewService(ctx context.Context, users *store.Users, sessions *store.Sessions, opts Options) (*Service, error) {
+	allowed := make(map[string]bool, len(opts.AllowedEmails))
+	for _, e := range opts.AllowedEmails {
+		allowed[strings.ToLower(e)] = true
+	}
 	s := &Service{
 		users:         users,
 		sessions:      sessions,
 		secureCookies: strings.HasPrefix(opts.BaseURL, "https://"),
 		baseURL:       opts.BaseURL,
+		localAuth:     opts.LocalAuth,
+		allowedEmails: allowed,
 	}
 	if opts.GoogleClientID != "" {
 		g, err := newGoogleProvider(ctx, opts)
@@ -53,6 +63,10 @@ type Options struct {
 	BaseURL            string
 	GoogleClientID     string
 	GoogleClientSecret string
+	// LocalAuth enables POST /auth/login for email/password accounts.
+	LocalAuth bool
+	// AllowedEmails restricts sign-ups beyond the first user.
+	AllowedEmails []string
 }
 
 // Routes registers the /auth/* endpoints.
@@ -63,6 +77,9 @@ func (s *Service) Routes(mux *http.ServeMux) {
 		mux.HandleFunc("GET /auth/google", s.handleGoogleStart)
 		mux.HandleFunc("GET /auth/google/callback", s.handleGoogleCallback)
 	}
+	if s.localAuth {
+		mux.HandleFunc("POST /auth/login", s.handleLogin)
+	}
 }
 
 // handleProviders tells the frontend which sign-in methods to offer.
@@ -71,7 +88,17 @@ func (s *Service) handleProviders(w http.ResponseWriter, r *http.Request) {
 	if s.google != nil {
 		providers = append(providers, "google")
 	}
+	if s.localAuth {
+		providers = append(providers, "local")
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"providers": providers})
+}
+
+// emailAllowed reports whether email may create a new account. The first
+// user on an instance is always allowed (and becomes admin); see
+// upsertGoogleUser.
+func (s *Service) emailAllowed(email string) bool {
+	return s.allowedEmails[strings.ToLower(email)]
 }
 
 // signIn creates a session for the user and sets the cookie.
