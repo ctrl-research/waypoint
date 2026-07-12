@@ -113,6 +113,30 @@ export function TripDetailPage() {
       <JournalTimeline tripId={trip.id} items={items} stops={stops} canEdit={canEdit} />
       <MembersSection tripId={trip.id} role={trip.role} />
       {trip.role === 'owner' && <ShareSection tripId={trip.id} />}
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-slate-900">Export</h2>
+        <p className="text-sm text-slate-500">Take your data with you.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(
+            [
+              ['gpx', 'GPX', 'stops + route for GPS apps'],
+              ['geojson', 'GeoJSON', 'stops, route, and journal points'],
+              ['markdown', 'Markdown', 'trip.md + photos as a zip'],
+            ] as const
+          ).map(([format, label, hint]) => (
+            <a
+              key={format}
+              href={`/api/v1/trips/${trip.id}/export/${format}`}
+              download
+              title={hint}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              ⬇ {label}
+            </a>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }

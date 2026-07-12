@@ -55,6 +55,10 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/trips/{tripID}/members", protected(api.addMember))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/members/{userID}", protected(api.removeMember))
 
+	mux.Handle("GET /api/v1/trips/{tripID}/export/gpx", protected(api.exportGPX))
+	mux.Handle("GET /api/v1/trips/{tripID}/export/geojson", protected(api.exportGeoJSON))
+	mux.Handle("GET /api/v1/trips/{tripID}/export/markdown", protected(api.exportMarkdown))
+
 	mux.Handle("GET /api/v1/trips/{tripID}/shares", protected(api.listShares))
 	mux.Handle("POST /api/v1/trips/{tripID}/shares", protected(api.createShare))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/shares/{shareID}", protected(api.revokeShare))
