@@ -169,6 +169,9 @@ type ItineraryItem struct {
 	DestinationStopID *uuid.UUID
 	OriginHomeID      *uuid.UUID
 	DestinationHomeID *uuid.UUID
+	Address           string
+	Lat               *float64
+	Lon               *float64
 }
 
 type JournalEntry struct {

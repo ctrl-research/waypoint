@@ -446,6 +446,75 @@ function StopsSection({
   )
 }
 
+// VenueSearch attaches an address (and coordinates when picked from the
+// geocoder) to an itinerary item, so its map pin sits at the actual venue.
+function VenueSearch({
+  onPick,
+}: {
+  onPick: (venue: { address: string; lat?: number; lon?: number }) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [debounced, setDebounced] = useState('')
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(query.trim()), 400)
+    return () => window.clearTimeout(id)
+  }, [query])
+
+  const results = useQuery({
+    queryKey: ['geocode', debounced],
+    queryFn: () => geocode(debounced),
+    enabled: debounced.length >= 2,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          window.setTimeout(() => setOpen(false), 150)
+          if (query.trim()) onPick({ address: query.trim() })
+        }}
+        placeholder="Address / venue (optional)"
+        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+      />
+      {open && debounced.length >= 2 && (
+        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg">
+          {results.isLoading && (
+            <p className="px-4 py-2 text-sm text-slate-400 dark:text-slate-500">Searching…</p>
+          )}
+          {results.data?.map((r) => (
+            <button
+              key={`${r.lat},${r.lon}`}
+              type="button"
+              onMouseDown={() => {
+                onPick({ address: r.name, lat: r.lat, lon: r.lon })
+                setQuery('')
+                setOpen(false)
+              }}
+              className="block w-full truncate px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              📍 {r.name}
+            </button>
+          ))}
+          {results.data?.length === 0 && (
+            <p className="px-4 py-2 text-sm text-slate-400 dark:text-slate-500">
+              No places found — blur keeps it as a plain address.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // StopSearch is a geocoding autocomplete: picking a result adds the stop
 // with coordinates; submitting free text adds it without (pick-on-map is #14).
 function StopSearch({ pending, onAdd }: { pending: boolean; onAdd: (input: StopInput) => void }) {
@@ -543,6 +612,7 @@ function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
   const [category, setCategory] = useState<ItineraryCategory>('activity')
   const [stopId, setStopId] = useState('')
   const [destinationStopId, setDestinationStopId] = useState('')
+  const [venue, setVenue] = useState<{ address: string; lat?: number; lon?: number } | null>(null)
   const isLeg = category === 'flight' || category === 'train'
   const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
@@ -554,6 +624,14 @@ function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
         category,
         ...(startTime ? { startTime } : {}),
         ...(endTime ? { endTime } : {}),
+        ...(venue
+          ? {
+              address: venue.address,
+              ...(venue.lat !== undefined && venue.lon !== undefined
+                ? { lat: venue.lat, lon: venue.lon }
+                : {}),
+            }
+          : {}),
         ...(stopId.startsWith('home:')
           ? { originHomeId: stopId.slice(5) }
           : stopId
@@ -567,6 +645,7 @@ function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
       }),
     onSuccess: async () => {
       setTitle('')
+      setVenue(null)
       await queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
     },
   })
@@ -612,6 +691,23 @@ function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
           className={field}
         />
       </div>
+      {venue ? (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="truncate rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-slate-700 dark:text-slate-300">
+            📍 {venue.address}
+          </span>
+          <button
+            type="button"
+            onClick={() => setVenue(null)}
+            className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+            aria-label="Remove venue"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <VenueSearch onPick={setVenue} />
+      )}
       <div className="flex flex-wrap gap-2">
         <select
           value={category}

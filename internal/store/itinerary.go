@@ -45,6 +45,9 @@ type ItineraryItemParams struct {
 	Notes             string
 	CostCents         *int64
 	Currency          *string
+	Address           string   // venue display address (optional)
+	Lat               *float64 // venue coordinates (pair with Lon)
+	Lon               *float64
 }
 
 // CreateItem appends the item at the end of its day's ordering.
@@ -55,6 +58,7 @@ func (s *Trips) CreateItem(ctx context.Context, tripID uuid.UUID, p ItineraryIte
 		Day: p.Day, StartTime: p.StartTime, EndTime: p.EndTime,
 		Title: p.Title, Category: p.Category, Notes: p.Notes,
 		CostCents: p.CostCents, Currency: p.Currency,
+		Address: p.Address, Lat: p.Lat, Lon: p.Lon,
 	})
 	if err == nil {
 		s.touch(ctx, tripID)
@@ -83,6 +87,7 @@ func (s *Trips) UpdateItem(ctx context.Context, tripID, itemID uuid.UUID, p Itin
 		Day: p.Day, StartTime: p.StartTime, EndTime: p.EndTime,
 		Title: p.Title, Category: p.Category, Notes: p.Notes,
 		CostCents: p.CostCents, Currency: p.Currency,
+		Address: p.Address, Lat: p.Lat, Lon: p.Lon,
 	})
 	if err == nil {
 		s.touch(ctx, tripID)

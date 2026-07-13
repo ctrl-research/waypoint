@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -110,6 +110,20 @@ export function TripMap({
     }
   }, [highlightKey])
 
+  // Layer visibility (default: everything shown).
+  const [showStops, setShowStops] = useState(true)
+  const [showItems, setShowItems] = useState(true)
+  useEffect(() => {
+    for (const [key, marker] of markersRef.current) {
+      const visible = key.startsWith('stop:') ? showStops : showItems
+      marker.getElement().style.display = visible ? '' : 'none'
+    }
+    const map = mapRef.current
+    if (map?.getLayer(ROUTE_SOURCE)) {
+      map.setLayoutProperty(ROUTE_SOURCE, 'visibility', showStops ? 'visible' : 'none')
+    }
+  }, [showStops, showItems, stops, items])
+
   // Picking mode: crosshair cursor.
   useEffect(() => {
     const canvas = mapRef.current?.getCanvas()
@@ -124,6 +138,23 @@ export function TripMap({
           Click the map to place the stop
         </div>
       )}
+      <div className="absolute left-3 top-3 flex gap-1 rounded-lg bg-white/90 p-1 text-xs shadow">
+        {(
+          [
+            ['Stops', showStops, setShowStops],
+            ['Items', showItems, setShowItems],
+          ] as const
+        ).map(([label, on, set]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => set(!on)}
+            className={`rounded-md px-2 py-1 ${on ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -161,8 +192,8 @@ function syncMap(
     markersRef.current.set(`stop:${stop.id}`, marker)
   }
 
-  // Itinerary pins (#72): D{day}_{n} at the item's stop, stacked below the
-  // stop marker so several items at one place stay readable.
+  // Itinerary pins (#72): D{day}_{n} at the item's own venue when it has an
+  // address, otherwise stacked below its stop's marker.
   const days = [...new Set(items.map((it) => it.day))].sort()
   const dayNumber = new Map(days.map((d, i) => [d, i + 1]))
   const perDayCount = new Map<string, number>()
@@ -170,17 +201,29 @@ function syncMap(
   for (const item of items) {
     const n = (perDayCount.get(item.day) ?? 0) + 1
     perDayCount.set(item.day, n)
-    const stop = item.stopId ? located.find((s) => s.id === item.stopId) : undefined
-    if (!stop) continue
-    const stacked = perStopStack.get(stop.id) ?? 0
-    perStopStack.set(stop.id, stacked + 1)
     const label = `D${dayNumber.get(item.day)}_${n}`
-    const marker = new maplibregl.Marker({
-      element: makeMarkerEl(label, 'item'),
-      offset: [0, 26 + stacked * 22],
-    })
-      .setLngLat([stop.lon!, stop.lat!])
-      .setPopup(new maplibregl.Popup({ closeButton: false }).setText(`${item.title} — ${stop.name}`))
+    const stop = item.stopId ? located.find((s) => s.id === item.stopId) : undefined
+    let lngLat: [number, number] | null = null
+    let offset: [number, number] = [0, 0]
+    let where = ''
+    if (item.lat !== null && item.lon !== null) {
+      lngLat = [item.lon, item.lat]
+      where = item.address
+    } else if (stop) {
+      const stacked = perStopStack.get(stop.id) ?? 0
+      perStopStack.set(stop.id, stacked + 1)
+      lngLat = [stop.lon!, stop.lat!]
+      offset = [0, 26 + stacked * 22]
+      where = stop.name
+    }
+    if (!lngLat) continue
+    const marker = new maplibregl.Marker({ element: makeMarkerEl(label, 'item'), offset })
+      .setLngLat(lngLat)
+      .setPopup(
+        new maplibregl.Popup({ closeButton: false }).setText(
+          where ? `${item.title} — ${where}` : item.title,
+        ),
+      )
       .addTo(map)
     markersRef.current.set(`item:${item.id}`, marker)
   }

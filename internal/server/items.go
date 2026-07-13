@@ -36,6 +36,10 @@ type itemRequest struct {
 	Notes             *string    `json:"notes"`
 	CostCents         *int64     `json:"costCents"`
 	Currency          *string    `json:"currency"`
+	Address           *string    `json:"address"`
+	Lat               *float64   `json:"lat"`
+	Lon               *float64   `json:"lon"`
+	ClearLatLon       bool       `json:"clearLatLon"`
 }
 
 func (req itemRequest) merge(p *store.ItineraryItemParams) error {
@@ -105,6 +109,21 @@ func (req itemRequest) merge(p *store.ItineraryItemParams) error {
 	}
 	if req.Notes != nil {
 		p.Notes = *req.Notes
+	}
+	if req.Address != nil {
+		p.Address = *req.Address
+	}
+	switch {
+	case req.ClearLatLon:
+		p.Lat, p.Lon = nil, nil
+	case req.Lat != nil || req.Lon != nil:
+		if req.Lat == nil || req.Lon == nil {
+			return errors.New("lat and lon must be provided together")
+		}
+		if *req.Lat < -90 || *req.Lat > 90 || *req.Lon < -180 || *req.Lon > 180 {
+			return errors.New("lat/lon out of range")
+		}
+		p.Lat, p.Lon = req.Lat, req.Lon
 	}
 	if req.CostCents != nil && *req.CostCents == -1 {
 		p.CostCents, p.Currency = nil, nil
@@ -231,6 +250,7 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		Day: current.Day, StartTime: current.StartTime, EndTime: current.EndTime,
 		Title: current.Title, Category: current.Category, Notes: current.Notes,
 		CostCents: current.CostCents, Currency: current.Currency,
+		Address: current.Address, Lat: current.Lat, Lon: current.Lon,
 	}
 	if err := req.merge(&params); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid", err.Error())
