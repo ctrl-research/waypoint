@@ -16,9 +16,10 @@ import {
   type ItineraryCategory,
   type Stop,
   type StopInput,
+  type Trip,
   type TripStatus,
 } from '../api'
-import { formatRange, statusStyles } from './Home'
+import { defaultTripDay, formatRange, statusStyles } from './Home'
 import { ItineraryBoard, categoryIcons } from './ItineraryBoard'
 import { JournalTimeline } from './Journal'
 import { MembersSection, ShareSection } from './Members'
@@ -105,13 +106,13 @@ export function TripDetailPage() {
           <ItineraryBoard trip={trip} items={items} stops={stops} homes={homes} readOnly={!canEdit} />
           {canEdit && (
             <div className="mt-4">
-              <NewItemForm tripId={trip.id} stops={stops} />
+              <NewItemForm trip={trip} stops={stops} />
             </div>
           )}
         </section>
       </div>
 
-      <JournalTimeline tripId={trip.id} items={items} stops={stops} canEdit={canEdit} />
+      <JournalTimeline trip={trip} items={items} stops={stops} canEdit={canEdit} />
       <MembersSection tripId={trip.id} role={trip.role} />
       {trip.role === 'owner' && <ShareSection tripId={trip.id} />}
 
@@ -290,6 +291,7 @@ function EditTripForm({
             <input
               type="date"
               value={form.startDate}
+              max={form.endDate || undefined}
               onChange={(e) => setForm({ ...form, startDate: e.target.value })}
               className={field}
             />
@@ -299,6 +301,7 @@ function EditTripForm({
             <input
               type="date"
               value={form.endDate}
+              min={form.startDate || undefined}
               onChange={(e) => setForm({ ...form, endDate: e.target.value })}
               className={field}
             />
@@ -515,10 +518,11 @@ function shortName(displayName: string): string {
 }
 
 
-function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
+function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
+  const tripId = trip.id
   const queryClient = useQueryClient()
   const [title, setTitle] = useState('')
-  const [day, setDay] = useState('')
+  const [day, setDay] = useState(() => defaultTripDay(trip.startDate, trip.endDate))
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [category, setCategory] = useState<ItineraryCategory>('activity')
@@ -569,7 +573,15 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
           placeholder={isLeg ? 'Flight/train number or name' : 'Add an activity'}
           className={`${field} min-w-40 flex-1`}
         />
-        <input type="date" required value={day} onChange={(e) => setDay(e.target.value)} className={field} />
+        <input
+          type="date"
+          required
+          value={day}
+          min={trip.startDate ?? undefined}
+          max={trip.endDate ?? undefined}
+          onChange={(e) => setDay(e.target.value)}
+          className={field}
+        />
         <input
           type="time"
           value={startTime}

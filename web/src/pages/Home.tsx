@@ -151,6 +151,7 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
           <input
             type="date"
             value={startDate}
+            max={endDate || undefined}
             onChange={(e) => setStartDate(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           />
@@ -160,6 +161,7 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
           <input
             type="date"
             value={endDate}
+            min={startDate || undefined}
             onChange={(e) => setEndDate(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           />
@@ -188,6 +190,15 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
       </button>
     </form>
   )
+}
+
+/** Today clamped into a trip's date range — the natural default for
+ * in-trip date inputs (#59). */
+export function defaultTripDay(start: string | null, end: string | null): string {
+  const today = new Date().toISOString().slice(0, 10)
+  if (start && today < start) return start
+  if (end && today > end) return end
+  return today
 }
 
 export function formatRange(start: string | null, end: string | null): string {
