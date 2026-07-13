@@ -8,3 +8,22 @@ LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
 WHERE (t.owner_id = $1 OR m.user_id IS NOT NULL)
   AND s.lat IS NOT NULL
 ORDER BY t.id, s.position;
+
+-- name: ListTravelLegsForUser :many
+-- Flight and train items across accessible trips. Each endpoint is either a
+-- stop or a home; the joins surface whichever coordinates exist.
+SELECT i.category,
+       CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
+       CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
+       s1.lat AS from_stop_lat, s1.lon AS from_stop_lon,
+       s2.lat AS to_stop_lat, s2.lon AS to_stop_lon,
+       h1.lat AS from_home_lat, h1.lon AS from_home_lon,
+       h2.lat AS to_home_lat, h2.lon AS to_home_lon
+FROM itinerary_items i
+JOIN trips t ON t.id = i.trip_id
+LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
+LEFT JOIN stops s1 ON s1.id = i.stop_id
+LEFT JOIN stops s2 ON s2.id = i.destination_stop_id
+LEFT JOIN homes h1 ON h1.id = i.origin_home_id
+LEFT JOIN homes h2 ON h2.id = i.destination_home_id
+WHERE i.category IN ('flight', 'train') AND (t.owner_id = $1 OR m.user_id IS NOT NULL);

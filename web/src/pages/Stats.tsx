@@ -14,13 +14,13 @@ export function StatsPage() {
   const stats = useQuery({ queryKey: ['stats'], queryFn: fetchStats, enabled: !!me })
   const [mode, setMode] = useState<StatsMapMode>('countries')
   const [projection, setProjection] = useState<StatsMapProjection>('mercator')
-  const [visited, setVisited] = useState<VisitedPlaces>({ countries: [], continents: [] })
+  const [visited, setVisited] = useState<VisitedPlaces>({ countries: [], continents: [], countryTotal: 0 })
 
   if (isLoading) return null
   if (!me) return <Navigate to="/login" />
   if (!stats.data) return null
 
-  const { totals, tripsPerYear, stops } = stats.data
+  const { totals, flights, trains, tripsPerYear, stops } = stats.data
   const maxYearCount = Math.max(1, ...tripsPerYear.map((y) => y.count))
 
   return (
@@ -30,10 +30,11 @@ export function StatsPage() {
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile label="Trips" value={totals.trips} hint={tileHint(totals)} />
+        <StatTile label="Continents" value={visited.continents.length} hint="of 7 continents" />
         <StatTile
           label="Countries"
           value={visited.countries.length}
-          hint={`across ${visited.continents.length} continent${visited.continents.length === 1 ? '' : 's'}`}
+          hint={`of ${visited.countryTotal || '…'} countries`}
         />
         <StatTile label="Cities" value={totals.cities} hint="distinct stops" />
         <StatTile label="Days on the road" value={totals.daysOnRoad} hint="dated trips" />
@@ -42,6 +43,20 @@ export function StatsPage() {
           value={`${totals.plannedDistanceKm.toLocaleString()} km`}
           hint="between stops, as the crow flies"
         />
+        <StatTile label="Flights" value={flights.count} hint="itinerary ✈️ legs" />
+        <StatTile
+          label="Flight distance"
+          value={`${flights.distanceKm.toLocaleString()} km`}
+          hint="great-circle"
+        />
+        <StatTile label="Time in the air" value={formatMinutes(flights.minutes)} hint="departure to arrival" />
+        <StatTile label="Trains" value={trains.count} hint="itinerary 🚆 legs" />
+        <StatTile
+          label="Train distance"
+          value={`${trains.distanceKm.toLocaleString()} km`}
+          hint="great-circle"
+        />
+        <StatTile label="Time on rails" value={formatMinutes(trains.minutes)} hint="departure to arrival" />
       </div>
 
       {tripsPerYear.length > 0 && (
@@ -115,6 +130,13 @@ export function StatsPage() {
       </section>
     </div>
   )
+}
+
+function formatMinutes(minutes: number): string {
+  if (minutes === 0) return '0h'
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m ? `${h}h ${m}m` : `${h}h`
 }
 
 function tileHint(totals: { planning: number; active: number; completed: number }): string {

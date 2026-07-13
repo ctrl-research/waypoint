@@ -30,49 +30,66 @@ func (q *Queries) CountItemsForDay(ctx context.Context, arg CountItemsForDayPara
 
 const createItem = `-- name: CreateItem :one
 
-INSERT INTO itinerary_items (trip_id, stop_id, day, start_time, title, category, notes, cost_cents, currency, position)
-VALUES ($1, $2, $3, NULLIF($4::text, '')::time,
-        $5, $6, $7, $8, $9,
-        (SELECT COALESCE(MAX(position) + 1, 0) FROM itinerary_items i WHERE i.trip_id = $1 AND i.day = $3))
-RETURNING id, trip_id, stop_id, day, CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time, title, category, notes, cost_cents, currency, position
+INSERT INTO itinerary_items (trip_id, stop_id, destination_stop_id, origin_home_id, destination_home_id, day, start_time, end_time, title, category, notes, cost_cents, currency, position)
+VALUES ($1, $2, $3, $4, $5, $6,
+        NULLIF($7::text, '')::time, NULLIF($8::text, '')::time,
+        $9, $10, $11, $12, $13,
+        (SELECT COALESCE(MAX(position) + 1, 0) FROM itinerary_items i WHERE i.trip_id = $1 AND i.day = $6))
+RETURNING id, trip_id, stop_id, day,
+          CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
+          title, category, notes, cost_cents, currency, position,
+          CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
+          destination_stop_id, origin_home_id, destination_home_id
 `
 
 type CreateItemParams struct {
-	TripID    uuid.UUID
-	StopID    *uuid.UUID
-	Day       time.Time
-	StartTime string
-	Title     string
-	Category  ItineraryCategory
-	Notes     string
-	CostCents *int64
-	Currency  *string
+	TripID            uuid.UUID
+	StopID            *uuid.UUID
+	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
+	Day               time.Time
+	StartTime         string
+	EndTime           string
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
 }
 
 type CreateItemRow struct {
-	ID        uuid.UUID
-	TripID    uuid.UUID
-	StopID    *uuid.UUID
-	Day       time.Time
-	StartTime string
-	Title     string
-	Category  ItineraryCategory
-	Notes     string
-	CostCents *int64
-	Currency  *string
-	Position  int32
+	ID                uuid.UUID
+	TripID            uuid.UUID
+	StopID            *uuid.UUID
+	Day               time.Time
+	StartTime         string
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
+	Position          int32
+	EndTime           string
+	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
 }
 
-// start_time is a `time` column exposed as an "HH:MM" string; ” means
-// unscheduled. NULLIF on the way in and COALESCE(to_char(...)) on the way
+// start_time/end_time are `time` columns exposed as "HH:MM" strings; ”
+// means unset. NULLIF on the way in and COALESCE(to_char(...)) on the way
 // out keep sqlc's generated types plain strings.
 // Appends the item at the end of its day's ordering.
 func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (CreateItemRow, error) {
 	row := q.db.QueryRow(ctx, createItem,
 		arg.TripID,
 		arg.StopID,
+		arg.DestinationStopID,
+		arg.OriginHomeID,
+		arg.DestinationHomeID,
 		arg.Day,
 		arg.StartTime,
+		arg.EndTime,
 		arg.Title,
 		arg.Category,
 		arg.Notes,
@@ -92,6 +109,10 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (CreateI
 		&i.CostCents,
 		&i.Currency,
 		&i.Position,
+		&i.EndTime,
+		&i.DestinationStopID,
+		&i.OriginHomeID,
+		&i.DestinationHomeID,
 	)
 	return i, err
 }
@@ -114,7 +135,11 @@ func (q *Queries) DeleteItem(ctx context.Context, arg DeleteItemParams) (int64, 
 }
 
 const itemByID = `-- name: ItemByID :one
-SELECT id, trip_id, stop_id, day, CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time, title, category, notes, cost_cents, currency, position
+SELECT id, trip_id, stop_id, day,
+       CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
+       title, category, notes, cost_cents, currency, position,
+       CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
+       destination_stop_id, origin_home_id, destination_home_id
 FROM itinerary_items WHERE id = $2 AND trip_id = $1
 `
 
@@ -124,17 +149,21 @@ type ItemByIDParams struct {
 }
 
 type ItemByIDRow struct {
-	ID        uuid.UUID
-	TripID    uuid.UUID
-	StopID    *uuid.UUID
-	Day       time.Time
-	StartTime string
-	Title     string
-	Category  ItineraryCategory
-	Notes     string
-	CostCents *int64
-	Currency  *string
-	Position  int32
+	ID                uuid.UUID
+	TripID            uuid.UUID
+	StopID            *uuid.UUID
+	Day               time.Time
+	StartTime         string
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
+	Position          int32
+	EndTime           string
+	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
 }
 
 func (q *Queries) ItemByID(ctx context.Context, arg ItemByIDParams) (ItemByIDRow, error) {
@@ -152,27 +181,39 @@ func (q *Queries) ItemByID(ctx context.Context, arg ItemByIDParams) (ItemByIDRow
 		&i.CostCents,
 		&i.Currency,
 		&i.Position,
+		&i.EndTime,
+		&i.DestinationStopID,
+		&i.OriginHomeID,
+		&i.DestinationHomeID,
 	)
 	return i, err
 }
 
 const listItems = `-- name: ListItems :many
-SELECT id, trip_id, stop_id, day, CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time, title, category, notes, cost_cents, currency, position
+SELECT id, trip_id, stop_id, day,
+       CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
+       title, category, notes, cost_cents, currency, position,
+       CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
+       destination_stop_id, origin_home_id, destination_home_id
 FROM itinerary_items WHERE trip_id = $1 ORDER BY day, position
 `
 
 type ListItemsRow struct {
-	ID        uuid.UUID
-	TripID    uuid.UUID
-	StopID    *uuid.UUID
-	Day       time.Time
-	StartTime string
-	Title     string
-	Category  ItineraryCategory
-	Notes     string
-	CostCents *int64
-	Currency  *string
-	Position  int32
+	ID                uuid.UUID
+	TripID            uuid.UUID
+	StopID            *uuid.UUID
+	Day               time.Time
+	StartTime         string
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
+	Position          int32
+	EndTime           string
+	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
 }
 
 func (q *Queries) ListItems(ctx context.Context, tripID uuid.UUID) ([]ListItemsRow, error) {
@@ -196,6 +237,10 @@ func (q *Queries) ListItems(ctx context.Context, tripID uuid.UUID) ([]ListItemsR
 			&i.CostCents,
 			&i.Currency,
 			&i.Position,
+			&i.EndTime,
+			&i.DestinationStopID,
+			&i.OriginHomeID,
+			&i.DestinationHomeID,
 		); err != nil {
 			return nil, err
 		}
@@ -248,45 +293,64 @@ func (q *Queries) SetItemPosition(ctx context.Context, arg SetItemPositionParams
 
 const updateItem = `-- name: UpdateItem :one
 UPDATE itinerary_items
-SET stop_id = $1, day = $2, start_time = NULLIF($3::text, '')::time,
-    title = $4, category = $5, notes = $6,
-    cost_cents = $7, currency = $8
-WHERE id = $9 AND trip_id = $10
-RETURNING id, trip_id, stop_id, day, CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time, title, category, notes, cost_cents, currency, position
+SET stop_id = $1, destination_stop_id = $2,
+    origin_home_id = $3, destination_home_id = $4, day = $5,
+    start_time = NULLIF($6::text, '')::time,
+    end_time = NULLIF($7::text, '')::time,
+    title = $8, category = $9, notes = $10,
+    cost_cents = $11, currency = $12
+WHERE id = $13 AND trip_id = $14
+RETURNING id, trip_id, stop_id, day,
+          CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
+          title, category, notes, cost_cents, currency, position,
+          CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
+          destination_stop_id, origin_home_id, destination_home_id
 `
 
 type UpdateItemParams struct {
-	StopID    *uuid.UUID
-	Day       time.Time
-	StartTime string
-	Title     string
-	Category  ItineraryCategory
-	Notes     string
-	CostCents *int64
-	Currency  *string
-	ID        uuid.UUID
-	TripID    uuid.UUID
+	StopID            *uuid.UUID
+	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
+	Day               time.Time
+	StartTime         string
+	EndTime           string
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
+	ID                uuid.UUID
+	TripID            uuid.UUID
 }
 
 type UpdateItemRow struct {
-	ID        uuid.UUID
-	TripID    uuid.UUID
-	StopID    *uuid.UUID
-	Day       time.Time
-	StartTime string
-	Title     string
-	Category  ItineraryCategory
-	Notes     string
-	CostCents *int64
-	Currency  *string
-	Position  int32
+	ID                uuid.UUID
+	TripID            uuid.UUID
+	StopID            *uuid.UUID
+	Day               time.Time
+	StartTime         string
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
+	Position          int32
+	EndTime           string
+	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
 }
 
 func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (UpdateItemRow, error) {
 	row := q.db.QueryRow(ctx, updateItem,
 		arg.StopID,
+		arg.DestinationStopID,
+		arg.OriginHomeID,
+		arg.DestinationHomeID,
 		arg.Day,
 		arg.StartTime,
+		arg.EndTime,
 		arg.Title,
 		arg.Category,
 		arg.Notes,
@@ -308,6 +372,10 @@ func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (UpdateI
 		&i.CostCents,
 		&i.Currency,
 		&i.Position,
+		&i.EndTime,
+		&i.DestinationStopID,
+		&i.OriginHomeID,
+		&i.DestinationHomeID,
 	)
 	return i, err
 }

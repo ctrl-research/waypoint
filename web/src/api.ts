@@ -89,13 +89,17 @@ export type Stop = {
   notes: string
 }
 
-export type ItineraryCategory = 'activity' | 'food' | 'lodging' | 'transport' | 'other'
+export type ItineraryCategory = 'activity' | 'food' | 'lodging' | 'transport' | 'flight' | 'train' | 'other'
 
 export type ItineraryItem = {
   id: string
   stopId: string | null
+  destinationStopId: string | null
+  originHomeId: string | null
+  destinationHomeId: string | null
   day: string
   startTime: string | null
+  endTime: string | null
   title: string
   category: ItineraryCategory
   notes: string
@@ -104,7 +108,9 @@ export type ItineraryItem = {
   position: number
 }
 
-export type TripDetail = { trip: Trip; stops: Stop[]; items: ItineraryItem[] }
+export type TripHome = { id: string; name: string }
+
+export type TripDetail = { trip: Trip; stops: Stop[]; items: ItineraryItem[]; homes: TripHome[] }
 
 /** Fields for creating/patching; dates are "YYYY-MM-DD", "" clears. */
 export type TripInput = Partial<{
@@ -164,8 +170,12 @@ export function deleteStop(tripId: string, stopId: string): Promise<void> {
 
 export type ItemInput = Partial<{
   stopId: string
+  destinationStopId: string
+  originHomeId: string | null
+  destinationHomeId: string | null
   day: string
   startTime: string
+  endTime: string
   title: string
   category: ItineraryCategory
   notes: string
@@ -369,6 +379,8 @@ export function fetchPublicTrip(token: string): Promise<PublicTripPayload> {
 
 // ---- stats ---------------------------------------------------------------------
 
+export type LegAggregate = { count: number; distanceKm: number; minutes: number }
+
 export type StatsPayload = {
   totals: {
     trips: number
@@ -379,10 +391,39 @@ export type StatsPayload = {
     plannedDistanceKm: number
     cities: number
   }
+  flights: LegAggregate
+  trains: LegAggregate
   tripsPerYear: { year: number; count: number }[]
   stops: { name: string; lat: number; lon: number; tripTitle: string }[]
 }
 
 export function fetchStats(): Promise<StatsPayload> {
   return requestJSON('/api/v1/stats')
+}
+
+
+// ---- homes ---------------------------------------------------------------------
+
+export type Home = {
+  id: string
+  name: string
+  lat: number
+  lon: number
+  createdAt: string
+}
+
+export async function listHomes(): Promise<Home[]> {
+  const body = await requestJSON<{ homes: Home[] }>('/api/v1/homes')
+  return body.homes
+}
+
+export function createHome(name: string, lat: number, lon: number): Promise<Home> {
+  return requestJSON('/api/v1/homes', {
+    method: 'POST',
+    body: JSON.stringify({ name, lat, lon }),
+  })
+}
+
+export function deleteHome(homeId: string): Promise<void> {
+  return requestJSON(`/api/v1/homes/${homeId}`, { method: 'DELETE' })
 }

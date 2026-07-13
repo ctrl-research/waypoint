@@ -198,12 +198,16 @@ func TestTripsAPI(t *testing.T) {
 
 	t.Run("item validation", func(t *testing.T) {
 		for name, body := range map[string]string{
-			"missing day":    `{"title":"x"}`,
-			"bad time":       `{"title":"x","day":"2027-03-24","startTime":"9am"}`,
-			"bad category":   `{"title":"x","day":"2027-03-24","category":"nap"}`,
-			"cost, no ccy":   `{"title":"x","day":"2027-03-24","costCents":100}`,
-			"negative cost":  `{"title":"x","day":"2027-03-24","costCents":-5,"currency":"USD"}`,
-			"foreign stopId": `{"title":"x","day":"2027-03-24","stopId":"00000000-0000-0000-0000-000000000001"}`,
+			"missing day":         `{"title":"x"}`,
+			"bad time":            `{"title":"x","day":"2027-03-24","startTime":"9am"}`,
+			"bad category":        `{"title":"x","day":"2027-03-24","category":"nap"}`,
+			"cost, no ccy":        `{"title":"x","day":"2027-03-24","costCents":100}`,
+			"negative cost":       `{"title":"x","day":"2027-03-24","costCents":-5,"currency":"USD"}`,
+			"foreign stopId":      `{"title":"x","day":"2027-03-24","stopId":"00000000-0000-0000-0000-000000000001"}`,
+			"bad endTime":         `{"title":"x","day":"2027-03-24","endTime":"25:99"}`,
+			"foreign destination": `{"title":"x","day":"2027-03-24","category":"flight","destinationStopId":"00000000-0000-0000-0000-000000000001"}`,
+			"home and stop both":  fmt.Sprintf(`{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001","stopId":%q}`, stopIDs[0]),
+			"foreign home":        `{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001"}`,
 		} {
 			if code, _ := call(t, h, alice, "POST", tripPath+"/items", body); code != 400 {
 				t.Fatalf("%s: code = %d, want 400", name, code)

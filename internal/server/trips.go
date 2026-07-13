@@ -57,6 +57,10 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 
 	mux.Handle("GET /api/v1/stats", protected(api.handleStats))
 
+	mux.Handle("GET /api/v1/homes", protected(api.listHomes))
+	mux.Handle("POST /api/v1/homes", protected(api.createHome))
+	mux.Handle("DELETE /api/v1/homes/{homeID}", protected(api.deleteHome))
+
 	mux.Handle("GET /api/v1/trips/{tripID}/export/gpx", protected(api.exportGPX))
 	mux.Handle("GET /api/v1/trips/{tripID}/export/geojson", protected(api.exportGeoJSON))
 	mux.Handle("GET /api/v1/trips/{tripID}/export/markdown", protected(api.exportMarkdown))
@@ -117,21 +121,27 @@ func toStopJSON(s store.Stop) stopJSON {
 }
 
 type itemJSON struct {
-	ID        uuid.UUID  `json:"id"`
-	StopID    *uuid.UUID `json:"stopId"`
-	Day       string     `json:"day"`
-	StartTime *string    `json:"startTime"`
-	Title     string     `json:"title"`
-	Category  string     `json:"category"`
-	Notes     string     `json:"notes"`
-	CostCents *int64     `json:"costCents"`
-	Currency  *string    `json:"currency"`
-	Position  int32      `json:"position"`
+	ID                uuid.UUID  `json:"id"`
+	StopID            *uuid.UUID `json:"stopId"`
+	DestinationStopID *uuid.UUID `json:"destinationStopId"`
+	OriginHomeID      *uuid.UUID `json:"originHomeId"`
+	DestinationHomeID *uuid.UUID `json:"destinationHomeId"`
+	Day               string     `json:"day"`
+	StartTime         *string    `json:"startTime"`
+	EndTime           *string    `json:"endTime"`
+	Title             string     `json:"title"`
+	Category          string     `json:"category"`
+	Notes             string     `json:"notes"`
+	CostCents         *int64     `json:"costCents"`
+	Currency          *string    `json:"currency"`
+	Position          int32      `json:"position"`
 }
 
 func toItemJSON(it store.ItineraryItem) itemJSON {
 	return itemJSON{
-		ID: it.ID, StopID: it.StopID, Day: it.Day.Format(dateFormat), StartTime: nilIfEmpty(it.StartTime),
+		ID: it.ID, StopID: it.StopID, DestinationStopID: it.DestinationStopID,
+		OriginHomeID: it.OriginHomeID, DestinationHomeID: it.DestinationHomeID,
+		Day: it.Day.Format(dateFormat), StartTime: nilIfEmpty(it.StartTime), EndTime: nilIfEmpty(it.EndTime),
 		Title: it.Title, Category: string(it.Category), Notes: it.Notes,
 		CostCents: it.CostCents, Currency: it.Currency, Position: it.Position,
 	}
@@ -249,8 +259,17 @@ func (api *tripsAPI) get(w http.ResponseWriter, r *http.Request) {
 	for _, it := range items {
 		itemsOut = append(itemsOut, toItemJSON(it))
 	}
+	tripHomes, err := api.trips.ListTripHomes(r.Context(), trip.ID)
+	if err != nil {
+		apiInternalError(w, "list trip homes", err)
+		return
+	}
+	homesOut := make([]map[string]any, 0, len(tripHomes))
+	for _, th := range tripHomes {
+		homesOut = append(homesOut, map[string]any{"id": th.ID, "name": th.Name})
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"trip": toTripJSON(trip, role), "stops": stopsOut, "items": itemsOut,
+		"trip": toTripJSON(trip, role), "stops": stopsOut, "items": itemsOut, "homes": homesOut,
 	})
 }
 
