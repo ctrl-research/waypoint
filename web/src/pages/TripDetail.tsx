@@ -292,7 +292,13 @@ function EditTripForm({
               type="date"
               value={form.startDate}
               max={form.endDate || undefined}
-              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  startDate: e.target.value,
+                  endDate: form.endDate || e.target.value,
+                })
+              }
               className={field}
             />
           </label>
@@ -302,7 +308,13 @@ function EditTripForm({
               type="date"
               value={form.endDate}
               min={form.startDate || undefined}
-              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  endDate: e.target.value,
+                  startDate: form.startDate || e.target.value,
+                })
+              }
               className={field}
             />
           </label>

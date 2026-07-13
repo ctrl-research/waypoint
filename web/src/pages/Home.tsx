@@ -151,7 +151,12 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
           <input
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            max={endDate || undefined}
+            onChange={(e) => {
+              setStartDate(e.target.value)
+              // Seed the other picker so it opens on this month (#59).
+              if (!endDate) setEndDate(e.target.value)
+            }}
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           />
         </label>
@@ -160,7 +165,11 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
           <input
             type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            min={startDate || undefined}
+            onChange={(e) => {
+              setEndDate(e.target.value)
+              if (!startDate) setStartDate(e.target.value)
+            }}
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           />
         </label>
