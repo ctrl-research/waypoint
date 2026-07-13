@@ -28,7 +28,7 @@ export function PublicTripPage() {
   }
   if (!data) return null
 
-  const { trip, stops, items, entries, tileUrl } = data
+  const { trip, stops, items, entries, tileUrl, mapStyleUrl, language } = data
   const stopName = (id: string | null) => stops.find((s) => s.id === id)?.name
   const itemsByDay = new Map<string, ItineraryItem[]>()
   for (const item of items) {
@@ -49,7 +49,7 @@ export function PublicTripPage() {
 
       <div className="mt-6">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
-          <TripMap stops={stops} picking={false} onPick={() => {}} tileUrl={tileUrl} />
+          <TripMap stops={stops} picking={false} onPick={() => {}} mapConfig={{ tileUrl, mapStyleUrl, language }} />
         </Suspense>
       </div>
 

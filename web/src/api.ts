@@ -218,7 +218,7 @@ export async function geocode(q: string, cityLevel = false): Promise<GeocodeResu
 
 // ---- instance config -----------------------------------------------------------
 
-export type InstanceConfig = { tileUrl: string }
+export type InstanceConfig = { tileUrl: string; mapStyleUrl: string; language: string }
 
 export function fetchConfig(): Promise<InstanceConfig> {
   return requestJSON('/api/v1/config')
@@ -371,6 +371,8 @@ export type PublicTripPayload = {
   items: ItineraryItem[]
   entries: JournalEntry[]
   tileUrl: string
+  mapStyleUrl: string
+  language: string
 }
 
 export function fetchPublicTrip(token: string): Promise<PublicTripPayload> {

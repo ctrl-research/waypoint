@@ -21,6 +21,10 @@ import (
 type Options struct {
 	// TileURL is the raster tile URL template exposed to map views.
 	TileURL string
+	// MapStyleURL optionally replaces raster tiles with a vector style.
+	MapStyleURL string
+	// Language localizes vector map labels (and geocoding, upstream).
+	Language string
 	// DataDir is where uploaded files are stored.
 	DataDir string
 }
@@ -34,10 +38,10 @@ func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Op
 	mux.Handle("GET /api/v1/geocode", auth.RequireUser(handleGeocode(geo)))
 	mux.Handle("GET /api/v1/config", auth.RequireUser(handleConfig(opts)))
 	(&tripsAPI{
-		trips:   store.NewTrips(pool),
-		users:   store.NewUsers(pool),
-		photos:  photos.NewStore(opts.DataDir),
-		tileURL: opts.TileURL,
+		trips:  store.NewTrips(pool),
+		users:  store.NewUsers(pool),
+		photos: photos.NewStore(opts.DataDir),
+		opts:   opts,
 	}).routes(mux)
 	authSvc.Routes(mux)
 	mux.Handle("/", webui.Handler())
@@ -49,7 +53,11 @@ func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Op
 // tile template).
 func handleConfig(opts Options) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"tileUrl": opts.TileURL})
+		writeJSON(w, http.StatusOK, map[string]string{
+			"tileUrl":     opts.TileURL,
+			"mapStyleUrl": opts.MapStyleURL,
+			"language":    opts.Language,
+		})
 	}
 }
 

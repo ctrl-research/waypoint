@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchConfig, type Stop } from './api'
+import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
 const ROUTE_SOURCE = 'route'
 
@@ -15,13 +16,13 @@ export function TripMap({
   stops,
   picking,
   onPick,
-  tileUrl,
+  mapConfig,
 }: {
   stops: Stop[]
   picking: boolean
   onPick: (lat: number, lon: number) => void
   /** Overrides the authed /api/v1/config lookup (used by the public page). */
-  tileUrl?: string
+  mapConfig?: MapSourceConfig
 }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -32,38 +33,28 @@ export function TripMap({
   pickingRef.current = picking
   onPickRef.current = onPick
 
-  const { data: config } = useQuery({
+  const { data: fetched } = useQuery({
     queryKey: ['config'],
     queryFn: fetchConfig,
     staleTime: Infinity,
-    enabled: !tileUrl,
+    enabled: !mapConfig,
   })
-  const effectiveTileURL = tileUrl ?? config?.tileUrl
+  const cfg = mapConfig ?? fetched
 
-  // Create the map once the tile URL is known.
+  // Create the map once the source config is known.
   useEffect(() => {
-    if (!effectiveTileURL || !container.current || mapRef.current) return
+    if (!cfg || !container.current || mapRef.current) return
 
     const map = new maplibregl.Map({
       container: container.current,
-      style: {
-        version: 8,
-        sources: {
-          raster: {
-            type: 'raster',
-            tiles: [effectiveTileURL],
-            tileSize: 256,
-            attribution: '© OpenStreetMap contributors',
-          },
-        },
-        layers: [{ id: 'raster', type: 'raster', source: 'raster' }],
-      },
+      style: mapStyle(cfg),
       center: [0, 20],
       zoom: 1,
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
 
     map.on('load', () => {
+      localizeMapLabels(map, cfg)
       map.addSource(ROUTE_SOURCE, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -87,7 +78,8 @@ export function TripMap({
       map.remove()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveTileURL])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg])
 
   // Keep markers and route in sync with the stops.
   const stopsRef = useRef(stops)

@@ -151,8 +151,10 @@ func (api *tripsAPI) servePublicTrip(w http.ResponseWriter, r *http.Request) {
 		"trip":    toTripJSON(trip, "viewer"),
 		"stops":   stopsOut,
 		"items":   itemsOut,
-		"entries": entriesOut,
-		"tileUrl": api.tileURL,
+		"entries":     entriesOut,
+		"tileUrl":     api.opts.TileURL,
+		"mapStyleUrl": api.opts.MapStyleURL,
+		"language":    api.opts.Language,
 	})
 }
 
