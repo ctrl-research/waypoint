@@ -26,6 +26,7 @@ import { MembersSection, ShareSection } from './Members'
 
 // MapLibre is ~1MB minified; load it only when a trip page renders.
 const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
+type MarkerKey = `stop:${string}` | `item:${string}`
 
 
 export function TripDetailPage() {
@@ -40,6 +41,8 @@ export function TripDetailPage() {
 
   // Stop currently being placed via map click (#14).
   const [pickingStop, setPickingStop] = useState<string | null>(null)
+  // List row under the cursor, mirrored on the map (#71).
+  const [highlightKey, setHighlightKey] = useState<MarkerKey | null>(null)
   const placeStop = useMutation({
     mutationFn: ({ stopId, lat, lon }: { stopId: string; lat: number; lon: number }) =>
       updateStop(tripId, stopId, { lat, lon }),
@@ -74,6 +77,8 @@ export function TripDetailPage() {
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
           <TripMap
             stops={stops}
+            items={items}
+            highlightKey={highlightKey}
             picking={pickingStop !== null}
             onPick={(lat, lon) => {
               if (pickingStop) placeStop.mutate({ stopId: pickingStop, lat, lon })
@@ -94,6 +99,7 @@ export function TripDetailPage() {
           canEdit={canEdit}
           pickingStop={pickingStop}
           onTogglePick={(stopId) => setPickingStop((cur) => (cur === stopId ? null : stopId))}
+          onHover={setHighlightKey}
         />
       </section>
 
@@ -102,7 +108,14 @@ export function TripDetailPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {canEdit ? 'Day by day — drag items to reorder or move days.' : 'Day by day.'}
           </p>
-        <ItineraryBoard trip={trip} items={items} stops={stops} homes={homes} readOnly={!canEdit} />
+        <ItineraryBoard
+          trip={trip}
+          items={items}
+          stops={stops}
+          homes={homes}
+          readOnly={!canEdit}
+          onHover={setHighlightKey}
+        />
         {canEdit && (
           <div className="mt-4">
             <NewItemForm trip={trip} stops={stops} />
@@ -346,12 +359,14 @@ function StopsSection({
   canEdit,
   pickingStop,
   onTogglePick,
+  onHover,
 }: {
   tripId: string
   stops: Stop[]
   canEdit: boolean
   pickingStop: string | null
   onTogglePick: (stopId: string) => void
+  onHover: (key: MarkerKey | null) => void
 }) {
   const queryClient = useQueryClient()
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
@@ -370,6 +385,8 @@ function StopsSection({
       {stops.map((stop, i) => (
         <div
           key={stop.id}
+          onMouseEnter={() => onHover(`stop:${stop.id}`)}
+          onMouseLeave={() => onHover(null)}
           className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3"
         >
           <div className="flex items-center gap-3">

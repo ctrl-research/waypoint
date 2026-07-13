@@ -59,12 +59,14 @@ export function ItineraryBoard({
   stops,
   homes = [],
   readOnly = false,
+  onHover = () => {},
 }: {
   trip: Trip
   items: ItineraryItem[]
   stops: Stop[]
   homes?: TripHome[]
   readOnly?: boolean
+  onHover?: (key: `stop:${string}` | `item:${string}` | null) => void
 }) {
   const queryClient = useQueryClient()
   // Local copy so drags feel instant; server state re-syncs it on refetch.
@@ -184,6 +186,7 @@ export function ItineraryBoard({
             collapsed={collapsed.has(day)}
             onToggle={() => toggleDay(day)}
             onDelete={(id) => remove.mutate(id)}
+            onHover={onHover}
           />
         ))}
       </div>
@@ -200,6 +203,7 @@ function DayColumn({
   collapsed,
   onToggle,
   onDelete,
+  onHover,
 }: {
   day: string
   items: ItineraryItem[]
@@ -209,6 +213,7 @@ function DayColumn({
   collapsed: boolean
   onToggle: () => void
   onDelete: (id: string) => void
+  onHover: (key: `item:${string}` | null) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${day}` })
 
@@ -241,7 +246,7 @@ function DayColumn({
               <p className="px-3 py-1.5 text-xs text-slate-300 dark:text-slate-600">drop items here</p>
             )}
             {items.map((item) => (
-              <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} />
+              <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} onHover={onHover} />
             ))}
           </div>
         </SortableContext>
@@ -256,12 +261,14 @@ function BoardItem({
   homes,
   readOnly,
   onDelete,
+  onHover,
 }: {
   item: ItineraryItem
   stops: Stop[]
   homes: TripHome[]
   readOnly: boolean
   onDelete: (id: string) => void
+  onHover: (key: `item:${string}` | null) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -270,6 +277,8 @@ function BoardItem({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
+      onMouseEnter={() => onHover(`item:${item.id}`)}
+      onMouseLeave={() => onHover(null)}
       className={`flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-2 ${
         isDragging ? 'z-10 opacity-70 shadow-lg' : ''
       }`}

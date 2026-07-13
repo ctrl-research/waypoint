@@ -2,31 +2,39 @@ import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { fetchConfig, type Stop } from './api'
+import { fetchConfig, type ItineraryItem, type Stop } from './api'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
 const ROUTE_SOURCE = 'route'
 
+/** Key for map markers and hover-highlighting: stop:<id> or item:<id>. */
+export type MarkerKey = `stop:${string}` | `item:${string}`
+
 /**
- * TripMap renders the trip's stops as numbered markers connected by a route
- * line. When `picking` is set, the next map click reports coordinates via
- * onPick (used to place a stop, #14).
+ * TripMap renders the trip's stops as S-numbered markers connected by a
+ * route line, plus D{day}_{n} pins for itinerary items at their stop (#72).
+ * `highlightKey` enlarges the hovered list row's marker (#71). When
+ * `picking` is set, the next map click reports coordinates via onPick (#14).
  */
 export function TripMap({
   stops,
+  items = [],
   picking,
   onPick,
+  highlightKey = null,
   mapConfig,
 }: {
   stops: Stop[]
+  items?: ItineraryItem[]
   picking: boolean
   onPick: (lat: number, lon: number) => void
+  highlightKey?: MarkerKey | null
   /** Overrides the authed /api/v1/config lookup (used by the public page). */
   mapConfig?: MapSourceConfig
 }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
-  const markersRef = useRef<maplibregl.Marker[]>([])
+  const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
   // Refs so the single click handler always sees current props.
   const pickingRef = useRef(picking)
   const onPickRef = useRef(onPick)
@@ -66,7 +74,7 @@ export function TripMap({
         paint: { 'line-color': '#0f172a', 'line-width': 2, 'line-dasharray': [2, 1.5] },
       })
       mapRef.current = map
-      syncMap(map, stopsRef.current, markersRef)
+      syncMap(map, stopsRef.current, itemsRef.current, markersRef)
     })
 
     map.on('click', (e) => {
@@ -78,15 +86,29 @@ export function TripMap({
       map.remove()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg])
 
-  // Keep markers and route in sync with the stops.
+  // Keep markers and route in sync with the data.
   const stopsRef = useRef(stops)
+  const itemsRef = useRef(items)
   stopsRef.current = stops
+  itemsRef.current = items
   useEffect(() => {
-    if (mapRef.current) syncMap(mapRef.current, stops, markersRef)
-  }, [stops])
+    if (mapRef.current) syncMap(mapRef.current, stops, items, markersRef)
+  }, [stops, items])
+
+  // Hover-highlight from the lists (#71).
+  useEffect(() => {
+    for (const [key, marker] of markersRef.current) {
+      const el = marker.getElement().firstElementChild as HTMLElement | null
+      if (!el) continue
+      const active = key === highlightKey
+      el.classList.toggle('scale-125', active)
+      el.classList.toggle('ring-2', active)
+      el.classList.toggle('ring-amber-400', active)
+      el.classList.toggle('z-10', active)
+    }
+  }, [highlightKey])
 
   // Picking mode: crosshair cursor.
   useEffect(() => {
@@ -106,24 +128,62 @@ export function TripMap({
   )
 }
 
+function makeMarkerEl(label: string, kind: 'stop' | 'item'): HTMLElement {
+  // Outer wrapper stays untransformed (MapLibre positions it); the inner
+  // element carries styling so hover effects can scale it safely.
+  const wrap = document.createElement('div')
+  const el = document.createElement('div')
+  el.className =
+    kind === 'stop'
+      ? 'flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-900 px-1 text-xs font-semibold text-white shadow-md transition-transform'
+      : 'flex h-5 items-center justify-center rounded bg-indigo-600 px-1 text-[10px] font-semibold text-white shadow transition-transform'
+  el.textContent = label
+  wrap.appendChild(el)
+  return wrap
+}
+
 function syncMap(
   map: maplibregl.Map,
   stops: Stop[],
-  markersRef: React.MutableRefObject<maplibregl.Marker[]>,
+  items: ItineraryItem[],
+  markersRef: React.MutableRefObject<Map<string, maplibregl.Marker>>,
 ) {
   const located = stops.filter((s) => s.lat !== null && s.lon !== null)
 
-  for (const m of markersRef.current) m.remove()
-  markersRef.current = located.map((stop, i) => {
-    const el = document.createElement('div')
-    el.className =
-      'flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white shadow-md'
-    el.textContent = String(i + 1)
-    return new maplibregl.Marker({ element: el })
+  for (const m of markersRef.current.values()) m.remove()
+  markersRef.current = new Map()
+
+  for (const [i, stop] of located.entries()) {
+    const marker = new maplibregl.Marker({ element: makeMarkerEl(`S${i + 1}`, 'stop') })
       .setLngLat([stop.lon!, stop.lat!])
       .setPopup(new maplibregl.Popup({ closeButton: false }).setText(stop.name))
       .addTo(map)
-  })
+    markersRef.current.set(`stop:${stop.id}`, marker)
+  }
+
+  // Itinerary pins (#72): D{day}_{n} at the item's stop, stacked below the
+  // stop marker so several items at one place stay readable.
+  const days = [...new Set(items.map((it) => it.day))].sort()
+  const dayNumber = new Map(days.map((d, i) => [d, i + 1]))
+  const perDayCount = new Map<string, number>()
+  const perStopStack = new Map<string, number>()
+  for (const item of items) {
+    const n = (perDayCount.get(item.day) ?? 0) + 1
+    perDayCount.set(item.day, n)
+    const stop = item.stopId ? located.find((s) => s.id === item.stopId) : undefined
+    if (!stop) continue
+    const stacked = perStopStack.get(stop.id) ?? 0
+    perStopStack.set(stop.id, stacked + 1)
+    const label = `D${dayNumber.get(item.day)}_${n}`
+    const marker = new maplibregl.Marker({
+      element: makeMarkerEl(label, 'item'),
+      offset: [0, 26 + stacked * 22],
+    })
+      .setLngLat([stop.lon!, stop.lat!])
+      .setPopup(new maplibregl.Popup({ closeButton: false }).setText(`${item.title} — ${stop.name}`))
+      .addTo(map)
+    markersRef.current.set(`item:${item.id}`, marker)
+  }
 
   const route = map.getSource(ROUTE_SOURCE) as maplibregl.GeoJSONSource | undefined
   route?.setData({

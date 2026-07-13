@@ -49,7 +49,7 @@ export function PublicTripPage() {
 
       <div className="mt-6">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
-          <TripMap stops={stops} picking={false} onPick={() => {}} mapConfig={{ tileUrl, mapStyleUrl, language }} />
+          <TripMap stops={stops} items={items} picking={false} onPick={() => {}} mapConfig={{ tileUrl, mapStyleUrl, language }} />
         </Suspense>
       </div>
 
