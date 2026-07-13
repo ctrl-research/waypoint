@@ -31,6 +31,7 @@ export const categoryIcons: Record<ItineraryCategory, string> = {
   food: '🍜',
   lodging: '🛏️',
   transport: '🚆',
+  flight: '✈️',
   other: '📌',
 }
 
@@ -233,9 +234,21 @@ function BoardItem({
         </button>
         )}
         <span>{categoryIcons[item.category]}</span>
-        {item.startTime && <span className="tabular-nums text-slate-500">{item.startTime}</span>}
+        {item.startTime && (
+          <span className="tabular-nums text-slate-500">
+            {item.startTime}
+            {item.endTime && `–${item.endTime}`}
+          </span>
+        )}
         <span className="truncate font-medium text-slate-900">{item.title}</span>
-        {stopName && <span className="truncate text-xs text-slate-400">@ {stopName}</span>}
+        {stopName && (
+          <span className="truncate text-xs text-slate-400">
+            {item.category === 'flight' ? stopName : `@ ${stopName}`}
+            {item.category === 'flight' &&
+              destName(stops, item.destinationStopId) &&
+              ` → ${destName(stops, item.destinationStopId)}`}
+          </span>
+        )}
       </div>
       {!readOnly && (
       <button
@@ -249,6 +262,10 @@ function BoardItem({
       )}
     </div>
   )
+}
+
+function destName(stops: Stop[], id: string | null): string | undefined {
+  return stops.find((s) => s.id === id)?.name
 }
 
 /** Returns items with the given day's rows resequenced to match ids. */

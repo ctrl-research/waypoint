@@ -89,13 +89,15 @@ export type Stop = {
   notes: string
 }
 
-export type ItineraryCategory = 'activity' | 'food' | 'lodging' | 'transport' | 'other'
+export type ItineraryCategory = 'activity' | 'food' | 'lodging' | 'transport' | 'flight' | 'other'
 
 export type ItineraryItem = {
   id: string
   stopId: string | null
+  destinationStopId: string | null
   day: string
   startTime: string | null
+  endTime: string | null
   title: string
   category: ItineraryCategory
   notes: string
@@ -164,8 +166,10 @@ export function deleteStop(tripId: string, stopId: string): Promise<void> {
 
 export type ItemInput = Partial<{
   stopId: string
+  destinationStopId: string
   day: string
   startTime: string
+  endTime: string
   title: string
   category: ItineraryCategory
   notes: string
@@ -378,6 +382,10 @@ export type StatsPayload = {
     daysOnRoad: number
     plannedDistanceKm: number
     cities: number
+    totalCities: number
+    flights: number
+    flightDistanceKm: number
+    flightMinutes: number
   }
   tripsPerYear: { year: number; count: number }[]
   stops: { name: string; lat: number; lon: number; tripTitle: string }[]

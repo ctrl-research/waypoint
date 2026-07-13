@@ -117,21 +117,24 @@ func toStopJSON(s store.Stop) stopJSON {
 }
 
 type itemJSON struct {
-	ID        uuid.UUID  `json:"id"`
-	StopID    *uuid.UUID `json:"stopId"`
-	Day       string     `json:"day"`
-	StartTime *string    `json:"startTime"`
-	Title     string     `json:"title"`
-	Category  string     `json:"category"`
-	Notes     string     `json:"notes"`
-	CostCents *int64     `json:"costCents"`
-	Currency  *string    `json:"currency"`
-	Position  int32      `json:"position"`
+	ID                uuid.UUID  `json:"id"`
+	StopID            *uuid.UUID `json:"stopId"`
+	DestinationStopID *uuid.UUID `json:"destinationStopId"`
+	Day               string     `json:"day"`
+	StartTime         *string    `json:"startTime"`
+	EndTime           *string    `json:"endTime"`
+	Title             string     `json:"title"`
+	Category          string     `json:"category"`
+	Notes             string     `json:"notes"`
+	CostCents         *int64     `json:"costCents"`
+	Currency          *string    `json:"currency"`
+	Position          int32      `json:"position"`
 }
 
 func toItemJSON(it store.ItineraryItem) itemJSON {
 	return itemJSON{
-		ID: it.ID, StopID: it.StopID, Day: it.Day.Format(dateFormat), StartTime: nilIfEmpty(it.StartTime),
+		ID: it.ID, StopID: it.StopID, DestinationStopID: it.DestinationStopID,
+		Day: it.Day.Format(dateFormat), StartTime: nilIfEmpty(it.StartTime), EndTime: nilIfEmpty(it.EndTime),
 		Title: it.Title, Category: string(it.Category), Notes: it.Notes,
 		CostCents: it.CostCents, Currency: it.Currency, Position: it.Position,
 	}

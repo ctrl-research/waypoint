@@ -19,15 +19,18 @@ var timeRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 // string clears; costCents/currency must be set or cleared together
 // (costCents -1 clears both).
 type itemRequest struct {
-	StopID    *uuid.UUID `json:"stopId"`
-	ClearStop bool       `json:"clearStop"`
-	Day       *string    `json:"day"`
-	StartTime *string    `json:"startTime"`
-	Title     *string    `json:"title"`
-	Category  *string    `json:"category"`
-	Notes     *string    `json:"notes"`
-	CostCents *int64     `json:"costCents"`
-	Currency  *string    `json:"currency"`
+	StopID            *uuid.UUID `json:"stopId"`
+	ClearStop         bool       `json:"clearStop"`
+	DestinationStopID *uuid.UUID `json:"destinationStopId"`
+	ClearDestination  bool       `json:"clearDestination"`
+	Day               *string    `json:"day"`
+	StartTime         *string    `json:"startTime"`
+	EndTime           *string    `json:"endTime"`
+	Title             *string    `json:"title"`
+	Category          *string    `json:"category"`
+	Notes             *string    `json:"notes"`
+	CostCents         *int64     `json:"costCents"`
+	Currency          *string    `json:"currency"`
 }
 
 func (req itemRequest) merge(p *store.ItineraryItemParams) error {
@@ -35,6 +38,11 @@ func (req itemRequest) merge(p *store.ItineraryItemParams) error {
 		p.StopID = nil
 	} else if req.StopID != nil {
 		p.StopID = req.StopID
+	}
+	if req.ClearDestination {
+		p.DestinationStopID = nil
+	} else if req.DestinationStopID != nil {
+		p.DestinationStopID = req.DestinationStopID
 	}
 	if req.Day != nil {
 		d, err := time.Parse(dateFormat, *req.Day)
@@ -52,6 +60,12 @@ func (req itemRequest) merge(p *store.ItineraryItemParams) error {
 		}
 		p.StartTime = *req.StartTime
 	}
+	if req.EndTime != nil {
+		if *req.EndTime != "" && !timeRe.MatchString(*req.EndTime) {
+			return errors.New("endTime must be HH:MM")
+		}
+		p.EndTime = *req.EndTime
+	}
 	if req.Title != nil {
 		p.Title = *req.Title
 	}
@@ -60,7 +74,7 @@ func (req itemRequest) merge(p *store.ItineraryItemParams) error {
 	}
 	if req.Category != nil {
 		if !store.ValidItineraryCategory(*req.Category) {
-			return errors.New("category must be activity, food, lodging, transport, or other")
+			return errors.New("category must be activity, food, lodging, transport, flight, or other")
 		}
 		p.Category = store.ItineraryCategory(*req.Category)
 	}
@@ -126,6 +140,13 @@ func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusBadRequest, "invalid", "stopId does not belong to this trip")
 		return
 	}
+	if ok, err := api.stopBelongsToTrip(r, trip.ID, params.DestinationStopID); err != nil {
+		apiInternalError(w, "check destination", err)
+		return
+	} else if !ok {
+		apiError(w, http.StatusBadRequest, "invalid", "destinationStopId does not belong to this trip")
+		return
+	}
 	item, err := api.trips.CreateItem(r.Context(), trip.ID, params)
 	if err != nil {
 		apiInternalError(w, "create item", err)
@@ -160,7 +181,8 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := store.ItineraryItemParams{
-		StopID: current.StopID, Day: current.Day, StartTime: current.StartTime,
+		StopID: current.StopID, DestinationStopID: current.DestinationStopID,
+		Day: current.Day, StartTime: current.StartTime, EndTime: current.EndTime,
 		Title: current.Title, Category: current.Category, Notes: current.Notes,
 		CostCents: current.CostCents, Currency: current.Currency,
 	}
@@ -173,6 +195,13 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if !ok {
 		apiError(w, http.StatusBadRequest, "invalid", "stopId does not belong to this trip")
+		return
+	}
+	if ok, err := api.stopBelongsToTrip(r, trip.ID, params.DestinationStopID); err != nil {
+		apiInternalError(w, "check destination", err)
+		return
+	} else if !ok {
+		apiError(w, http.StatusBadRequest, "invalid", "destinationStopId does not belong to this trip")
 		return
 	}
 	updated, err := api.trips.UpdateItem(r.Context(), trip.ID, itemID, params)

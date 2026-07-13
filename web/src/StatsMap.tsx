@@ -14,7 +14,7 @@ const VISITED = '#2a78d6'
 export type StatsMapMode = 'countries' | 'continents' | 'cities'
 export type StatsMapProjection = 'mercator' | 'globe'
 
-export type VisitedPlaces = { countries: string[]; continents: string[] }
+export type VisitedPlaces = { countries: string[]; continents: string[]; countryTotal: number }
 
 type CountryProps = {
   name: string
@@ -105,6 +105,7 @@ export function StatsMap({
     onVisited({
       countries: withVisited.filter((f) => f.properties.visited).map((f) => f.properties.name).sort(),
       continents: [...visitedContinents].filter((c) => c !== 'Other').sort(),
+      countryTotal: withVisited.length,
     })
     syncSources()
     // eslint-disable-next-line react-hooks/exhaustive-deps

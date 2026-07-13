@@ -54,3 +54,5 @@ sql:
           # with "" meaning unscheduled (see queries/items.sql).
           - column: "itinerary_items.start_time"
             go_type: "string"
+          - column: "itinerary_items.end_time"
+            go_type: "string"

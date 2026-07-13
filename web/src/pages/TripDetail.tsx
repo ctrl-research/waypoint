@@ -511,8 +511,11 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
   const [title, setTitle] = useState('')
   const [day, setDay] = useState('')
   const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [category, setCategory] = useState<ItineraryCategory>('activity')
   const [stopId, setStopId] = useState('')
+  const [destinationStopId, setDestinationStopId] = useState('')
+  const isFlight = category === 'flight'
 
   const add = useMutation({
     mutationFn: () =>
@@ -521,7 +524,9 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
         day,
         category,
         ...(startTime ? { startTime } : {}),
+        ...(endTime ? { endTime } : {}),
         ...(stopId ? { stopId } : {}),
+        ...(isFlight && destinationStopId ? { destinationStopId } : {}),
       }),
     onSuccess: async () => {
       setTitle('')
@@ -543,7 +548,7 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Add an activity"
+          placeholder={isFlight ? 'Flight number or name' : 'Add an activity'}
           className={`${field} min-w-40 flex-1`}
         />
         <input type="date" required value={day} onChange={(e) => setDay(e.target.value)} className={field} />
@@ -551,6 +556,14 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
           type="time"
           value={startTime}
           onChange={(e) => setStartTime(e.target.value)}
+          title={isFlight ? 'Departure time' : 'Start time'}
+          className={field}
+        />
+        <input
+          type="time"
+          value={endTime}
+          onChange={(e) => setEndTime(e.target.value)}
+          title={isFlight ? 'Arrival time (local)' : 'End time'}
           className={field}
         />
       </div>
@@ -567,13 +580,27 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
           ))}
         </select>
         <select value={stopId} onChange={(e) => setStopId(e.target.value)} className={field}>
-          <option value="">no stop</option>
+          <option value="">{isFlight ? 'from stop' : 'no stop'}</option>
           {stops.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
             </option>
           ))}
         </select>
+        {isFlight && (
+          <select
+            value={destinationStopId}
+            onChange={(e) => setDestinationStopId(e.target.value)}
+            className={field}
+          >
+            <option value="">to stop</option>
+            {stops.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="submit"
           disabled={add.isPending || !title.trim() || !day}

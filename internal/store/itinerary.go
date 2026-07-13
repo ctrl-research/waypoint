@@ -19,32 +19,36 @@ const (
 	CategoryFood      = sqlcgen.ItineraryCategoryFood
 	CategoryLodging   = sqlcgen.ItineraryCategoryLodging
 	CategoryTransport = sqlcgen.ItineraryCategoryTransport
+	CategoryFlight    = sqlcgen.ItineraryCategoryFlight
 	CategoryOther     = sqlcgen.ItineraryCategoryOther
 )
 
 func ValidItineraryCategory(c string) bool {
 	switch ItineraryCategory(c) {
-	case CategoryActivity, CategoryFood, CategoryLodging, CategoryTransport, CategoryOther:
+	case CategoryActivity, CategoryFood, CategoryLodging, CategoryTransport, CategoryFlight, CategoryOther:
 		return true
 	}
 	return false
 }
 
 type ItineraryItemParams struct {
-	StopID    *uuid.UUID
-	Day       time.Time
-	StartTime string // "HH:MM"; "" means unscheduled
-	Title     string
-	Category  ItineraryCategory
-	Notes     string
-	CostCents *int64
-	Currency  *string
+	StopID            *uuid.UUID
+	DestinationStopID *uuid.UUID // arrival stop for flights
+	Day               time.Time
+	StartTime         string // "HH:MM"; "" means unscheduled
+	EndTime           string // "HH:MM"; "" means open-ended
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
 }
 
 // CreateItem appends the item at the end of its day's ordering.
 func (s *Trips) CreateItem(ctx context.Context, tripID uuid.UUID, p ItineraryItemParams) (ItineraryItem, error) {
 	row, err := s.q.CreateItem(ctx, sqlcgen.CreateItemParams{
-		TripID: tripID, StopID: p.StopID, Day: p.Day, StartTime: p.StartTime,
+		TripID: tripID, StopID: p.StopID, DestinationStopID: p.DestinationStopID,
+		Day: p.Day, StartTime: p.StartTime, EndTime: p.EndTime,
 		Title: p.Title, Category: p.Category, Notes: p.Notes,
 		CostCents: p.CostCents, Currency: p.Currency,
 	})
@@ -70,7 +74,8 @@ func (s *Trips) ItemByID(ctx context.Context, tripID, itemID uuid.UUID) (Itinera
 
 func (s *Trips) UpdateItem(ctx context.Context, tripID, itemID uuid.UUID, p ItineraryItemParams) (ItineraryItem, error) {
 	row, err := s.q.UpdateItem(ctx, sqlcgen.UpdateItemParams{
-		TripID: tripID, ID: itemID, StopID: p.StopID, Day: p.Day, StartTime: p.StartTime,
+		TripID: tripID, ID: itemID, StopID: p.StopID, DestinationStopID: p.DestinationStopID,
+		Day: p.Day, StartTime: p.StartTime, EndTime: p.EndTime,
 		Title: p.Title, Category: p.Category, Notes: p.Notes,
 		CostCents: p.CostCents, Currency: p.Currency,
 	})

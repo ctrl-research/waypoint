@@ -11,6 +11,74 @@ import (
 	"github.com/google/uuid"
 )
 
+const countDistinctStopNamesForUser = `-- name: CountDistinctStopNamesForUser :one
+SELECT count(DISTINCT lower(trim(s.name)))
+FROM stops s
+JOIN trips t ON t.id = s.trip_id
+LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
+WHERE t.owner_id = $1 OR m.user_id IS NOT NULL
+`
+
+// All distinct stop names (located or not) across accessible trips — the
+// denominator for the Cities stat tile.
+func (q *Queries) CountDistinctStopNamesForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countDistinctStopNamesForUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const listFlightLegsForUser = `-- name: ListFlightLegsForUser :many
+SELECT CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
+       CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
+       s1.lat AS from_lat, s1.lon AS from_lon,
+       s2.lat AS to_lat, s2.lon AS to_lon
+FROM itinerary_items i
+JOIN trips t ON t.id = i.trip_id
+LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
+LEFT JOIN stops s1 ON s1.id = i.stop_id
+LEFT JOIN stops s2 ON s2.id = i.destination_stop_id
+WHERE i.category = 'flight' AND (t.owner_id = $1 OR m.user_id IS NOT NULL)
+`
+
+type ListFlightLegsForUserRow struct {
+	StartTime string
+	EndTime   string
+	FromLat   *float64
+	FromLon   *float64
+	ToLat     *float64
+	ToLon     *float64
+}
+
+// Flight items across accessible trips, with the departure/arrival stop
+// coordinates when both stops are located.
+func (q *Queries) ListFlightLegsForUser(ctx context.Context, userID uuid.UUID) ([]ListFlightLegsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listFlightLegsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFlightLegsForUserRow
+	for rows.Next() {
+		var i ListFlightLegsForUserRow
+		if err := rows.Scan(
+			&i.StartTime,
+			&i.EndTime,
+			&i.FromLat,
+			&i.FromLon,
+			&i.ToLat,
+			&i.ToLon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLocatedStopsForUser = `-- name: ListLocatedStopsForUser :many
 SELECT s.name, s.lat, s.lon, s.position, t.id AS trip_id, t.title AS trip_title
 FROM stops s

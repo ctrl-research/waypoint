@@ -356,4 +356,3 @@ func (api *tripsAPI) servePhoto(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=86400")
 	http.ServeContent(w, r, "", photo.CreatedAt, f)
 }
-

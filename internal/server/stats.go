@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
@@ -26,6 +27,16 @@ func (api *tripsAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 	stops, err := api.trips.ListLocatedStops(r.Context(), user.ID)
 	if err != nil {
 		apiInternalError(w, "list stops", err)
+		return
+	}
+	flightLegs, err := api.trips.ListFlightLegs(r.Context(), user.ID)
+	if err != nil {
+		apiInternalError(w, "list flights", err)
+		return
+	}
+	totalCities, err := api.trips.CountDistinctStopNames(r.Context(), user.ID)
+	if err != nil {
+		apiInternalError(w, "count stop names", err)
 		return
 	}
 
@@ -77,6 +88,20 @@ func (api *tripsAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 		stopsOut = append(stopsOut, stopJSON{Name: s.Name, Lat: lat, Lon: lon, TripTitle: s.TripTitle})
 	}
 
+	// Flight aggregates: great-circle distance between endpoint stops and
+	// naive local-time durations (overnight legs wrap by +24h; timezone
+	// shifts make this an approximation).
+	flightKm := 0.0
+	flightMinutes := 0
+	for _, leg := range flightLegs {
+		if leg.FromLat != nil && leg.FromLon != nil && leg.ToLat != nil && leg.ToLon != nil {
+			flightKm += haversineKm(*leg.FromLat, *leg.FromLon, *leg.ToLat, *leg.ToLon)
+		}
+		if m := legMinutes(leg.StartTime, leg.EndTime); m > 0 {
+			flightMinutes += m
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"totals": map[string]any{
 			"trips":             len(trips),
@@ -86,10 +111,35 @@ func (api *tripsAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 			"daysOnRoad":        daysOnRoad,
 			"plannedDistanceKm": math.Round(distanceKm),
 			"cities":            len(cities),
+			"totalCities":       totalCities,
+			"flights":           len(flightLegs),
+			"flightDistanceKm":  math.Round(flightKm),
+			"flightMinutes":     flightMinutes,
 		},
 		"tripsPerYear": years,
 		"stops":        stopsOut,
 	})
+}
+
+// legMinutes computes end-start from "HH:MM" strings; overnight wraps +24h.
+func legMinutes(start, end string) int {
+	parse := func(s string) (int, bool) {
+		var h, m int
+		if _, err := fmt.Sscanf(s, "%d:%d", &h, &m); err != nil {
+			return 0, false
+		}
+		return h*60 + m, true
+	}
+	a, okA := parse(start)
+	b, okB := parse(end)
+	if !okA || !okB {
+		return 0
+	}
+	d := b - a
+	if d < 0 {
+		d += 24 * 60
+	}
+	return d
 }
 
 func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
