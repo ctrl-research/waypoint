@@ -104,7 +104,7 @@ export function TripMap({
 
   return (
     <div className="relative">
-      <div ref={container} className="h-80 w-full rounded-xl border border-slate-200" />
+      <div ref={container} className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-700" />
       {picking && (
         <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-900/90 px-4 py-1.5 text-sm text-white shadow">
           Click the map to place the stop

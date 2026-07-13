@@ -1,1 +1,8 @@
 @import 'tailwindcss';
+
+/* Theme is a class on <html>, toggled by the header control (system-aware). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+.dark {
+  color-scheme: dark;
+}

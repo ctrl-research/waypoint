@@ -25,8 +25,8 @@ export function StatsPage() {
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
-      <h1 className="text-2xl font-semibold text-slate-900">Your travels</h1>
-      <p className="text-sm text-slate-500">Across every trip you own or share.</p>
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Your travels</h1>
+      <p className="text-sm text-slate-500 dark:text-slate-400">Across every trip you own or share.</p>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile label="Trips" value={totals.trips} hint={tileHint(totals)} />
@@ -61,11 +61,11 @@ export function StatsPage() {
 
       {tripsPerYear.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-slate-900">Trips per year</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Trips per year</h2>
           <div className="mt-3 space-y-1.5">
             {tripsPerYear.map(({ year, count }) => (
               <div key={year} className="flex items-center gap-3 text-sm">
-                <span className="w-12 shrink-0 tabular-nums text-slate-500">{year}</span>
+                <span className="w-12 shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{year}</span>
                 <div className="h-4 flex-1">
                   <div
                     className="flex h-4 items-center rounded-r"
@@ -73,7 +73,7 @@ export function StatsPage() {
                     title={`${count} trip${count === 1 ? '' : 's'} in ${year}`}
                   />
                 </div>
-                <span className="w-6 shrink-0 tabular-nums text-slate-700">{count}</span>
+                <span className="w-6 shrink-0 tabular-nums text-slate-700 dark:text-slate-300">{count}</span>
               </div>
             ))}
           </div>
@@ -82,7 +82,7 @@ export function StatsPage() {
 
       <section className="mt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900">Where you’ve been</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Where you’ve been</h2>
           <div className="flex gap-2">
             <Segmented
               value={mode}
@@ -104,26 +104,26 @@ export function StatsPage() {
           </div>
         </div>
         <div className="mt-3">
-          <Suspense fallback={<div className="h-[28rem] w-full rounded-xl border border-slate-200 bg-slate-50" />}>
+          <Suspense fallback={<div className="h-[28rem] w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
             <StatsMap stops={stops} mode={mode} projection={projection} onVisited={setVisited} />
           </Suspense>
         </div>
         {mode === 'countries' && visited.countries.length > 0 && (
-          <p className="mt-2 text-sm text-slate-500">
-            <span className="font-medium text-slate-700">{visited.countries.length} countries:</span>{' '}
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            <span className="font-medium text-slate-700 dark:text-slate-300">{visited.countries.length} countries:</span>{' '}
             {visited.countries.join(', ')}
           </p>
         )}
         {mode === 'continents' && visited.continents.length > 0 && (
-          <p className="mt-2 text-sm text-slate-500">
-            <span className="font-medium text-slate-700">
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            <span className="font-medium text-slate-700 dark:text-slate-300">
               {visited.continents.length} of 7 continents:
             </span>{' '}
             {visited.continents.join(', ')}
           </p>
         )}
         {stops.length === 0 && (
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">
             Add located stops to your trips and they’ll light up here.
           </p>
         )}
@@ -149,10 +149,10 @@ function tileHint(totals: { planning: number; active: number; completed: number 
 
 function StatTile({ label, value, hint }: { label: string; value: number | string; hint: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-      <p className="mt-0.5 truncate text-xs text-slate-400" title={hint}>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500" title={hint}>
         {hint}
       </p>
     </div>
@@ -169,14 +169,14 @@ function Segmented({
   onChange: (v: string) => void
 }) {
   return (
-    <div className="flex rounded-lg border border-slate-300 p-0.5">
+    <div className="flex rounded-lg border border-slate-300 dark:border-slate-600 p-0.5">
       {options.map(([v, label]) => (
         <button
           key={v}
           type="button"
           onClick={() => onChange(v)}
           className={`rounded-md px-3 py-1 text-sm ${
-            value === v ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
+            value === v ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
         >
           {label}
