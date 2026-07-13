@@ -38,10 +38,56 @@ export function HomePage() {
         </p>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {trips.data?.map((trip) => <TripCard key={trip.id} trip={trip} />)}
-      </div>
+      {trips.data && <GroupedTrips trips={trips.data} />}
     </div>
+  )
+}
+
+/** Splits trips into happening-now / upcoming (soonest first, undated last) /
+ * past (most recent first). Completed trips are always past (#49). */
+function GroupedTrips({ trips }: { trips: Trip[] }) {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const now = trips.filter(
+    (t) =>
+      t.status !== 'completed' &&
+      t.startDate !== null &&
+      t.startDate <= today &&
+      (t.endDate === null || t.endDate >= today),
+  )
+  const isPast = (t: Trip) =>
+    t.status === 'completed' || (t.endDate !== null && t.endDate < today)
+  const past = trips
+    .filter(isPast)
+    .sort((a, b) => (b.endDate ?? b.startDate ?? '').localeCompare(a.endDate ?? a.startDate ?? ''))
+  const upcoming = trips
+    .filter((t) => !now.includes(t) && !isPast(t))
+    .sort((a, b) => (a.startDate ?? '9999').localeCompare(b.startDate ?? '9999'))
+
+  const sections: [string, Trip[]][] = [
+    ['Happening now', now],
+    ['Upcoming', upcoming],
+    ['Past trips', past],
+  ]
+
+  return (
+    <>
+      {sections.map(
+        ([title, group]) =>
+          group.length > 0 && (
+            <section key={title} className="mt-8">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+                {title}
+              </h2>
+              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {group.map((trip) => (
+                  <TripCard key={trip.id} trip={trip} />
+                ))}
+              </div>
+            </section>
+          ),
+      )}
+    </>
   )
 }
 
