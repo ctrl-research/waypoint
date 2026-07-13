@@ -11,74 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const countDistinctStopNamesForUser = `-- name: CountDistinctStopNamesForUser :one
-SELECT count(DISTINCT lower(trim(s.name)))
-FROM stops s
-JOIN trips t ON t.id = s.trip_id
-LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
-WHERE t.owner_id = $1 OR m.user_id IS NOT NULL
-`
-
-// All distinct stop names (located or not) across accessible trips — the
-// denominator for the Cities stat tile.
-func (q *Queries) CountDistinctStopNamesForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countDistinctStopNamesForUser, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const listFlightLegsForUser = `-- name: ListFlightLegsForUser :many
-SELECT CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
-       CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
-       s1.lat AS from_lat, s1.lon AS from_lon,
-       s2.lat AS to_lat, s2.lon AS to_lon
-FROM itinerary_items i
-JOIN trips t ON t.id = i.trip_id
-LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
-LEFT JOIN stops s1 ON s1.id = i.stop_id
-LEFT JOIN stops s2 ON s2.id = i.destination_stop_id
-WHERE i.category = 'flight' AND (t.owner_id = $1 OR m.user_id IS NOT NULL)
-`
-
-type ListFlightLegsForUserRow struct {
-	StartTime string
-	EndTime   string
-	FromLat   *float64
-	FromLon   *float64
-	ToLat     *float64
-	ToLon     *float64
-}
-
-// Flight items across accessible trips, with the departure/arrival stop
-// coordinates when both stops are located.
-func (q *Queries) ListFlightLegsForUser(ctx context.Context, userID uuid.UUID) ([]ListFlightLegsForUserRow, error) {
-	rows, err := q.db.Query(ctx, listFlightLegsForUser, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListFlightLegsForUserRow
-	for rows.Next() {
-		var i ListFlightLegsForUserRow
-		if err := rows.Scan(
-			&i.StartTime,
-			&i.EndTime,
-			&i.FromLat,
-			&i.FromLon,
-			&i.ToLat,
-			&i.ToLon,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listLocatedStopsForUser = `-- name: ListLocatedStopsForUser :many
 SELECT s.name, s.lat, s.lon, s.position, t.id AS trip_id, t.title AS trip_title
 FROM stops s
@@ -116,6 +48,72 @@ func (q *Queries) ListLocatedStopsForUser(ctx context.Context, userID uuid.UUID)
 			&i.Position,
 			&i.TripID,
 			&i.TripTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTravelLegsForUser = `-- name: ListTravelLegsForUser :many
+SELECT i.category,
+       CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
+       CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
+       s1.lat AS from_stop_lat, s1.lon AS from_stop_lon,
+       s2.lat AS to_stop_lat, s2.lon AS to_stop_lon,
+       h1.lat AS from_home_lat, h1.lon AS from_home_lon,
+       h2.lat AS to_home_lat, h2.lon AS to_home_lon
+FROM itinerary_items i
+JOIN trips t ON t.id = i.trip_id
+LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
+LEFT JOIN stops s1 ON s1.id = i.stop_id
+LEFT JOIN stops s2 ON s2.id = i.destination_stop_id
+LEFT JOIN homes h1 ON h1.id = i.origin_home_id
+LEFT JOIN homes h2 ON h2.id = i.destination_home_id
+WHERE i.category IN ('flight', 'train') AND (t.owner_id = $1 OR m.user_id IS NOT NULL)
+`
+
+type ListTravelLegsForUserRow struct {
+	Category    ItineraryCategory
+	StartTime   string
+	EndTime     string
+	FromStopLat *float64
+	FromStopLon *float64
+	ToStopLat   *float64
+	ToStopLon   *float64
+	FromHomeLat *float64
+	FromHomeLon *float64
+	ToHomeLat   *float64
+	ToHomeLon   *float64
+}
+
+// Flight and train items across accessible trips. Each endpoint is either a
+// stop or a home; the joins surface whichever coordinates exist.
+func (q *Queries) ListTravelLegsForUser(ctx context.Context, userID uuid.UUID) ([]ListTravelLegsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listTravelLegsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTravelLegsForUserRow
+	for rows.Next() {
+		var i ListTravelLegsForUserRow
+		if err := rows.Scan(
+			&i.Category,
+			&i.StartTime,
+			&i.EndTime,
+			&i.FromStopLat,
+			&i.FromStopLon,
+			&i.ToStopLat,
+			&i.ToStopLon,
+			&i.FromHomeLat,
+			&i.FromHomeLon,
+			&i.ToHomeLat,
+			&i.ToHomeLon,
 		); err != nil {
 			return nil, err
 		}

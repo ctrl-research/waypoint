@@ -10,6 +10,7 @@ import {
   fetchMe,
   geocode,
   getTrip,
+  listHomes,
   updateStop,
   updateTrip,
   type ItineraryCategory,
@@ -61,7 +62,7 @@ export function TripDetailPage() {
   }
   if (!detail.data) return null
 
-  const { trip, stops, items } = detail.data
+  const { trip, stops, items, homes } = detail.data
   const canEdit = trip.role !== 'viewer'
 
   return (
@@ -101,7 +102,7 @@ export function TripDetailPage() {
           <p className="text-sm text-slate-500">
             {canEdit ? 'Day by day — drag items to reorder or move days.' : 'Day by day.'}
           </p>
-          <ItineraryBoard trip={trip} items={items} stops={stops} readOnly={!canEdit} />
+          <ItineraryBoard trip={trip} items={items} stops={stops} homes={homes} readOnly={!canEdit} />
           {canEdit && (
             <div className="mt-4">
               <NewItemForm tripId={trip.id} stops={stops} />
@@ -515,7 +516,8 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
   const [category, setCategory] = useState<ItineraryCategory>('activity')
   const [stopId, setStopId] = useState('')
   const [destinationStopId, setDestinationStopId] = useState('')
-  const isFlight = category === 'flight'
+  const isLeg = category === 'flight' || category === 'train'
+  const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
   const add = useMutation({
     mutationFn: () =>
@@ -525,8 +527,16 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
         category,
         ...(startTime ? { startTime } : {}),
         ...(endTime ? { endTime } : {}),
-        ...(stopId ? { stopId } : {}),
-        ...(isFlight && destinationStopId ? { destinationStopId } : {}),
+        ...(stopId.startsWith('home:')
+          ? { originHomeId: stopId.slice(5) }
+          : stopId
+            ? { stopId }
+            : {}),
+        ...(isLeg && destinationStopId.startsWith('home:')
+          ? { destinationHomeId: destinationStopId.slice(5) }
+          : isLeg && destinationStopId
+            ? { destinationStopId }
+            : {}),
       }),
     onSuccess: async () => {
       setTitle('')
@@ -548,7 +558,7 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder={isFlight ? 'Flight number or name' : 'Add an activity'}
+          placeholder={isLeg ? 'Flight/train number or name' : 'Add an activity'}
           className={`${field} min-w-40 flex-1`}
         />
         <input type="date" required value={day} onChange={(e) => setDay(e.target.value)} className={field} />
@@ -556,14 +566,14 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
           type="time"
           value={startTime}
           onChange={(e) => setStartTime(e.target.value)}
-          title={isFlight ? 'Departure time' : 'Start time'}
+          title={isLeg ? 'Departure time' : 'Start time'}
           className={field}
         />
         <input
           type="time"
           value={endTime}
           onChange={(e) => setEndTime(e.target.value)}
-          title={isFlight ? 'Arrival time (local)' : 'End time'}
+          title={isLeg ? 'Arrival time (local)' : 'End time'}
           className={field}
         />
       </div>
@@ -580,20 +590,31 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
           ))}
         </select>
         <select value={stopId} onChange={(e) => setStopId(e.target.value)} className={field}>
-          <option value="">{isFlight ? 'from stop' : 'no stop'}</option>
+          <option value="">{isLeg ? 'from' : 'no stop'}</option>
+          {isLeg &&
+            myHomes.data?.map((h) => (
+              <option key={h.id} value={`home:${h.id}`}>
+                (home) {h.name}
+              </option>
+            ))}
           {stops.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
             </option>
           ))}
         </select>
-        {isFlight && (
+        {isLeg && (
           <select
             value={destinationStopId}
             onChange={(e) => setDestinationStopId(e.target.value)}
             className={field}
           >
-            <option value="">to stop</option>
+            <option value="">to</option>
+            {myHomes.data?.map((h) => (
+              <option key={h.id} value={`home:${h.id}`}>
+                (home) {h.name}
+              </option>
+            ))}
             {stops.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}

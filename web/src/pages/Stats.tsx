@@ -20,7 +20,7 @@ export function StatsPage() {
   if (!me) return <Navigate to="/login" />
   if (!stats.data) return null
 
-  const { totals, tripsPerYear, stops } = stats.data
+  const { totals, flights, trains, tripsPerYear, stops } = stats.data
   const maxYearCount = Math.max(1, ...tripsPerYear.map((y) => y.count))
 
   return (
@@ -36,20 +36,27 @@ export function StatsPage() {
           value={visited.countries.length}
           hint={`of ${visited.countryTotal || '…'} countries`}
         />
-        <StatTile label="Cities" value={totals.cities} hint={`of ${totals.totalCities} cities`} />
+        <StatTile label="Cities" value={totals.cities} hint="distinct stops" />
         <StatTile label="Days on the road" value={totals.daysOnRoad} hint="dated trips" />
         <StatTile
           label="Planned distance"
           value={`${totals.plannedDistanceKm.toLocaleString()} km`}
           hint="between stops, as the crow flies"
         />
-        <StatTile label="Flights" value={totals.flights} hint="itinerary ✈️ items" />
+        <StatTile label="Flights" value={flights.count} hint="itinerary ✈️ legs" />
         <StatTile
           label="Flight distance"
-          value={`${totals.flightDistanceKm.toLocaleString()} km`}
-          hint="great-circle between stops"
+          value={`${flights.distanceKm.toLocaleString()} km`}
+          hint="great-circle"
         />
-        <StatTile label="Time in the air" value={formatMinutes(totals.flightMinutes)} hint="from departure/arrival times" />
+        <StatTile label="Time in the air" value={formatMinutes(flights.minutes)} hint="departure to arrival" />
+        <StatTile label="Trains" value={trains.count} hint="itinerary 🚆 legs" />
+        <StatTile
+          label="Train distance"
+          value={`${trains.distanceKm.toLocaleString()} km`}
+          hint="great-circle"
+        />
+        <StatTile label="Time on rails" value={formatMinutes(trains.minutes)} hint="departure to arrival" />
       </div>
 
       {tripsPerYear.length > 0 && (

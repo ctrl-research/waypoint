@@ -26,13 +26,17 @@ export function Shell() {
 function NavLinks() {
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
   if (!me) return null
+  const link =
+    'text-sm text-slate-500 hover:text-slate-900 [&.active]:font-medium [&.active]:text-slate-900'
   return (
-    <Link
-      to="/stats"
-      className="text-sm text-slate-500 hover:text-slate-900 [&.active]:font-medium [&.active]:text-slate-900"
-    >
-      Stats
-    </Link>
+    <>
+      <Link to="/stats" className={link}>
+        Stats
+      </Link>
+      <Link to="/settings" className={link}>
+        Settings
+      </Link>
+    </>
   )
 }
 

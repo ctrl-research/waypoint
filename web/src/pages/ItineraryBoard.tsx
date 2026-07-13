@@ -24,14 +24,16 @@ import {
   type ItineraryItem,
   type Stop,
   type Trip,
+  type TripHome,
 } from '../api'
 
 export const categoryIcons: Record<ItineraryCategory, string> = {
   activity: '🎟️',
   food: '🍜',
   lodging: '🛏️',
-  transport: '🚆',
+  transport: '🚌',
   flight: '✈️',
+  train: '🚆',
   other: '📌',
 }
 
@@ -55,11 +57,13 @@ export function ItineraryBoard({
   trip,
   items,
   stops,
+  homes = [],
   readOnly = false,
 }: {
   trip: Trip
   items: ItineraryItem[]
   stops: Stop[]
+  homes?: TripHome[]
   readOnly?: boolean
 }) {
   const queryClient = useQueryClient()
@@ -147,6 +151,7 @@ export function ItineraryBoard({
             day={day}
             items={byDay.get(day) ?? []}
             stops={stops}
+            homes={homes}
             readOnly={readOnly}
             onDelete={(id) => remove.mutate(id)}
           />
@@ -160,12 +165,14 @@ function DayColumn({
   day,
   items,
   stops,
+  homes,
   readOnly,
   onDelete,
 }: {
   day: string
   items: ItineraryItem[]
   stops: Stop[]
+  homes: TripHome[]
   readOnly: boolean
   onDelete: (id: string) => void
 }) {
@@ -189,7 +196,7 @@ function DayColumn({
             <p className="px-3 py-1.5 text-xs text-slate-300">drop items here</p>
           )}
           {items.map((item) => (
-            <BoardItem key={item.id} item={item} stops={stops} readOnly={readOnly} onDelete={onDelete} />
+            <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} />
           ))}
         </div>
       </SortableContext>
@@ -200,19 +207,19 @@ function DayColumn({
 function BoardItem({
   item,
   stops,
+  homes,
   readOnly,
   onDelete,
 }: {
   item: ItineraryItem
   stops: Stop[]
+  homes: TripHome[]
   readOnly: boolean
   onDelete: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
   })
-  const stopName = stops.find((s) => s.id === item.stopId)?.name
-
   return (
     <div
       ref={setNodeRef}
@@ -241,13 +248,8 @@ function BoardItem({
           </span>
         )}
         <span className="truncate font-medium text-slate-900">{item.title}</span>
-        {stopName && (
-          <span className="truncate text-xs text-slate-400">
-            {item.category === 'flight' ? stopName : `@ ${stopName}`}
-            {item.category === 'flight' &&
-              destName(stops, item.destinationStopId) &&
-              ` → ${destName(stops, item.destinationStopId)}`}
-          </span>
+        {routeLabel(item, stops, homes) && (
+          <span className="truncate text-xs text-slate-400">{routeLabel(item, stops, homes)}</span>
         )}
       </div>
       {!readOnly && (
@@ -266,6 +268,21 @@ function BoardItem({
 
 function destName(stops: Stop[], id: string | null): string | undefined {
   return stops.find((s) => s.id === id)?.name
+}
+
+/** "@ Stop" for plain items; "From → To" (home-aware) for flight/train legs. */
+function routeLabel(item: ItineraryItem, stops: Stop[], homes: TripHome[]): string | undefined {
+  const homeName = (id: string | null) => {
+    const h = id && homes.find((h) => h.id === id)
+    return h ? `(home) ${h.name}` : id ? '(home)' : undefined
+  }
+  const from = homeName(item.originHomeId) ?? destName(stops, item.stopId)
+  if (item.category !== 'flight' && item.category !== 'train') {
+    return from ? `@ ${from}` : undefined
+  }
+  const to = homeName(item.destinationHomeId) ?? destName(stops, item.destinationStopId)
+  if (from && to) return `${from} → ${to}`
+  return from ?? (to && `→ ${to}`) ?? undefined
 }
 
 /** Returns items with the given day's rows resequenced to match ids. */

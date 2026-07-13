@@ -58,10 +58,17 @@ extension before something uses it.
 
 ### itinerary_items (M2) — what happens at a stop, day by day
 `id · trip_id FK · stop_id FK NULL (ON DELETE SET NULL) ·
-destination_stop_id FK NULL (flights: arrival stop) · day (date) ·
+destination_stop_id FK NULL · origin_home_id / destination_home_id FK NULL
+(flight/train legs travel stop-or-home → stop-or-home) · day (date) ·
 start_time NULL · end_time NULL · title · category (enum: activity, food,
-lodging, transport, flight, other) · notes · cost_cents NULL ·
+lodging, transport, flight, train, other) · notes · cost_cents NULL ·
 currency (char(3)) · position`
+
+### homes
+`id · user_id FK · name · lat/lon (NOT NULL) · created_at`
+
+Per-user saved locations ("(home) Toronto") usable as flight/train leg
+endpoints; deleting one nulls the legs that referenced it.
 
 cost_cents/currency are both-or-neither (CHECK). Position ordering is scoped
 per day for items, per trip for stops.

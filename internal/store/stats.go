@@ -11,22 +11,17 @@ import (
 // LocatedStop is a stop with coordinates, annotated with its trip.
 type LocatedStop = sqlcgen.ListLocatedStopsForUserRow
 
-// FlightLeg is a flight item with optional endpoint coordinates and times.
-type FlightLeg = sqlcgen.ListFlightLegsForUserRow
+// TravelLeg is a flight or train item with optional endpoint coordinates,
+// times, and the trip owner's home as a fallback endpoint.
+type TravelLeg = sqlcgen.ListTravelLegsForUserRow
 
-// ListFlightLegs returns flight items across trips the user can see.
-func (s *Trips) ListFlightLegs(ctx context.Context, userID uuid.UUID) ([]FlightLeg, error) {
-	legs, err := s.q.ListFlightLegsForUser(ctx, userID)
+// ListTravelLegs returns flight and train items across trips the user can see.
+func (s *Trips) ListTravelLegs(ctx context.Context, userID uuid.UUID) ([]TravelLeg, error) {
+	legs, err := s.q.ListTravelLegsForUser(ctx, userID)
 	if legs == nil {
-		legs = []FlightLeg{}
+		legs = []TravelLeg{}
 	}
 	return legs, err
-}
-
-// CountDistinctStopNames counts distinct stop names (located or not) across
-// trips the user can see.
-func (s *Trips) CountDistinctStopNames(ctx context.Context, userID uuid.UUID) (int64, error) {
-	return s.q.CountDistinctStopNamesForUser(ctx, userID)
 }
 
 // ListLocatedStops returns every located stop across trips the user can see,

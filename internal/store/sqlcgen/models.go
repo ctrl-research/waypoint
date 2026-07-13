@@ -21,6 +21,7 @@ const (
 	ItineraryCategoryTransport ItineraryCategory = "transport"
 	ItineraryCategoryOther     ItineraryCategory = "other"
 	ItineraryCategoryFlight    ItineraryCategory = "flight"
+	ItineraryCategoryTrain     ItineraryCategory = "train"
 )
 
 func (e *ItineraryCategory) Scan(src interface{}) error {
@@ -143,6 +144,15 @@ func (ns NullTripStatus) Value() (driver.Value, error) {
 	return string(ns.TripStatus), nil
 }
 
+type Home struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Name      string
+	Lat       float64
+	Lon       float64
+	CreatedAt time.Time
+}
+
 type ItineraryItem struct {
 	ID                uuid.UUID
 	TripID            uuid.UUID
@@ -157,6 +167,8 @@ type ItineraryItem struct {
 	Position          int32
 	EndTime           string
 	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
 }
 
 type JournalEntry struct {

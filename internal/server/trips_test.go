@@ -206,6 +206,8 @@ func TestTripsAPI(t *testing.T) {
 			"foreign stopId":      `{"title":"x","day":"2027-03-24","stopId":"00000000-0000-0000-0000-000000000001"}`,
 			"bad endTime":         `{"title":"x","day":"2027-03-24","endTime":"25:99"}`,
 			"foreign destination": `{"title":"x","day":"2027-03-24","category":"flight","destinationStopId":"00000000-0000-0000-0000-000000000001"}`,
+			"home and stop both":  fmt.Sprintf(`{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001","stopId":%q}`, stopIDs[0]),
+			"foreign home":        `{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001"}`,
 		} {
 			if code, _ := call(t, h, alice, "POST", tripPath+"/items", body); code != 400 {
 				t.Fatalf("%s: code = %d, want 400", name, code)

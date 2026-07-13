@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/store"
 )
 
 // handleStats aggregates everything the stats page (#26) needs in one call:
@@ -29,14 +30,9 @@ func (api *tripsAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 		apiInternalError(w, "list stops", err)
 		return
 	}
-	flightLegs, err := api.trips.ListFlightLegs(r.Context(), user.ID)
+	travelLegs, err := api.trips.ListTravelLegs(r.Context(), user.ID)
 	if err != nil {
-		apiInternalError(w, "list flights", err)
-		return
-	}
-	totalCities, err := api.trips.CountDistinctStopNames(r.Context(), user.ID)
-	if err != nil {
-		apiInternalError(w, "count stop names", err)
+		apiInternalError(w, "list travel legs", err)
 		return
 	}
 
@@ -88,18 +84,35 @@ func (api *tripsAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 		stopsOut = append(stopsOut, stopJSON{Name: s.Name, Lat: lat, Lon: lon, TripTitle: s.TripTitle})
 	}
 
-	// Flight aggregates: great-circle distance between endpoint stops and
-	// naive local-time durations (overnight legs wrap by +24h; timezone
-	// shifts make this an approximation).
-	flightKm := 0.0
-	flightMinutes := 0
-	for _, leg := range flightLegs {
-		if leg.FromLat != nil && leg.FromLon != nil && leg.ToLat != nil && leg.ToLon != nil {
-			flightKm += haversineKm(*leg.FromLat, *leg.FromLon, *leg.ToLat, *leg.ToLon)
+	// Flight/train aggregates: great-circle distance between endpoints
+	// (home resolves to the trip owner's home) and naive local-time
+	// durations (overnight legs wrap by +24h; timezone shifts make this an
+	// approximation).
+	type legAgg struct {
+		Count   int     `json:"count"`
+		Km      float64 `json:"distanceKm"`
+		Minutes int     `json:"minutes"`
+	}
+	aggs := map[store.ItineraryCategory]*legAgg{
+		store.CategoryFlight: {}, store.CategoryTrain: {},
+	}
+	for _, leg := range travelLegs {
+		agg, ok := aggs[leg.Category]
+		if !ok {
+			continue
+		}
+		agg.Count++
+		fromLat, fromLon := coalesce(leg.FromStopLat, leg.FromHomeLat), coalesce(leg.FromStopLon, leg.FromHomeLon)
+		toLat, toLon := coalesce(leg.ToStopLat, leg.ToHomeLat), coalesce(leg.ToStopLon, leg.ToHomeLon)
+		if fromLat != nil && fromLon != nil && toLat != nil && toLon != nil {
+			agg.Km += haversineKm(*fromLat, *fromLon, *toLat, *toLon)
 		}
 		if m := legMinutes(leg.StartTime, leg.EndTime); m > 0 {
-			flightMinutes += m
+			agg.Minutes += m
 		}
+	}
+	for _, a := range aggs {
+		a.Km = math.Round(a.Km)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -111,14 +124,19 @@ func (api *tripsAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 			"daysOnRoad":        daysOnRoad,
 			"plannedDistanceKm": math.Round(distanceKm),
 			"cities":            len(cities),
-			"totalCities":       totalCities,
-			"flights":           len(flightLegs),
-			"flightDistanceKm":  math.Round(flightKm),
-			"flightMinutes":     flightMinutes,
 		},
+		"flights":      aggs[store.CategoryFlight],
+		"trains":       aggs[store.CategoryTrain],
 		"tripsPerYear": years,
 		"stops":        stopsOut,
 	})
+}
+
+func coalesce(a, b *float64) *float64 {
+	if a != nil {
+		return a
+	}
+	return b
 }
 
 // legMinutes computes end-start from "HH:MM" strings; overnight wraps +24h.
