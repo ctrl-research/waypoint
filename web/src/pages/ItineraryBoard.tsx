@@ -99,6 +99,16 @@ export function ItineraryBoard({
     onSuccess: invalidate,
   })
 
+  // Collapsed days (#69) — long itineraries fold away; drops need the day open.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const toggleDay = (day: string) =>
+    setCollapsed((cur) => {
+      const next = new Set(cur)
+      if (next.has(day)) next.delete(day)
+      else next.add(day)
+      return next
+    })
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   function onDragEnd({ active, over }: DragEndEvent) {
@@ -139,11 +149,29 @@ export function ItineraryBoard({
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={onDragEnd}>
-      <div className="mt-4 space-y-4">
+      <div className="mt-4 space-y-3">
         {days.length === 0 && (
           <p className="text-sm text-slate-400 dark:text-slate-500">
             Set trip dates or add a first item to start the day-by-day plan.
           </p>
+        )}
+        {days.length > 1 && (
+          <div className="flex justify-end gap-3 text-xs">
+            <button
+              type="button"
+              onClick={() => setCollapsed(new Set())}
+              className="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+            >
+              Expand all
+            </button>
+            <button
+              type="button"
+              onClick={() => setCollapsed(new Set(days))}
+              className="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+            >
+              Collapse all
+            </button>
+          </div>
         )}
         {days.map((day) => (
           <DayColumn
@@ -153,6 +181,8 @@ export function ItineraryBoard({
             stops={stops}
             homes={homes}
             readOnly={readOnly}
+            collapsed={collapsed.has(day)}
+            onToggle={() => toggleDay(day)}
             onDelete={(id) => remove.mutate(id)}
           />
         ))}
@@ -167,6 +197,8 @@ function DayColumn({
   stops,
   homes,
   readOnly,
+  collapsed,
+  onToggle,
   onDelete,
 }: {
   day: string
@@ -174,32 +206,46 @@ function DayColumn({
   stops: Stop[]
   homes: TripHome[]
   readOnly: boolean
+  collapsed: boolean
+  onToggle: () => void
   onDelete: (id: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${day}` })
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
+      >
+        <span className={`text-xs transition-transform ${collapsed ? '' : 'rotate-90'}`}>▶</span>
         {new Date(day + 'T00:00:00').toLocaleDateString(undefined, {
           weekday: 'short',
           month: 'short',
           day: 'numeric',
         })}
-      </h3>
-      <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-        <div
-          ref={setNodeRef}
-          className={`mt-1 min-h-9 space-y-1 rounded-lg p-0.5 ${isOver ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
-        >
-          {items.length === 0 && (
-            <p className="px-3 py-1.5 text-xs text-slate-300 dark:text-slate-600">drop items here</p>
-          )}
-          {items.map((item) => (
-            <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} />
-          ))}
-        </div>
-      </SortableContext>
+        {collapsed && (
+          <span className="font-normal text-slate-400 dark:text-slate-500">
+            · {items.length} item{items.length === 1 ? '' : 's'}
+          </span>
+        )}
+      </button>
+      {!collapsed && (
+        <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          <div
+            ref={setNodeRef}
+            className={`mt-1 min-h-9 space-y-1 rounded-lg p-0.5 ${isOver ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+          >
+            {items.length === 0 && (
+              <p className="px-3 py-1.5 text-xs text-slate-300 dark:text-slate-600">drop items here</p>
+            )}
+            {items.map((item) => (
+              <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} />
+            ))}
+          </div>
+        </SortableContext>
+      )}
     </div>
   )
 }

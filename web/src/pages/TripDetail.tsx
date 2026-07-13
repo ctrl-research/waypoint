@@ -82,35 +82,33 @@ export function TripDetailPage() {
         </Suspense>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <section>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Stops</h2>
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Stops</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             The places this trip visits, in order.
             {canEdit && ' Use 📍 to place a stop by clicking the map.'}
           </p>
-          <StopsSection
-            tripId={trip.id}
-            stops={stops}
-            canEdit={canEdit}
-            pickingStop={pickingStop}
-            onTogglePick={(stopId) => setPickingStop((cur) => (cur === stopId ? null : stopId))}
-          />
-        </section>
+        <StopsSection
+          tripId={trip.id}
+          stops={stops}
+          canEdit={canEdit}
+          pickingStop={pickingStop}
+          onTogglePick={(stopId) => setPickingStop((cur) => (cur === stopId ? null : stopId))}
+        />
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {canEdit ? 'Day by day — drag items to reorder or move days.' : 'Day by day.'}
           </p>
-          <ItineraryBoard trip={trip} items={items} stops={stops} homes={homes} readOnly={!canEdit} />
-          {canEdit && (
-            <div className="mt-4">
-              <NewItemForm trip={trip} stops={stops} />
-            </div>
-          )}
-        </section>
-      </div>
+        <ItineraryBoard trip={trip} items={items} stops={stops} homes={homes} readOnly={!canEdit} />
+        {canEdit && (
+          <div className="mt-4">
+            <NewItemForm trip={trip} stops={stops} />
+          </div>
+        )}
+      </section>
 
       <JournalTimeline trip={trip} items={items} stops={stops} canEdit={canEdit} />
       <MembersSection tripId={trip.id} role={trip.role} />
