@@ -141,7 +141,7 @@ export function ItineraryBoard({
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={onDragEnd}>
       <div className="mt-4 space-y-4">
         {days.length === 0 && (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-400 dark:text-slate-500">
             Set trip dates or add a first item to start the day-by-day plan.
           </p>
         )}
@@ -180,7 +180,7 @@ function DayColumn({
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-slate-700">
+      <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
         {new Date(day + 'T00:00:00').toLocaleDateString(undefined, {
           weekday: 'short',
           month: 'short',
@@ -190,10 +190,10 @@ function DayColumn({
       <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
         <div
           ref={setNodeRef}
-          className={`mt-1 min-h-9 space-y-1 rounded-lg p-0.5 ${isOver ? 'bg-slate-100' : ''}`}
+          className={`mt-1 min-h-9 space-y-1 rounded-lg p-0.5 ${isOver ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
         >
           {items.length === 0 && (
-            <p className="px-3 py-1.5 text-xs text-slate-300">drop items here</p>
+            <p className="px-3 py-1.5 text-xs text-slate-300 dark:text-slate-600">drop items here</p>
           )}
           {items.map((item) => (
             <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} />
@@ -224,7 +224,7 @@ function BoardItem({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2 py-2 ${
+      className={`flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-2 ${
         isDragging ? 'z-10 opacity-70 shadow-lg' : ''
       }`}
     >
@@ -234,7 +234,7 @@ function BoardItem({
           type="button"
           {...attributes}
           {...listeners}
-          className="cursor-grab touch-none px-1 text-slate-300 hover:text-slate-500 active:cursor-grabbing"
+          className="cursor-grab touch-none px-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 active:cursor-grabbing"
           aria-label={`Drag ${item.title}`}
         >
           ⠿
@@ -242,21 +242,21 @@ function BoardItem({
         )}
         <span>{categoryIcons[item.category]}</span>
         {item.startTime && (
-          <span className="tabular-nums text-slate-500">
+          <span className="tabular-nums text-slate-500 dark:text-slate-400">
             {item.startTime}
             {item.endTime && `–${item.endTime}`}
           </span>
         )}
-        <span className="truncate font-medium text-slate-900">{item.title}</span>
+        <span className="truncate font-medium text-slate-900 dark:text-slate-100">{item.title}</span>
         {routeLabel(item, stops, homes) && (
-          <span className="truncate text-xs text-slate-400">{routeLabel(item, stops, homes)}</span>
+          <span className="truncate text-xs text-slate-400 dark:text-slate-500">{routeLabel(item, stops, homes)}</span>
         )}
       </div>
       {!readOnly && (
       <button
         type="button"
         onClick={() => onDelete(item.id)}
-        className="px-1 text-sm text-slate-400 hover:text-red-600"
+        className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
         aria-label={`Remove ${item.title}`}
       >
         ✕

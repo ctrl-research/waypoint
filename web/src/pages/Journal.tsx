@@ -18,7 +18,7 @@ import {
 import { categoryIcons } from './ItineraryBoard'
 
 const field =
-  'rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
+  'rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
 
 /**
  * Timeline (#17): one section per day, interleaving what was planned
@@ -54,14 +54,14 @@ export function JournalTimeline({
     <section className="mt-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Journal</h2>
-          <p className="text-sm text-slate-500">The plan and what actually happened, day by day.</p>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Journal</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">The plan and what actually happened, day by day.</p>
         </div>
         {canEdit && (
           <button
             type="button"
             onClick={() => setComposing((v) => !v)}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+            className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300"
           >
             {composing ? 'Cancel' : 'New entry'}
           </button>
@@ -76,7 +76,7 @@ export function JournalTimeline({
 
       <div className="mt-6 space-y-8">
         {days.length === 0 && !composing && (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-400 dark:text-slate-500">
             Nothing here yet — plan itinerary items or write your first entry.
           </p>
         )}
@@ -114,9 +114,9 @@ function TimelineDay({
   const stopName = (id: string | null) => stops.find((s) => s.id === id)?.name
 
   return (
-    <div className="relative border-l-2 border-slate-200 pl-6">
-      <div className="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-slate-400" />
-      <h3 className="text-sm font-semibold text-slate-900">
+    <div className="relative border-l-2 border-slate-200 dark:border-slate-800 pl-6">
+      <div className="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-slate-400 dark:bg-slate-500" />
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
         {new Date(day + 'T00:00:00').toLocaleDateString(undefined, {
           weekday: 'long',
           month: 'long',
@@ -128,7 +128,7 @@ function TimelineDay({
       {items.length > 0 && (
         <ul className="mt-2 space-y-0.5">
           {items.map((item) => (
-            <li key={item.id} className="flex items-center gap-2 text-sm text-slate-500">
+            <li key={item.id} className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
               <span>{categoryIcons[item.category]}</span>
               {item.startTime && <span className="tabular-nums">{item.startTime}</span>}
               <span>{item.title}</span>
@@ -161,19 +161,19 @@ function EntryCard({ tripId, entry, canEdit }: { tripId: string; entry: JournalE
   }
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         {entry.title ? (
-          <h4 className="font-medium text-slate-900">{entry.title}</h4>
+          <h4 className="font-medium text-slate-900 dark:text-slate-100">{entry.title}</h4>
         ) : (
-          <span className="text-sm text-slate-400">Untitled entry</span>
+          <span className="text-sm text-slate-400 dark:text-slate-500">Untitled entry</span>
         )}
         {canEdit && (
         <div className="flex shrink-0 gap-2 text-sm">
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="text-slate-400 hover:text-slate-900"
+            className="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
           >
             Edit
           </button>
@@ -182,7 +182,7 @@ function EntryCard({ tripId, entry, canEdit }: { tripId: string; entry: JournalE
             onClick={() => {
               if (window.confirm('Delete this entry and its photos?')) remove.mutate()
             }}
-            className="text-slate-400 hover:text-red-600"
+            className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
           >
             Delete
           </button>
@@ -191,7 +191,7 @@ function EntryCard({ tripId, entry, canEdit }: { tripId: string; entry: JournalE
       </div>
 
       {entry.body && (
-        <div className="prose-sm mt-2 max-w-none text-slate-700 [&_a]:underline [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:font-semibold [&_img]:max-h-80 [&_img]:rounded-lg [&_li]:ml-4 [&_li]:list-disc [&_p]:mt-2">
+        <div className="prose-sm mt-2 max-w-none text-slate-700 dark:text-slate-300 [&_a]:underline [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:font-semibold [&_img]:max-h-80 [&_img]:rounded-lg [&_li]:ml-4 [&_li]:list-disc [&_p]:mt-2">
           <Markdown remarkPlugins={[remarkGfm]}>{entry.body}</Markdown>
         </div>
       )}
@@ -203,7 +203,7 @@ function EntryCard({ tripId, entry, canEdit }: { tripId: string; entry: JournalE
               <img
                 src={photo.url}
                 alt={photo.caption}
-                className="h-32 w-32 rounded-lg border border-slate-200 object-cover"
+                className="h-32 w-32 rounded-lg border border-slate-200 dark:border-slate-800 object-cover"
                 loading="lazy"
               />
             </a>
@@ -247,7 +247,7 @@ function EntryForm({
 
   return (
     <form
-      className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm"
       onSubmit={(e) => {
         e.preventDefault()
         if (entryDate) save.mutate()
@@ -277,7 +277,7 @@ function EntryForm({
               type="button"
               onClick={() => setTab(t)}
               className={`rounded-t-lg px-3 py-1.5 ${
-                tab === t ? 'bg-slate-100 font-medium text-slate-900' : 'text-slate-400 hover:text-slate-700'
+                tab === t ? 'bg-slate-100 dark:bg-slate-800 font-medium text-slate-900 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
               }`}
             >
               {t === 'write' ? 'Write' : 'Preview'}
@@ -293,11 +293,11 @@ function EntryForm({
             className={`${field} w-full rounded-tl-none font-mono text-[13px]`}
           />
         ) : (
-          <div className="min-h-32 rounded-lg rounded-tl-none border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 [&_img]:max-h-60 [&_img]:rounded [&_li]:ml-4 [&_li]:list-disc [&_p]:mt-2 first:[&_p]:mt-0">
+          <div className="min-h-32 rounded-lg rounded-tl-none border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 [&_img]:max-h-60 [&_img]:rounded [&_li]:ml-4 [&_li]:list-disc [&_p]:mt-2 first:[&_p]:mt-0">
             {body ? (
               <Markdown remarkPlugins={[remarkGfm]}>{body}</Markdown>
             ) : (
-              <span className="text-slate-400">Nothing to preview.</span>
+              <span className="text-slate-400 dark:text-slate-500">Nothing to preview.</span>
             )}
           </div>
         )}
@@ -314,11 +314,11 @@ function EntryForm({
         />
       )}
       {!entry && (
-        <p className="text-xs text-slate-400">Save the entry first to attach photos.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500">Save the entry first to attach photos.</p>
       )}
 
       {save.error && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-red-600 dark:text-red-400">
           {save.error instanceof ApiError ? save.error.message : 'Could not save entry'}
         </p>
       )}
@@ -326,14 +326,14 @@ function EntryForm({
         <button
           type="submit"
           disabled={save.isPending || !entryDate}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
         >
           {save.isPending ? 'Saving…' : 'Save entry'}
         </button>
         <button
           type="button"
           onClick={onDone}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
         >
           Cancel
         </button>
@@ -371,7 +371,7 @@ function PhotoStrip({
             <img
               src={photo.url}
               alt={photo.caption}
-              className="h-20 w-20 rounded-lg border border-slate-200 object-cover"
+              className="h-20 w-20 rounded-lg border border-slate-200 dark:border-slate-800 object-cover"
             />
             <div className="absolute inset-0 hidden items-center justify-center gap-1 rounded-lg bg-slate-900/60 group-hover:flex">
               <button
@@ -386,14 +386,14 @@ function PhotoStrip({
                 type="button"
                 title="Delete photo"
                 onClick={() => removePhoto.mutate(photo.id)}
-                className="rounded bg-white/90 px-1.5 text-xs text-red-600"
+                className="rounded bg-white/90 px-1.5 text-xs text-red-600 dark:text-red-400"
               >
                 ✕
               </button>
             </div>
           </div>
         ))}
-        <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 text-2xl text-slate-300 hover:border-slate-400 hover:text-slate-500">
+        <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-2xl text-slate-300 dark:text-slate-600 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-500 dark:hover:text-slate-400">
           {upload.isPending ? '…' : '+'}
           <input
             type="file"
@@ -408,7 +408,7 @@ function PhotoStrip({
         </label>
       </div>
       {upload.error && (
-        <p className="mt-1 text-sm text-red-600">
+        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
           {upload.error instanceof ApiError ? upload.error.message : 'Upload failed'}
         </p>
       )}

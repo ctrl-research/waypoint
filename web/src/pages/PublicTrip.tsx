@@ -20,7 +20,7 @@ export function PublicTripPage() {
 
   if (error) {
     return (
-      <div className="mx-auto mt-24 max-w-md text-center text-slate-500">
+      <div className="mx-auto mt-24 max-w-md text-center text-slate-500 dark:text-slate-400">
         <p className="text-4xl">🧭</p>
         <p className="mt-3">This share link doesn’t exist or has been revoked.</p>
       </div>
@@ -39,32 +39,32 @@ export function PublicTripPage() {
   return (
     <div className="mx-auto mt-8 w-full max-w-4xl px-4 pb-24">
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">{trip.title}</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{trip.title}</h1>
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.status]}`}>
           {trip.status}
         </span>
       </div>
-      <p className="mt-1 text-sm text-slate-500">{formatRange(trip.startDate, trip.endDate)}</p>
-      {trip.description && <p className="mt-2 text-slate-600">{trip.description}</p>}
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{formatRange(trip.startDate, trip.endDate)}</p>
+      {trip.description && <p className="mt-2 text-slate-600 dark:text-slate-400">{trip.description}</p>}
 
       <div className="mt-6">
-        <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 bg-slate-50" />}>
+        <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
           <TripMap stops={stops} picking={false} onPick={() => {}} tileUrl={tileUrl} />
         </Suspense>
       </div>
 
       {stops.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-slate-900">Stops</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Stops</h2>
           <ol className="mt-3 space-y-1">
             {stops.map((stop, i) => (
-              <li key={stop.id} className="flex items-center gap-3 text-sm text-slate-700">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-medium text-slate-600">
+              <li key={stop.id} className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-400">
                   {i + 1}
                 </span>
                 {stop.name}
                 {(stop.arrivalDate || stop.departureDate) && (
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-400 dark:text-slate-500">
                     {formatRange(stop.arrivalDate, stop.departureDate)}
                   </span>
                 )}
@@ -76,14 +76,14 @@ export function PublicTripPage() {
 
       {days.length > 0 && (
         <section className="mt-8 space-y-6">
-          <h2 className="text-lg font-semibold text-slate-900">Day by day</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Day by day</h2>
           {days.map((day) => {
             const dayItems = itemsByDay.get(day) ?? []
             const dayEntries = entries.filter((e) => e.entryDate === day)
             return (
-              <div key={day} className="relative border-l-2 border-slate-200 pl-6">
-                <div className="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-slate-400" />
-                <h3 className="text-sm font-semibold text-slate-900">
+              <div key={day} className="relative border-l-2 border-slate-200 dark:border-slate-800 pl-6">
+                <div className="absolute -left-[7px] top-1 h-3 w-3 rounded-full bg-slate-400 dark:bg-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {new Date(day + 'T00:00:00').toLocaleDateString(undefined, {
                     weekday: 'long',
                     month: 'long',
@@ -94,7 +94,7 @@ export function PublicTripPage() {
                 {dayItems.length > 0 && (
                   <ul className="mt-2 space-y-0.5">
                     {dayItems.map((item) => (
-                      <li key={item.id} className="flex items-center gap-2 text-sm text-slate-500">
+                      <li key={item.id} className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                         <span>{categoryIcons[item.category]}</span>
                         {item.startTime && <span className="tabular-nums">{item.startTime}</span>}
                         <span>{item.title}</span>
@@ -107,10 +107,10 @@ export function PublicTripPage() {
                 )}
                 <div className="mt-3 space-y-4">
                   {dayEntries.map((entry) => (
-                    <article key={entry.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                      {entry.title && <h4 className="font-medium text-slate-900">{entry.title}</h4>}
+                    <article key={entry.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+                      {entry.title && <h4 className="font-medium text-slate-900 dark:text-slate-100">{entry.title}</h4>}
                       {entry.body && (
-                        <div className="mt-2 max-w-none text-sm text-slate-700 [&_a]:underline [&_img]:max-h-80 [&_img]:rounded-lg [&_li]:ml-4 [&_li]:list-disc [&_p]:mt-2 first:[&_p]:mt-0">
+                        <div className="mt-2 max-w-none text-sm text-slate-700 dark:text-slate-300 [&_a]:underline [&_img]:max-h-80 [&_img]:rounded-lg [&_li]:ml-4 [&_li]:list-disc [&_p]:mt-2 first:[&_p]:mt-0">
                           <Markdown remarkPlugins={[remarkGfm]}>{entry.body}</Markdown>
                         </div>
                       )}
@@ -121,7 +121,7 @@ export function PublicTripPage() {
                               <img
                                 src={photo.url}
                                 alt={photo.caption}
-                                className="h-32 w-32 rounded-lg border border-slate-200 object-cover"
+                                className="h-32 w-32 rounded-lg border border-slate-200 dark:border-slate-800 object-cover"
                                 loading="lazy"
                               />
                             </a>
@@ -137,7 +137,7 @@ export function PublicTripPage() {
         </section>
       )}
 
-      <p className="mt-12 text-center text-xs text-slate-400">
+      <p className="mt-12 text-center text-xs text-slate-400 dark:text-slate-500">
         Shared read-only from a self-hosted 🧭 Waypoint
       </p>
     </div>

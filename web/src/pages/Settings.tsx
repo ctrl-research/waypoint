@@ -4,7 +4,7 @@ import { Navigate } from '@tanstack/react-router'
 import { ApiError, createHome, deleteHome, fetchMe, geocode, listHomes } from '../api'
 
 const field =
-  'rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
+  'rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
 
 export function SettingsPage() {
   const { data: me, isLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
@@ -14,11 +14,11 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto mt-8 w-full max-w-2xl px-4 pb-24">
-      <h1 className="text-2xl font-semibold text-slate-900">Settings</h1>
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Settings</h1>
 
-      <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="font-medium text-slate-900">Home cities</h2>
-        <p className="mt-1 text-sm text-slate-500">
+      <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+        <h2 className="font-medium text-slate-900 dark:text-slate-100">Home cities</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           The cities your travels start and end from — add more than one if life is split between
           places. Flights and trains can use any of them, shown as “(home) City”, as departure or
           arrival, and they anchor the distance stats.
@@ -63,17 +63,17 @@ function HomesEditor() {
   return (
     <div className="mt-4">
       <div className="space-y-2">
-        {homes.data?.length === 0 && <p className="text-sm text-slate-400">No homes set yet.</p>}
+        {homes.data?.length === 0 && <p className="text-sm text-slate-400 dark:text-slate-500">No homes set yet.</p>}
         {homes.data?.map((home) => (
           <div
             key={home.id}
-            className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-2.5"
+            className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 px-4 py-2.5"
           >
-            <span className="text-sm text-slate-700">🏠 (home) {home.name}</span>
+            <span className="text-sm text-slate-700 dark:text-slate-300">🏠 (home) {home.name}</span>
             <button
               type="button"
               onClick={() => remove.mutate(home.id)}
-              className="text-sm text-slate-400 hover:text-red-600"
+              className="text-sm text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
             >
               Remove
             </button>
@@ -94,26 +94,26 @@ function HomesEditor() {
           className={`${field} w-full`}
         />
         {open && debounced.length >= 2 && (
-          <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-            {results.isLoading && <p className="px-4 py-2 text-sm text-slate-400">Searching…</p>}
+          <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg">
+            {results.isLoading && <p className="px-4 py-2 text-sm text-slate-400 dark:text-slate-500">Searching…</p>}
             {results.data?.map((r) => (
               <button
                 key={`${r.lat},${r.lon}`}
                 type="button"
                 onMouseDown={() => add.mutate({ name: shortName(r.name), lat: r.lat, lon: r.lon })}
-                className="block w-full truncate px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                className="block w-full truncate px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 📍 {r.name}
               </button>
             ))}
             {results.data?.length === 0 && (
-              <p className="px-4 py-2 text-sm text-slate-400">No cities found.</p>
+              <p className="px-4 py-2 text-sm text-slate-400 dark:text-slate-500">No cities found.</p>
             )}
           </div>
         )}
       </div>
       {(add.error || remove.error) && (
-        <p className="mt-2 text-sm text-red-600">
+        <p className="mt-2 text-sm text-red-600 dark:text-red-400">
           {add.error instanceof ApiError ? add.error.message : 'Could not save'}
         </p>
       )}

@@ -249,7 +249,7 @@ export function StatsMap({
     if (mapRef.current && ready) mapRef.current.setProjection({ type: projection })
   }, [ready, projection])
 
-  return <div ref={container} className="h-[28rem] w-full rounded-xl border border-slate-200" />
+  return <div ref={container} className="h-[28rem] w-full rounded-xl border border-slate-200 dark:border-slate-700" />
 }
 
 // Natural Earth territories without ISO numeric codes in world-countries.

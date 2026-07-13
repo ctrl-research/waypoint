@@ -52,9 +52,9 @@ export function TripDetailPage() {
   if (!me) return <Navigate to="/login" />
   if (detail.error) {
     return (
-      <div className="mx-auto mt-16 max-w-md text-center text-slate-500">
+      <div className="mx-auto mt-16 max-w-md text-center text-slate-500 dark:text-slate-400">
         <p>Trip not found.</p>
-        <Link to="/" className="mt-2 inline-block text-slate-900 underline">
+        <Link to="/" className="mt-2 inline-block text-slate-900 dark:text-slate-100 underline">
           Back to your trips
         </Link>
       </div>
@@ -70,7 +70,7 @@ export function TripDetailPage() {
       <TripHeader tripId={tripId} />
 
       <div className="mt-6">
-        <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 bg-slate-50" />}>
+        <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
           <TripMap
             stops={stops}
             picking={pickingStop !== null}
@@ -83,8 +83,8 @@ export function TripDetailPage() {
 
       <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
         <section>
-          <h2 className="text-lg font-semibold text-slate-900">Stops</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Stops</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             The places this trip visits, in order.
             {canEdit && ' Use 📍 to place a stop by clicking the map.'}
           </p>
@@ -98,8 +98,8 @@ export function TripDetailPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-slate-900">Itinerary</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {canEdit ? 'Day by day — drag items to reorder or move days.' : 'Day by day.'}
           </p>
           <ItineraryBoard trip={trip} items={items} stops={stops} homes={homes} readOnly={!canEdit} />
@@ -116,8 +116,8 @@ export function TripDetailPage() {
       {trip.role === 'owner' && <ShareSection tripId={trip.id} />}
 
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-slate-900">Export</h2>
-        <p className="text-sm text-slate-500">Take your data with you.</p>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Export</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Take your data with you.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {(
             [
@@ -131,7 +131,7 @@ export function TripDetailPage() {
               href={`/api/v1/trips/${trip.id}/export/${format}`}
               download
               title={hint}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               ⬇ {label}
             </a>
@@ -161,7 +161,7 @@ function TripHeader({ tripId }: { tripId: string }) {
 
   return (
     <div>
-      <Link to="/" className="text-sm text-slate-500 hover:text-slate-900">
+      <Link to="/" className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
         ← Your trips
       </Link>
       {editing ? (
@@ -180,25 +180,25 @@ function TripHeader({ tripId }: { tripId: string }) {
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-slate-900">{trip.title}</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{trip.title}</h1>
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.status]}`}>
                 {trip.status}
               </span>
               {trip.role !== 'owner' && (
-                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                <span className="rounded-full bg-indigo-100 dark:bg-indigo-950 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300">
                   shared · {trip.role}
                 </span>
               )}
             </div>
-            <p className="mt-1 text-sm text-slate-500">{formatRange(trip.startDate, trip.endDate)}</p>
-            {trip.description && <p className="mt-2 max-w-2xl text-slate-600">{trip.description}</p>}
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{formatRange(trip.startDate, trip.endDate)}</p>
+            {trip.description && <p className="mt-2 max-w-2xl text-slate-600 dark:text-slate-400">{trip.description}</p>}
           </div>
           <div className="flex gap-2">
             {trip.role !== 'viewer' && (
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Edit
               </button>
@@ -209,7 +209,7 @@ function TripHeader({ tripId }: { tripId: string }) {
                 onClick={() => {
                   if (window.confirm(`Delete “${trip.title}” and everything in it?`)) remove.mutate()
                 }}
-                className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                className="rounded-lg border border-red-200 dark:border-red-900 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
               >
                 Delete
               </button>
@@ -244,11 +244,11 @@ function EditTripForm({
     },
   })
 
-  const field = 'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
+  const field = 'mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
 
   return (
     <form
-      className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="mt-3 space-y-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm"
       onSubmit={(e) => {
         e.preventDefault()
         mutation.mutate()
@@ -256,7 +256,7 @@ function EditTripForm({
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block sm:col-span-2">
-          <span className="text-sm font-medium text-slate-700">Title</span>
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Title</span>
           <input
             required
             value={form.title}
@@ -265,7 +265,7 @@ function EditTripForm({
           />
         </label>
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Status</span>
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Status</span>
           <select
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value as TripStatus })}
@@ -278,7 +278,7 @@ function EditTripForm({
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Start</span>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Start</span>
             <input
               type="date"
               value={form.startDate}
@@ -287,7 +287,7 @@ function EditTripForm({
             />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">End</span>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">End</span>
             <input
               type="date"
               value={form.endDate}
@@ -297,7 +297,7 @@ function EditTripForm({
           </label>
         </div>
         <label className="block sm:col-span-2">
-          <span className="text-sm font-medium text-slate-700">Description</span>
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Description</span>
           <textarea
             rows={2}
             value={form.description}
@@ -307,7 +307,7 @@ function EditTripForm({
         </label>
       </div>
       {mutation.error && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-red-600 dark:text-red-400">
           {mutation.error instanceof ApiError ? mutation.error.message : 'Could not save'}
         </p>
       )}
@@ -315,14 +315,14 @@ function EditTripForm({
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
         >
           {mutation.isPending ? 'Saving…' : 'Save'}
         </button>
         <button
           type="button"
           onClick={onDone}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
         >
           Cancel
         </button>
@@ -361,16 +361,16 @@ function StopsSection({
       {stops.map((stop, i) => (
         <div
           key={stop.id}
-          className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3"
+          className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3"
         >
           <div className="flex items-center gap-3">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-medium text-slate-600">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-400">
               {i + 1}
             </span>
             <div>
-              <p className="text-sm font-medium text-slate-900">{stop.name}</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{stop.name}</p>
               {(stop.arrivalDate || stop.departureDate) && (
-                <p className="text-xs text-slate-500">{formatRange(stop.arrivalDate, stop.departureDate)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{formatRange(stop.arrivalDate, stop.departureDate)}</p>
               )}
             </div>
           </div>
@@ -381,10 +381,10 @@ function StopsSection({
               onClick={() => onTogglePick(stop.id)}
               className={`rounded px-1 text-sm ${
                 pickingStop === stop.id
-                  ? 'bg-slate-900 text-white'
+                  ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
                   : stop.lat === null
-                    ? 'text-amber-500 hover:text-slate-900'
-                    : 'text-slate-300 hover:text-slate-900'
+                    ? 'text-amber-500 dark:text-amber-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    : 'text-slate-300 dark:text-slate-600 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
               title={
                 pickingStop === stop.id
@@ -400,7 +400,7 @@ function StopsSection({
             <button
               type="button"
               onClick={() => remove.mutate(stop.id)}
-              className="px-1 text-sm text-slate-400 hover:text-red-600"
+              className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
               aria-label={`Remove ${stop.name}`}
             >
               ✕
@@ -412,7 +412,7 @@ function StopsSection({
 
       {canEdit && <StopSearch pending={add.isPending} onAdd={(input) => add.mutate(input)} />}
       {add.error && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-red-600 dark:text-red-400">
           {add.error instanceof ApiError ? add.error.message : 'Could not add stop'}
         </p>
       )}
@@ -463,33 +463,33 @@ function StopSearch({ pending, onAdd }: { pending: boolean; onAdd: (input: StopI
           onFocus={() => setOpen(true)}
           onBlur={() => window.setTimeout(() => setOpen(false), 150)}
           placeholder="Search for a place (e.g. Kyoto)"
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
         />
         <button
           type="submit"
           disabled={pending || !query.trim()}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
         >
           Add
         </button>
       </form>
 
       {open && debounced.length >= 2 && (
-        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-          {results.isLoading && <p className="px-4 py-2 text-sm text-slate-400">Searching…</p>}
+        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg">
+          {results.isLoading && <p className="px-4 py-2 text-sm text-slate-400 dark:text-slate-500">Searching…</p>}
           {results.data?.map((r) => (
             <button
               key={`${r.lat},${r.lon}`}
               type="button"
               // onMouseDown so the click wins over the input's onBlur
               onMouseDown={() => pick({ name: shortName(r.name), lat: r.lat, lon: r.lon })}
-              className="block w-full truncate px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              className="block w-full truncate px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               📍 {r.name}
             </button>
           ))}
           {results.data?.length === 0 && (
-            <p className="px-4 py-2 text-sm text-slate-400">
+            <p className="px-4 py-2 text-sm text-slate-400 dark:text-slate-500">
               No places found — “Add” saves it without coordinates.
             </p>
           )}
@@ -544,11 +544,11 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
     },
   })
 
-  const field = 'rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
+  const field = 'rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
 
   return (
     <form
-      className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3"
+      className="space-y-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 p-3"
       onSubmit={(e) => {
         e.preventDefault()
         if (title.trim() && day) add.mutate()
@@ -625,13 +625,13 @@ function NewItemForm({ tripId, stops }: { tripId: string; stops: Stop[] }) {
         <button
           type="submit"
           disabled={add.isPending || !title.trim() || !day}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
         >
           Add
         </button>
       </div>
       {add.error && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-red-600 dark:text-red-400">
           {add.error instanceof ApiError ? add.error.message : 'Could not add item'}
         </p>
       )}

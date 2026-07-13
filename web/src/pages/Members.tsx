@@ -13,7 +13,7 @@ import {
 } from '../api'
 
 const field =
-  'rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
+  'rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
 
 /** MembersSection lists who a trip is shared with. The owner can add by
  * email and remove; members can leave. */
@@ -48,8 +48,8 @@ export function MembersSection({ tripId, role }: { tripId: string; role: TripRol
 
   return (
     <section className="mt-10">
-      <h2 className="text-lg font-semibold text-slate-900">Shared with</h2>
-      <p className="text-sm text-slate-500">
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Shared with</h2>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         {isOwner
           ? 'People you invite can view or co-plan this trip. They need an account here first.'
           : 'This trip is shared with you.'}
@@ -57,26 +57,26 @@ export function MembersSection({ tripId, role }: { tripId: string; role: TripRol
 
       <div className="mt-4 space-y-2">
         {members.data?.length === 0 && (
-          <p className="text-sm text-slate-400">Not shared with anyone yet.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">Not shared with anyone yet.</p>
         )}
         {members.data?.map((m) => (
           <div
             key={m.userId}
-            className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2.5"
+            className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2.5"
           >
             <div className="flex items-center gap-3">
               {m.avatarUrl ? (
                 <img src={m.avatarUrl} alt="" className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
               ) : (
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-xs font-medium text-slate-600">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400">
                   {(m.displayName || m.email).charAt(0).toUpperCase()}
                 </div>
               )}
               <div>
-                <p className="text-sm font-medium text-slate-900">{m.displayName || m.email}</p>
-                <p className="text-xs text-slate-500">{m.email}</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{m.displayName || m.email}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{m.email}</p>
               </div>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+              <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-400">
                 {m.role}
               </span>
             </div>
@@ -84,7 +84,7 @@ export function MembersSection({ tripId, role }: { tripId: string; role: TripRol
               <button
                 type="button"
                 onClick={() => remove.mutate(m.userId)}
-                className="text-sm text-slate-400 hover:text-red-600"
+                className="text-sm text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
               >
                 {m.userId === me?.id ? 'Leave' : 'Remove'}
               </button>
@@ -118,14 +118,14 @@ export function MembersSection({ tripId, role }: { tripId: string; role: TripRol
             <button
               type="submit"
               disabled={add.isPending || !email.trim()}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+              className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
             >
               Share
             </button>
           </form>
         )}
         {add.error && (
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-red-600 dark:text-red-400">
             {add.error instanceof ApiError ? add.error.message : 'Could not add member'}
           </p>
         )}
@@ -156,8 +156,8 @@ export function ShareSection({ tripId }: { tripId: string }) {
 
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold text-slate-900">Public link</h2>
-      <p className="text-sm text-slate-500">
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Public link</h2>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         Anyone with a link can view this trip read-only — no account needed. Revoke it any time.
       </p>
 
@@ -165,9 +165,9 @@ export function ShareSection({ tripId }: { tripId: string }) {
         {shares.data?.map((share) => (
           <div
             key={share.id}
-            className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5"
+            className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2.5"
           >
-            <code className="truncate text-xs text-slate-500">
+            <code className="truncate text-xs text-slate-500 dark:text-slate-400">
               {window.location.origin}
               {share.url}
             </code>
@@ -175,14 +175,14 @@ export function ShareSection({ tripId }: { tripId: string }) {
               <button
                 type="button"
                 onClick={() => copy(share.url)}
-                className="text-slate-500 hover:text-slate-900"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
               >
                 {copied === share.url ? 'Copied!' : 'Copy'}
               </button>
               <button
                 type="button"
                 onClick={() => revoke.mutate(share.id)}
-                className="text-slate-400 hover:text-red-600"
+                className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
               >
                 Revoke
               </button>
@@ -193,7 +193,7 @@ export function ShareSection({ tripId }: { tripId: string }) {
           type="button"
           onClick={() => create.mutate()}
           disabled={create.isPending}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
         >
           {shares.data?.length ? 'Create another link' : 'Create share link'}
         </button>
