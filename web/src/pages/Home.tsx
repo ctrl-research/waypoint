@@ -152,11 +152,7 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
             type="date"
             value={startDate}
             max={endDate || undefined}
-            onChange={(e) => {
-              setStartDate(e.target.value)
-              // Seed the other picker so it opens on this month (#59).
-              if (!endDate) setEndDate(e.target.value)
-            }}
+            onChange={(e) => setStartDate(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           />
         </label>
@@ -166,10 +162,7 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
             type="date"
             value={endDate}
             min={startDate || undefined}
-            onChange={(e) => {
-              setEndDate(e.target.value)
-              if (!startDate) setStartDate(e.target.value)
-            }}
+            onChange={(e) => setEndDate(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           />
         </label>
