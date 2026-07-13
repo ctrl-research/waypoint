@@ -15,7 +15,7 @@ function applyTheme(theme: Theme) {
 export function Shell() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 print:hidden">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-5">
             <Link to="/" className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
