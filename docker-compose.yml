@@ -7,7 +7,9 @@ services:
       WAYPOINT_ADDR: ":8080"
       WAYPOINT_DATABASE_URL: postgres://waypoint:${POSTGRES_PASSWORD:-waypoint}@postgres:5432/waypoint?sslmode=disable
       WAYPOINT_DATA_DIR: /data
-      WAYPOINT_LOCAL_AUTH: true 
+      WAYPOINT_LOCAL_AUTH: true
+      WAYPOINT_LANGUAGE: en
+      WAYPOINT_MAP_STYLE_URL: https://tiles.openfreemap.org/styles/liberty
     volumes:
       - waypoint-data:/data
     depends_on:
