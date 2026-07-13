@@ -18,10 +18,10 @@ import (
 // the journal. Trips are visible to their owner only until sharing lands
 // (M6, #23).
 type tripsAPI struct {
-	trips   *store.Trips
-	users   *store.Users
-	photos  *photos.Store
-	tileURL string
+	trips  *store.Trips
+	users  *store.Users
+	photos *photos.Store
+	opts   Options
 }
 
 func (api *tripsAPI) routes(mux *http.ServeMux) {

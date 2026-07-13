@@ -7,6 +7,7 @@ import type { FeatureCollection, Geometry, MultiPolygon, Polygon } from 'geojson
 import countriesUrl from 'world-atlas/countries-110m.json?url'
 import worldCountriesUrl from 'world-countries/countries.json?url'
 import { fetchConfig, type StatsPayload } from './api'
+import { localizeMapLabels, mapStyle } from './mapstyle'
 
 // Validated data hue (dataviz palette slot 1, passes on the light surface).
 const VISITED = '#2a78d6'
@@ -132,24 +133,14 @@ export function StatsMap({
 
     const map = new maplibregl.Map({
       container: container.current,
-      style: {
-        version: 8,
-        sources: {
-          raster: {
-            type: 'raster',
-            tiles: [config.tileUrl],
-            tileSize: 256,
-            attribution: '© OpenStreetMap contributors',
-          },
-        },
-        layers: [{ id: 'raster', type: 'raster', source: 'raster' }],
-      },
+      style: mapStyle(config),
       center: [10, 25],
       zoom: 1.2,
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
 
     map.on('load', () => {
+      localizeMapLabels(map, config)
       map.addSource('countries', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
         id: 'countries-fill',

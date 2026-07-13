@@ -45,7 +45,7 @@ func setup(t *testing.T) (http.Handler, *http.Cookie, *http.Cookie) {
 	}
 
 	return New(pool, authSvc, geocode.New("http://unused.invalid", ""),
-			Options{TileURL: "https://tiles.test/{z}/{x}/{y}.png", DataDir: t.TempDir()}),
+			Options{TileURL: "https://tiles.test/{z}/{x}/{y}.png", MapStyleURL: "https://style.test/style.json", Language: "en", DataDir: t.TempDir()}),
 		cookieFor("alice@example.com", "tok-alice"), cookieFor("bob@example.com", "tok-bob")
 }
 
@@ -73,7 +73,8 @@ func TestTripsAPI(t *testing.T) {
 
 	t.Run("config exposes tile url", func(t *testing.T) {
 		code, cfg := call(t, h, alice, "GET", "/api/v1/config", "")
-		if code != 200 || cfg["tileUrl"] != "https://tiles.test/{z}/{x}/{y}.png" {
+		if code != 200 || cfg["tileUrl"] != "https://tiles.test/{z}/{x}/{y}.png" ||
+			cfg["mapStyleUrl"] != "https://style.test/style.json" || cfg["language"] != "en" {
 			t.Fatalf("config: code = %d %v", code, cfg)
 		}
 		if code, _ := call(t, h, nil, "GET", "/api/v1/config", ""); code != 401 {
