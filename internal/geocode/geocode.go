@@ -26,15 +26,19 @@ type Result struct {
 
 type Client struct {
 	baseURL string
-	http    *http.Client
-	limiter *rate.Limiter
+	// language is sent as accept-language so results come back in the
+	// instance's preferred language ("" keeps Nominatim's native names).
+	language string
+	http     *http.Client
+	limiter  *rate.Limiter
 }
 
-func New(baseURL string) *Client {
+func New(baseURL, language string) *Client {
 	return &Client{
-		baseURL: baseURL,
-		http:    &http.Client{Timeout: 5 * time.Second},
-		limiter: rate.NewLimiter(rate.Limit(1), 1),
+		baseURL:  baseURL,
+		language: language,
+		http:     &http.Client{Timeout: 5 * time.Second},
+		limiter:  rate.NewLimiter(rate.Limit(1), 1),
 	}
 }
 
@@ -50,6 +54,9 @@ func (c *Client) Search(ctx context.Context, q string, limit int, cityLevel bool
 	u := fmt.Sprintf("%s/search?format=jsonv2&limit=%d&q=%s", c.baseURL, limit, url.QueryEscape(q))
 	if cityLevel {
 		u += "&featureType=settlement"
+	}
+	if c.language != "" {
+		u += "&accept-language=" + url.QueryEscape(c.language)
 	}
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {

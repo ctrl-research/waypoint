@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func TestSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	results, err := New(srv.URL).Search(context.Background(), "kyoto japan", 5, false)
+	results, err := New(srv.URL, "").Search(context.Background(), "kyoto japan", 5, false)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -37,13 +38,36 @@ func TestSearch(t *testing.T) {
 	}
 }
 
+func TestSearchLanguage(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+
+	if _, err := New(srv.URL, "fr").Search(context.Background(), "londres", 5, false); err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if !strings.Contains(gotQuery, "accept-language=fr") {
+		t.Fatalf("query %q missing accept-language", gotQuery)
+	}
+
+	if _, err := New(srv.URL, "").Search(context.Background(), "londres", 5, false); err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if strings.Contains(gotQuery, "accept-language") {
+		t.Fatalf("query %q should not force a language when unset", gotQuery)
+	}
+}
+
 func TestSearchUpstreamError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer srv.Close()
 
-	if _, err := New(srv.URL).Search(context.Background(), "kyoto", 5, true); err == nil {
+	if _, err := New(srv.URL, "en").Search(context.Background(), "kyoto", 5, true); err == nil {
 		t.Fatal("expected error on upstream 503")
 	}
 }

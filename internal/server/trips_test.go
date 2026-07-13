@@ -44,7 +44,7 @@ func setup(t *testing.T) (http.Handler, *http.Cookie, *http.Cookie) {
 		return &http.Cookie{Name: "waypoint_session", Value: token}
 	}
 
-	return New(pool, authSvc, geocode.New("http://unused.invalid"),
+	return New(pool, authSvc, geocode.New("http://unused.invalid", ""),
 			Options{TileURL: "https://tiles.test/{z}/{x}/{y}.png", DataDir: t.TempDir()}),
 		cookieFor("alice@example.com", "tok-alice"), cookieFor("bob@example.com", "tok-bob")
 }
