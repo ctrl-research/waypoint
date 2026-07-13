@@ -2,7 +2,7 @@ import { Suspense, lazy, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Navigate } from '@tanstack/react-router'
 import { fetchMe, fetchStats } from '../api'
-import type { StatsMapMode, StatsMapProjection } from '../StatsMap'
+import type { StatsMapMode, StatsMapProjection, VisitedPlaces } from '../StatsMap'
 
 const StatsMap = lazy(() => import('../StatsMap').then((m) => ({ default: m.StatsMap })))
 
@@ -14,7 +14,7 @@ export function StatsPage() {
   const stats = useQuery({ queryKey: ['stats'], queryFn: fetchStats, enabled: !!me })
   const [mode, setMode] = useState<StatsMapMode>('countries')
   const [projection, setProjection] = useState<StatsMapProjection>('mercator')
-  const [visitedCountries, setVisitedCountries] = useState<string[]>([])
+  const [visited, setVisited] = useState<VisitedPlaces>({ countries: [], continents: [] })
 
   if (isLoading) return null
   if (!me) return <Navigate to="/login" />
@@ -30,7 +30,11 @@ export function StatsPage() {
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile label="Trips" value={totals.trips} hint={tileHint(totals)} />
-        <StatTile label="Countries" value={visitedCountries.length} hint="from stop locations" />
+        <StatTile
+          label="Countries"
+          value={visited.countries.length}
+          hint={`across ${visited.continents.length} continent${visited.continents.length === 1 ? '' : 's'}`}
+        />
         <StatTile label="Cities" value={totals.cities} hint="distinct stops" />
         <StatTile label="Days on the road" value={totals.daysOnRoad} hint="dated trips" />
         <StatTile
@@ -69,6 +73,7 @@ export function StatsPage() {
               value={mode}
               options={[
                 ['countries', 'Countries'],
+                ['continents', 'Continents'],
                 ['cities', 'Cities'],
               ]}
               onChange={(v) => setMode(v as StatsMapMode)}
@@ -85,18 +90,21 @@ export function StatsPage() {
         </div>
         <div className="mt-3">
           <Suspense fallback={<div className="h-[28rem] w-full rounded-xl border border-slate-200 bg-slate-50" />}>
-            <StatsMap
-              stops={stops}
-              mode={mode}
-              projection={projection}
-              onVisitedCountries={setVisitedCountries}
-            />
+            <StatsMap stops={stops} mode={mode} projection={projection} onVisited={setVisited} />
           </Suspense>
         </div>
-        {mode === 'countries' && visitedCountries.length > 0 && (
+        {mode === 'countries' && visited.countries.length > 0 && (
           <p className="mt-2 text-sm text-slate-500">
-            <span className="font-medium text-slate-700">{visitedCountries.length} countries:</span>{' '}
-            {visitedCountries.join(', ')}
+            <span className="font-medium text-slate-700">{visited.countries.length} countries:</span>{' '}
+            {visited.countries.join(', ')}
+          </p>
+        )}
+        {mode === 'continents' && visited.continents.length > 0 && (
+          <p className="mt-2 text-sm text-slate-500">
+            <span className="font-medium text-slate-700">
+              {visited.continents.length} of 7 continents:
+            </span>{' '}
+            {visited.continents.join(', ')}
           </p>
         )}
         {stops.length === 0 && (
