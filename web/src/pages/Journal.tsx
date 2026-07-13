@@ -14,8 +14,10 @@ import {
   type JournalEntry,
   type JournalEntryInput,
   type Stop,
+  type Trip,
 } from '../api'
 import { categoryIcons } from './ItineraryBoard'
+import { defaultTripDay } from './Home'
 
 const field =
   'rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
@@ -26,16 +28,17 @@ const field =
  * with rendered markdown and photos).
  */
 export function JournalTimeline({
-  tripId,
+  trip,
   items,
   stops,
   canEdit,
 }: {
-  tripId: string
+  trip: Trip
   items: ItineraryItem[]
   stops: Stop[]
   canEdit: boolean
 }) {
+  const tripId = trip.id
   const entriesQuery = useQuery({
     queryKey: ['journal', tripId],
     queryFn: () => listJournal(tripId),
@@ -70,7 +73,7 @@ export function JournalTimeline({
 
       {composing && (
         <div className="mt-4">
-          <EntryForm tripId={tripId} onDone={() => setComposing(false)} />
+          <EntryForm trip={trip} onDone={() => setComposing(false)} />
         </div>
       )}
 
@@ -83,7 +86,7 @@ export function JournalTimeline({
         {days.map((day) => (
           <TimelineDay
             key={day}
-            tripId={tripId}
+            trip={trip}
             day={day}
             items={items.filter((i) => i.day === day)}
             entries={entries.filter((e) => e.entryDate === day)}
@@ -97,14 +100,14 @@ export function JournalTimeline({
 }
 
 function TimelineDay({
-  tripId,
+  trip,
   day,
   items,
   entries,
   stops,
   canEdit,
 }: {
-  tripId: string
+  trip: Trip
   day: string
   items: ItineraryItem[]
   entries: JournalEntry[]
@@ -140,14 +143,15 @@ function TimelineDay({
 
       <div className="mt-3 space-y-4">
         {entries.map((entry) => (
-          <EntryCard key={entry.id} tripId={tripId} entry={entry} canEdit={canEdit} />
+          <EntryCard key={entry.id} trip={trip} entry={entry} canEdit={canEdit} />
         ))}
       </div>
     </div>
   )
 }
 
-function EntryCard({ tripId, entry, canEdit }: { tripId: string; entry: JournalEntry; canEdit: boolean }) {
+function EntryCard({ trip, entry, canEdit }: { trip: Trip; entry: JournalEntry; canEdit: boolean }) {
+  const tripId = trip.id
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
 
@@ -157,7 +161,7 @@ function EntryCard({ tripId, entry, canEdit }: { tripId: string; entry: JournalE
   })
 
   if (editing) {
-    return <EntryForm tripId={tripId} entry={entry} onDone={() => setEditing(false)} />
+    return <EntryForm trip={trip} entry={entry} onDone={() => setEditing(false)} />
   }
 
   return (
@@ -217,16 +221,19 @@ function EntryCard({ tripId, entry, canEdit }: { tripId: string; entry: JournalE
 /** EntryForm creates or edits an entry: markdown with preview (#18), and in
  * edit mode a photo strip with upload, markdown-insert, and delete. */
 function EntryForm({
-  tripId,
+  trip,
   entry,
   onDone,
 }: {
-  tripId: string
+  trip: Trip
   entry?: JournalEntry
   onDone: () => void
 }) {
+  const tripId = trip.id
   const queryClient = useQueryClient()
-  const [entryDate, setEntryDate] = useState(entry?.entryDate ?? '')
+  const [entryDate, setEntryDate] = useState(
+    entry?.entryDate ?? defaultTripDay(trip.startDate, trip.endDate),
+  )
   const [title, setTitle] = useState(entry?.title ?? '')
   const [body, setBody] = useState(entry?.body ?? '')
   const [tab, setTab] = useState<'write' | 'preview'>('write')
@@ -258,6 +265,8 @@ function EntryForm({
           type="date"
           required
           value={entryDate}
+          min={trip.startDate ?? undefined}
+          max={trip.endDate ?? undefined}
           onChange={(e) => setEntryDate(e.target.value)}
           className={field}
         />

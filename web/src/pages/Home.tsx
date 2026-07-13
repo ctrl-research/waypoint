@@ -190,6 +190,15 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
   )
 }
 
+/** Today clamped into a trip's date range — the natural default for
+ * in-trip date inputs (#59). */
+export function defaultTripDay(start: string | null, end: string | null): string {
+  const today = new Date().toISOString().slice(0, 10)
+  if (start && today < start) return start
+  if (end && today > end) return end
+  return today
+}
+
 export function formatRange(start: string | null, end: string | null): string {
   if (!start && !end) return 'Dates TBD'
   const fmt = (d: string) =>
