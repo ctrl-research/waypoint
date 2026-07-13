@@ -1,0 +1,10 @@
+# Keep the Docker build context lean — node_modules alone is hundreds of MB
+# and gets rebuilt inside the image anyway (npm ci in the web stage).
+.git
+web/node_modules
+web/dist
+internal/webui/dist
+bin
+data
+*.log
+.env
