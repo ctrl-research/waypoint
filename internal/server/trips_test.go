@@ -101,9 +101,10 @@ func TestTripsAPI(t *testing.T) {
 
 	t.Run("validation", func(t *testing.T) {
 		for name, body := range map[string]string{
-			"missing title": `{"description":"no title"}`,
-			"bad status":    `{"title":"x","status":"someday"}`,
-			"bad date":      `{"title":"x","startDate":"03/20/2027"}`,
+			"missing title":  `{"description":"no title"}`,
+			"bad status":     `{"title":"x","status":"someday"}`,
+			"bad date":       `{"title":"x","startDate":"03/20/2027"}`,
+			"inverted dates": `{"title":"x","startDate":"2027-04-05","endDate":"2027-03-20"}`,
 		} {
 			if code, _ := call(t, h, alice, "POST", "/api/v1/trips", body); code != 400 {
 				t.Fatalf("%s: code = %d, want 400", name, code)

@@ -55,6 +55,8 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/trips/{tripID}/members", protected(api.addMember))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/members/{userID}", protected(api.removeMember))
 
+	mux.Handle("GET /api/v1/stats", protected(api.handleStats))
+
 	mux.Handle("GET /api/v1/trips/{tripID}/export/gpx", protected(api.exportGPX))
 	mux.Handle("GET /api/v1/trips/{tripID}/export/geojson", protected(api.exportGeoJSON))
 	mux.Handle("GET /api/v1/trips/{tripID}/export/markdown", protected(api.exportMarkdown))
@@ -180,6 +182,9 @@ func (req tripRequest) merge(p *store.TripParams) error {
 	}
 	if p.EndDate, err = mergeDate(req.EndDate, p.EndDate, "endDate"); err != nil {
 		return err
+	}
+	if p.StartDate != nil && p.EndDate != nil && p.EndDate.Before(*p.StartDate) {
+		return errors.New("endDate must be on or after startDate")
 	}
 	if req.CoverPhoto != nil {
 		p.CoverPhoto = nilIfEmpty(*req.CoverPhoto)

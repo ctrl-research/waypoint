@@ -7,9 +7,12 @@ export function Shell() {
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
-          <Link to="/" className="text-lg font-semibold tracking-tight text-slate-900">
-            🧭 Waypoint
-          </Link>
+          <div className="flex items-center gap-5">
+            <Link to="/" className="text-lg font-semibold tracking-tight text-slate-900">
+              🧭 Waypoint
+            </Link>
+            <NavLinks />
+          </div>
           <UserMenu />
         </div>
       </header>
@@ -17,6 +20,19 @@ export function Shell() {
         <Outlet />
       </main>
     </div>
+  )
+}
+
+function NavLinks() {
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
+  if (!me) return null
+  return (
+    <Link
+      to="/stats"
+      className="text-sm text-slate-500 hover:text-slate-900 [&.active]:font-medium [&.active]:text-slate-900"
+    >
+      Stats
+    </Link>
   )
 }
 

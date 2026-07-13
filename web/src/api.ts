@@ -366,3 +366,23 @@ export type PublicTripPayload = {
 export function fetchPublicTrip(token: string): Promise<PublicTripPayload> {
   return requestJSON(`/api/v1/public/${token}`)
 }
+
+// ---- stats ---------------------------------------------------------------------
+
+export type StatsPayload = {
+  totals: {
+    trips: number
+    planning: number
+    active: number
+    completed: number
+    daysOnRoad: number
+    plannedDistanceKm: number
+    cities: number
+  }
+  tripsPerYear: { year: number; count: number }[]
+  stops: { name: string; lat: number; lon: number; tripTitle: string }[]
+}
+
+export function fetchStats(): Promise<StatsPayload> {
+  return requestJSON('/api/v1/stats')
+}
