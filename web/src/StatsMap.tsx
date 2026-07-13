@@ -5,31 +5,39 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { feature } from 'topojson-client'
 import type { FeatureCollection, Geometry, MultiPolygon, Polygon } from 'geojson'
 import countriesUrl from 'world-atlas/countries-110m.json?url'
+import worldCountriesUrl from 'world-countries/countries.json?url'
 import { fetchConfig, type StatsPayload } from './api'
 
 // Validated data hue (dataviz palette slot 1, passes on the light surface).
 const VISITED = '#2a78d6'
 
-export type StatsMapMode = 'countries' | 'cities'
+export type StatsMapMode = 'countries' | 'continents' | 'cities'
 export type StatsMapProjection = 'mercator' | 'globe'
 
-type CountryProps = { name: string; visited: boolean }
+export type VisitedPlaces = { countries: string[]; continents: string[] }
+
+type CountryProps = {
+  name: string
+  continent: string
+  visited: boolean
+  continentVisited: boolean
+}
 
 /**
- * Visited-places map (#26): countries mode fills every country containing a
- * stop; cities mode dots each located stop. Projection toggles between a 2D
- * world map and a 3D globe.
+ * Visited-places map (#26): countries/continents modes fill everywhere a
+ * stop lands; cities mode dots each located stop. The projection toggle
+ * morphs between the 2D map and the 3D globe.
  */
 export function StatsMap({
   stops,
   mode,
   projection,
-  onVisitedCountries,
+  onVisited,
 }: {
   stops: StatsPayload['stops']
   mode: StatsMapMode
   projection: StatsMapProjection
-  onVisitedCountries: (visited: string[]) => void
+  onVisited: (v: VisitedPlaces) => void
 }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -38,28 +46,66 @@ export function StatsMap({
   const { data: config } = useQuery({ queryKey: ['config'], queryFn: fetchConfig, staleTime: Infinity })
   const countries = useQuery({
     queryKey: ['countries-geo'],
-    queryFn: async (): Promise<FeatureCollection<Geometry, { name: string }>> => {
-      const topo = await (await fetch(countriesUrl)).json()
-      return feature(topo, topo.objects.countries) as unknown as FeatureCollection<
+    queryFn: async (): Promise<FeatureCollection<Geometry, { name: string; continent: string }>> => {
+      const [topo, meta] = await Promise.all([
+        fetch(countriesUrl).then((r) => r.json()),
+        fetch(worldCountriesUrl).then((r) => r.json()) as Promise<
+          { ccn3?: string; region: string; subregion?: string }[]
+        >,
+      ])
+      const continentByID = new Map<string, string>()
+      for (const c of meta) {
+        if (c.ccn3) continentByID.set(c.ccn3, continentOf(c.region, c.subregion))
+      }
+      const fc = feature(topo, topo.objects.countries) as unknown as FeatureCollection<
         Geometry,
         { name: string }
       >
+      return {
+        type: 'FeatureCollection',
+        features: fc.features.map((f) => ({
+          ...f,
+          properties: {
+            name: f.properties.name,
+            continent:
+              continentByID.get(String(f.id).padStart(3, '0')) ??
+              DISPUTED_CONTINENTS[f.properties.name] ??
+              'Other',
+          },
+        })),
+      }
     },
     staleTime: Infinity,
   })
 
-  // Countries containing at least one stop, via point-in-polygon.
+  // Mark visited countries (point-in-polygon) and their continents.
   const visitedGeo = useRef<FeatureCollection<Geometry, CountryProps> | null>(null)
   useEffect(() => {
     if (!countries.data) return
-    const features = countries.data.features.map((f) => {
-      const visited = stops.some((s) => geometryContains(f.geometry, s.lon, s.lat))
-      return { ...f, properties: { name: f.properties.name, visited } }
-    })
-    visitedGeo.current = { type: 'FeatureCollection', features }
-    onVisitedCountries(
-      features.filter((f) => f.properties.visited).map((f) => f.properties.name).sort(),
+    const withVisited = countries.data.features.map((f) => ({
+      ...f,
+      properties: {
+        ...f.properties,
+        visited: stops.some((s) => geometryContains(f.geometry, s.lon, s.lat)),
+      },
+    }))
+    const visitedContinents = new Set(
+      withVisited.filter((f) => f.properties.visited).map((f) => f.properties.continent),
     )
+    visitedGeo.current = {
+      type: 'FeatureCollection',
+      features: withVisited.map((f) => ({
+        ...f,
+        properties: {
+          ...f.properties,
+          continentVisited: visitedContinents.has(f.properties.continent),
+        },
+      })),
+    }
+    onVisited({
+      countries: withVisited.filter((f) => f.properties.visited).map((f) => f.properties.name).sort(),
+      continents: [...visitedContinents].filter((c) => c !== 'Other').sort(),
+    })
     syncSources()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countries.data, stops])
@@ -118,6 +164,14 @@ export function StatsMap({
         filter: ['==', ['get', 'visited'], true],
         paint: { 'line-color': VISITED, 'line-width': 1 },
       })
+      // Continents reuse the country polygons, filtered by continent flag.
+      map.addLayer({
+        id: 'continents-fill',
+        type: 'fill',
+        source: 'countries',
+        filter: ['==', ['get', 'continentVisited'], true],
+        paint: { 'fill-color': VISITED, 'fill-opacity': 0.35 },
+      })
 
       map.addSource('cities', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
@@ -133,18 +187,22 @@ export function StatsMap({
         },
       })
 
-      // Hover tooltips for both modes.
+      // Hover tooltips for all three modes.
       const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false })
-      map.on('mousemove', 'countries-fill', (e) => {
-        const f = e.features?.[0]
-        if (!f) return
-        map.getCanvas().style.cursor = 'default'
-        popup.setLngLat(e.lngLat).setText((f.properties as CountryProps).name).addTo(map)
-      })
-      map.on('mouseleave', 'countries-fill', () => {
-        map.getCanvas().style.cursor = ''
-        popup.remove()
-      })
+      const hover = (layer: string, text: (p: CountryProps & { trip?: string }) => string) => {
+        map.on('mousemove', layer, (e) => {
+          const f = e.features?.[0]
+          if (!f) return
+          map.getCanvas().style.cursor = 'default'
+          popup.setLngLat(e.lngLat).setText(text(f.properties as CountryProps & { trip?: string })).addTo(map)
+        })
+        map.on('mouseleave', layer, () => {
+          map.getCanvas().style.cursor = ''
+          popup.remove()
+        })
+      }
+      hover('countries-fill', (p) => p.name)
+      hover('continents-fill', (p) => p.continent)
       map.on('mousemove', 'cities-dots', (e) => {
         const f = e.features?.[0]
         if (!f) return
@@ -174,17 +232,78 @@ export function StatsMap({
     syncSources()
     const map = mapRef.current
     if (!map || !ready) return
-    map.setLayoutProperty('countries-fill', 'visibility', mode === 'countries' ? 'visible' : 'none')
-    map.setLayoutProperty('countries-line', 'visibility', mode === 'countries' ? 'visible' : 'none')
-    map.setLayoutProperty('cities-dots', 'visibility', mode === 'cities' ? 'visible' : 'none')
+    const show = (layer: string, on: boolean) =>
+      map.setLayoutProperty(layer, 'visibility', on ? 'visible' : 'none')
+    show('countries-fill', mode === 'countries')
+    show('countries-line', mode === 'countries')
+    show('continents-fill', mode === 'continents')
+    show('cities-dots', mode === 'cities')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, mode, stops])
 
+  // Projection changes morph instead of snapping: sweep an interpolated
+  // globe→mercator window across the current zoom (the same mechanism
+  // MapLibre uses for zoom-driven globe transitions), then pin the target.
+  const animRef = useRef(0)
+  const firstProjection = useRef(true)
   useEffect(() => {
-    if (mapRef.current && ready) mapRef.current.setProjection({ type: projection })
+    const map = mapRef.current
+    if (!map || !ready) return
+    if (firstProjection.current) {
+      firstProjection.current = false
+      if (projection === 'globe') map.setProjection({ type: 'globe' })
+      return
+    }
+
+    cancelAnimationFrame(animRef.current)
+    const zoom = map.getZoom()
+    const window = 1 // zoom units the morph window spans
+    const duration = 900
+    const start = performance.now()
+    const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (2 - 2 * t) ** 2 / 2)
+
+    const step = (now: number) => {
+      const t = easeInOut(Math.min(1, (now - start) / duration))
+      // factor 0 = fully globe, 1 = fully flat at the current zoom
+      const factor = projection === 'mercator' ? t : 1 - t
+      const a = zoom - factor * window
+      map.setProjection({
+        type: [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          a,
+          'vertical-perspective',
+          a + window,
+          'mercator',
+        ] as unknown as maplibregl.ProjectionSpecification['type'],
+      })
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(step)
+      } else {
+        map.setProjection({ type: projection })
+      }
+    }
+    animRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(animRef.current)
   }, [ready, projection])
 
   return <div ref={container} className="h-[28rem] w-full rounded-xl border border-slate-200" />
+}
+
+// Natural Earth territories without ISO numeric codes in world-countries.
+const DISPUTED_CONTINENTS: Record<string, string> = {
+  Kosovo: 'Europe',
+  'N. Cyprus': 'Asia',
+  Somaliland: 'Africa',
+}
+
+function continentOf(region: string, subregion?: string): string {
+  if (region === 'Americas') {
+    return subregion === 'South America' ? 'South America' : 'North America'
+  }
+  if (region === 'Antarctic') return 'Antarctica'
+  return region || 'Other'
 }
 
 /** Ray-casting point-in-polygon over GeoJSON Polygon/MultiPolygon. */
