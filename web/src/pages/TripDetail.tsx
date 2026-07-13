@@ -136,6 +136,14 @@ export function TripDetailPage() {
               ⬇ {label}
             </a>
           ))}
+          <Link
+            to="/trips/$tripId/print"
+            params={{ tripId: trip.id }}
+            title="print-friendly document — save as PDF from the print dialog"
+            className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            🖨 Print / PDF
+          </Link>
         </div>
       </section>
     </div>
