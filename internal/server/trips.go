@@ -165,6 +165,9 @@ type itemJSON struct {
 	Notes             string     `json:"notes"`
 	CostCents         *int64     `json:"costCents"`
 	Currency          *string    `json:"currency"`
+	Address           string     `json:"address"`
+	Lat               *float64   `json:"lat"`
+	Lon               *float64   `json:"lon"`
 	Position          int32      `json:"position"`
 }
 
@@ -175,6 +178,7 @@ func toItemJSON(it store.ItineraryItem) itemJSON {
 		Day: it.Day.Format(dateFormat), StartTime: nilIfEmpty(it.StartTime), EndTime: nilIfEmpty(it.EndTime),
 		Title: it.Title, Category: string(it.Category), Notes: it.Notes,
 		CostCents: it.CostCents, Currency: it.Currency, Position: it.Position,
+		Address: it.Address, Lat: it.Lat, Lon: it.Lon,
 	}
 }
 

@@ -108,6 +108,9 @@ export type ItineraryItem = {
   notes: string
   costCents: number | null
   currency: string | null
+  address: string
+  lat: number | null
+  lon: number | null
   position: number
 }
 
@@ -184,6 +187,9 @@ export type ItemInput = Partial<{
   notes: string
   costCents: number
   currency: string
+  address: string
+  lat: number
+  lon: number
 }>
 
 export function createItem(tripId: string, input: ItemInput): Promise<ItineraryItem> {

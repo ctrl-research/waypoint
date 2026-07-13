@@ -188,12 +188,15 @@ func TestTripsAPI(t *testing.T) {
 
 	// Itinerary items.
 	code, item := call(t, h, alice, "POST", tripPath+"/items",
-		fmt.Sprintf(`{"title":"Fushimi Inari","day":"2027-03-24","startTime":"09:00","stopId":%q,"category":"activity","costCents":0,"currency":"JPY"}`, stopIDs[1]))
+		fmt.Sprintf(`{"title":"Fushimi Inari","day":"2027-03-24","startTime":"09:00","stopId":%q,"category":"activity","costCents":0,"currency":"JPY","address":"68 Fukakusa Yabunouchicho, Kyoto","lat":34.9671,"lon":135.7727}`, stopIDs[1]))
 	if code != 201 {
 		t.Fatalf("create item: code = %d %v", code, item)
 	}
 	if item["startTime"] != "09:00" {
 		t.Fatalf("startTime = %v, want 09:00", item["startTime"])
+	}
+	if item["address"] != "68 Fukakusa Yabunouchicho, Kyoto" || item["lat"].(float64) != 34.9671 {
+		t.Fatalf("venue = %v / %v", item["address"], item["lat"])
 	}
 	itemID := item["id"].(string)
 
@@ -207,6 +210,7 @@ func TestTripsAPI(t *testing.T) {
 			"foreign stopId":      `{"title":"x","day":"2027-03-24","stopId":"00000000-0000-0000-0000-000000000001"}`,
 			"bad endTime":         `{"title":"x","day":"2027-03-24","endTime":"25:99"}`,
 			"foreign destination": `{"title":"x","day":"2027-03-24","category":"flight","destinationStopId":"00000000-0000-0000-0000-000000000001"}`,
+			"half venue coords":   `{"title":"x","day":"2027-03-24","lat":35.0}`,
 			"home and stop both":  fmt.Sprintf(`{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001","stopId":%q}`, stopIDs[0]),
 			"foreign home":        `{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001"}`,
 		} {

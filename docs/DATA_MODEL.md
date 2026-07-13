@@ -62,7 +62,8 @@ destination_stop_id FK NULL · origin_home_id / destination_home_id FK NULL
 (flight/train legs travel stop-or-home → stop-or-home) · day (date) ·
 start_time NULL · end_time NULL · title · category (enum: activity, food,
 lodging, transport, flight, train, other) · notes · cost_cents NULL ·
-currency (char(3)) · position`
+currency (char(3)) · address · lat/lon NULL (venue, both-or-neither CHECK) ·
+position`
 
 ### homes
 `id · user_id FK · name · lat/lon (NOT NULL) · created_at`
