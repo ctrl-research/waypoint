@@ -148,9 +148,9 @@ func (api *tripsAPI) servePublicTrip(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"trip":    toTripJSON(trip, "viewer"),
-		"stops":   stopsOut,
-		"items":   itemsOut,
+		"trip":        toTripJSON(trip, "viewer"),
+		"stops":       stopsOut,
+		"items":       itemsOut,
 		"entries":     entriesOut,
 		"tileUrl":     api.opts.TileURL,
 		"mapStyleUrl": api.opts.MapStyleURL,
