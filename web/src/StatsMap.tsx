@@ -241,51 +241,11 @@ export function StatsMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, mode, stops])
 
-  // Projection changes morph instead of snapping: sweep an interpolated
-  // globe→mercator window across the current zoom (the same mechanism
-  // MapLibre uses for zoom-driven globe transitions), then pin the target.
-  const animRef = useRef(0)
-  const firstProjection = useRef(true)
+  // Projection switches instantly. An animated globe→map morph was tried
+  // and reverted — see the "globe unwrap transition" issue for the findings
+  // before attempting it again.
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    if (firstProjection.current) {
-      firstProjection.current = false
-      if (projection === 'globe') map.setProjection({ type: 'globe' })
-      return
-    }
-
-    cancelAnimationFrame(animRef.current)
-    const zoom = map.getZoom()
-    const window = 1 // zoom units the morph window spans
-    const duration = 900
-    const start = performance.now()
-    const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (2 - 2 * t) ** 2 / 2)
-
-    const step = (now: number) => {
-      const t = easeInOut(Math.min(1, (now - start) / duration))
-      // factor 0 = fully globe, 1 = fully flat at the current zoom
-      const factor = projection === 'mercator' ? t : 1 - t
-      const a = zoom - factor * window
-      map.setProjection({
-        type: [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          a,
-          'vertical-perspective',
-          a + window,
-          'mercator',
-        ] as unknown as maplibregl.ProjectionSpecification['type'],
-      })
-      if (t < 1) {
-        animRef.current = requestAnimationFrame(step)
-      } else {
-        map.setProjection({ type: projection })
-      }
-    }
-    animRef.current = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(animRef.current)
+    if (mapRef.current && ready) mapRef.current.setProjection({ type: projection })
   }, [ready, projection])
 
   return <div ref={container} className="h-[28rem] w-full rounded-xl border border-slate-200" />
