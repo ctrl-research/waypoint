@@ -17,11 +17,11 @@ export function SettingsPage() {
       <h1 className="text-2xl font-semibold text-slate-900">Settings</h1>
 
       <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="font-medium text-slate-900">Homes</h2>
+        <h2 className="font-medium text-slate-900">Home cities</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Where your travels start and end — add more than one if life is split between places.
-          Flights and trains can use any of them, shown as “(home) Name”, as departure or arrival,
-          and they anchor the distance stats.
+          The cities your travels start and end from — add more than one if life is split between
+          places. Flights and trains can use any of them, shown as “(home) City”, as departure or
+          arrival, and they anchor the distance stats.
         </p>
         <HomesEditor />
       </section>
@@ -43,8 +43,8 @@ function HomesEditor() {
   }, [query])
 
   const results = useQuery({
-    queryKey: ['geocode', debounced],
-    queryFn: () => geocode(debounced),
+    queryKey: ['geocode', 'city', debounced],
+    queryFn: () => geocode(debounced, true),
     enabled: debounced.length >= 2,
     staleTime: 5 * 60 * 1000,
   })
@@ -90,7 +90,7 @@ function HomesEditor() {
           }}
           onFocus={() => setOpen(true)}
           onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-          placeholder="Search to add a home…"
+          placeholder="Search for a city to add as home…"
           className={`${field} w-full`}
         />
         {open && debounced.length >= 2 && (
@@ -107,7 +107,7 @@ function HomesEditor() {
               </button>
             ))}
             {results.data?.length === 0 && (
-              <p className="px-4 py-2 text-sm text-slate-400">No places found.</p>
+              <p className="px-4 py-2 text-sm text-slate-400">No cities found.</p>
             )}
           </div>
         )}

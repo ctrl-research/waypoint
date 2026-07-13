@@ -209,9 +209,9 @@ export function reorderItems(tripId: string, day: string, ids: string[]): Promis
 
 export type GeocodeResult = { name: string; lat: number; lon: number }
 
-export async function geocode(q: string): Promise<GeocodeResult[]> {
+export async function geocode(q: string, cityLevel = false): Promise<GeocodeResult[]> {
   const body = await requestJSON<{ results: GeocodeResult[] }>(
-    `/api/v1/geocode?q=${encodeURIComponent(q)}`,
+    `/api/v1/geocode?q=${encodeURIComponent(q)}${cityLevel ? '&type=city' : ''}`,
   )
   return body.results
 }

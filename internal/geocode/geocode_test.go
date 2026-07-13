@@ -19,7 +19,7 @@ func TestSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	results, err := New(srv.URL).Search(context.Background(), "kyoto japan", 5)
+	results, err := New(srv.URL).Search(context.Background(), "kyoto japan", 5, false)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestSearchUpstreamError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := New(srv.URL).Search(context.Background(), "kyoto", 5); err == nil {
+	if _, err := New(srv.URL).Search(context.Background(), "kyoto", 5, true); err == nil {
 		t.Fatal("expected error on upstream 503")
 	}
 }

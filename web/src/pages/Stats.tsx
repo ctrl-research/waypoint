@@ -87,8 +87,8 @@ export function StatsPage() {
             <Segmented
               value={mode}
               options={[
-                ['countries', 'Countries'],
                 ['continents', 'Continents'],
+                ['countries', 'Countries'],
                 ['cities', 'Cities'],
               ]}
               onChange={(v) => setMode(v as StatsMapMode)}

@@ -38,14 +38,19 @@ func New(baseURL string) *Client {
 	}
 }
 
-// Search geocodes q. It waits for the rate limiter (bounded by ctx), so
-// bursts of autocomplete traffic queue instead of violating the OSM policy.
-func (c *Client) Search(ctx context.Context, q string, limit int) ([]Result, error) {
+// Search geocodes q. cityLevel restricts results to inhabited places
+// (Nominatim featureType=settlement: cities, towns, villages). It waits for
+// the rate limiter (bounded by ctx), so bursts of autocomplete traffic queue
+// instead of violating the OSM policy.
+func (c *Client) Search(ctx context.Context, q string, limit int, cityLevel bool) ([]Result, error) {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return nil, err
 	}
 
 	u := fmt.Sprintf("%s/search?format=jsonv2&limit=%d&q=%s", c.baseURL, limit, url.QueryEscape(q))
+	if cityLevel {
+		u += "&featureType=settlement"
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
