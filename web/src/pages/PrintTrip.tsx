@@ -64,7 +64,7 @@ export function PrintTripPage() {
       <header>
         <h1 className="text-3xl font-semibold">{trip.title}</h1>
         <p className="mt-1 text-slate-600">
-          {formatRange(trip.startDate, trip.endDate)} · {trip.status}
+          {formatRange(trip.startDate, trip.endDate)} · {trip.effectiveStatus}
         </p>
         {trip.description && <p className="mt-2 text-slate-700">{trip.description}</p>}
       </header>

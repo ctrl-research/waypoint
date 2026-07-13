@@ -40,8 +40,8 @@ export function PublicTripPage() {
     <div className="mx-auto mt-8 w-full max-w-4xl px-4 pb-24">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{trip.title}</h1>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.status]}`}>
-          {trip.status}
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.effectiveStatus]}`}>
+          {trip.effectiveStatus}
         </span>
       </div>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{formatRange(trip.startDate, trip.endDate)}</p>

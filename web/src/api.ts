@@ -62,6 +62,7 @@ export async function logout(): Promise<void> {
 // ---- trips ------------------------------------------------------------------
 
 export type TripStatus = 'planning' | 'active' | 'completed'
+export type EffectiveStatus = 'planned' | 'in-progress' | 'completed'
 export type TripRole = 'owner' | 'editor' | 'viewer'
 
 export type Trip = {
@@ -76,6 +77,8 @@ export type Trip = {
   updatedAt: string
   /** The signed-in user's role on this trip. */
   role: TripRole
+  /** Derived from dates (#68): what the badge should say today. */
+  effectiveStatus: EffectiveStatus
 }
 
 export type Stop = {

@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate } from '@tanstack/react-router'
-import { ApiError, createTrip, fetchMe, listTrips, type Trip, type TripStatus } from '../api'
+import { ApiError, createTrip, fetchMe, listTrips, type EffectiveStatus, type Trip } from '../api'
 
-export const statusStyles: Record<TripStatus, string> = {
-  planning: 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300',
-  active: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300',
-  completed: 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400',
+export const statusStyles: Record<EffectiveStatus, string> = {
+  planned: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300',
+  'in-progress': 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300',
+  completed: 'bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300',
 }
 
 export function HomePage() {
@@ -46,17 +46,8 @@ export function HomePage() {
 /** Splits trips into happening-now / upcoming (soonest first, undated last) /
  * past (most recent first). Completed trips are always past (#49). */
 function GroupedTrips({ trips }: { trips: Trip[] }) {
-  const today = new Date().toISOString().slice(0, 10)
-
-  const now = trips.filter(
-    (t) =>
-      t.status !== 'completed' &&
-      t.startDate !== null &&
-      t.startDate <= today &&
-      (t.endDate === null || t.endDate >= today),
-  )
-  const isPast = (t: Trip) =>
-    t.status === 'completed' || (t.endDate !== null && t.endDate < today)
+  const now = trips.filter((t) => t.effectiveStatus === 'in-progress')
+  const isPast = (t: Trip) => t.effectiveStatus === 'completed'
   const past = trips
     .filter(isPast)
     .sort((a, b) => (b.endDate ?? b.startDate ?? '').localeCompare(a.endDate ?? a.startDate ?? ''))
@@ -106,8 +97,8 @@ function TripCard({ trip }: { trip: Trip }) {
               shared
             </span>
           )}
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.status]}`}>
-            {trip.status}
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[trip.effectiveStatus]}`}>
+            {trip.effectiveStatus}
           </span>
         </div>
       </div>

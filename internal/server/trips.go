@@ -90,6 +90,10 @@ type tripJSON struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 	// Role is the requesting user's role on this trip: owner|editor|viewer.
 	Role string `json:"role"`
+	// EffectiveStatus is derived from the trip's dates (#68):
+	// planned | in-progress | completed. The stored status is the fallback
+	// for undated trips and a manual completed always wins.
+	EffectiveStatus string `json:"effectiveStatus"`
 }
 
 func toTripJSON(t store.Trip, role string) tripJSON {
@@ -97,8 +101,35 @@ func toTripJSON(t store.Trip, role string) tripJSON {
 		ID: t.ID, Title: t.Title, Description: t.Description, Status: string(t.Status),
 		StartDate: formatDate(t.StartDate), EndDate: formatDate(t.EndDate),
 		CoverPhoto: t.CoverPhoto, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
-		Role: role,
+		Role: role, EffectiveStatus: effectiveStatus(t, time.Now()),
 	}
+}
+
+// effectiveStatus derives what a trip's badge should say today: dates rule,
+// a manually stored completed always wins, and undated trips fall back to
+// their stored status.
+func effectiveStatus(t store.Trip, now time.Time) string {
+	if t.Status == store.TripCompleted {
+		return "completed"
+	}
+	today := now.Format(dateFormat)
+	if t.StartDate != nil {
+		start := t.StartDate.Format(dateFormat)
+		if t.EndDate != nil && t.EndDate.Format(dateFormat) < today {
+			return "completed"
+		}
+		if start > today {
+			return "planned"
+		}
+		// Started; without an end date an active-window trip stays
+		// in-progress.
+		return "in-progress"
+	}
+	// Undated: map the stored status.
+	if t.Status == store.TripActive {
+		return "in-progress"
+	}
+	return "planned"
 }
 
 type stopJSON struct {

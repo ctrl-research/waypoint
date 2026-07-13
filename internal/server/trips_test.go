@@ -265,6 +265,28 @@ func TestTripsAPI(t *testing.T) {
 		}
 	})
 
+	t.Run("effective status derives from dates", func(t *testing.T) {
+		mk := func(body string) string {
+			_, tr := call(t, h, alice, "POST", "/api/v1/trips", body)
+			return tr["effectiveStatus"].(string)
+		}
+		if got := mk(`{"title":"past","startDate":"2020-01-01","endDate":"2020-01-05"}`); got != "completed" {
+			t.Fatalf("past trip = %q, want completed", got)
+		}
+		if got := mk(`{"title":"future","startDate":"2099-01-01","endDate":"2099-01-05"}`); got != "planned" {
+			t.Fatalf("future trip = %q, want planned", got)
+		}
+		if got := mk(`{"title":"current","startDate":"2020-01-01","endDate":"2099-01-05"}`); got != "in-progress" {
+			t.Fatalf("current trip = %q, want in-progress", got)
+		}
+		if got := mk(`{"title":"undated active","status":"active"}`); got != "in-progress" {
+			t.Fatalf("undated active = %q, want in-progress", got)
+		}
+		if got := mk(`{"title":"manually done","startDate":"2099-01-01","endDate":"2099-01-05","status":"completed"}`); got != "completed" {
+			t.Fatalf("manual completed = %q, want completed", got)
+		}
+	})
+
 	t.Run("delete cascades", func(t *testing.T) {
 		if code, _ := call(t, h, alice, "DELETE", tripPath, ""); code != 204 {
 			t.Fatalf("delete trip: code = %d", code)
