@@ -5,6 +5,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { fetchPublicTrip, type ItineraryItem } from '../api'
 import { formatRange, statusStyles } from './Home'
+import { CompassLogo } from '../CompassLogo'
 import { categoryIcons } from './ItineraryBoard'
 import { mapsLink } from '../maps'
 
@@ -22,7 +23,7 @@ export function PublicTripPage() {
   if (error) {
     return (
       <div className="mx-auto mt-24 max-w-md text-center text-slate-500 dark:text-slate-400">
-        <p className="text-4xl">🧭</p>
+        <p className="flex justify-center"><CompassLogo size={48} /></p>
         <p className="mt-3">This share link doesn’t exist or has been revoked.</p>
       </div>
     )

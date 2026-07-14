@@ -1,16 +1,10 @@
-import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { fetchMe, logout } from './api'
-
-type Theme = 'light' | 'dark' | 'system'
-
-function applyTheme(theme: Theme) {
-  const dark =
-    theme === 'dark' ||
-    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.classList.toggle('dark', dark)
-}
+import { CompassLogo } from './CompassLogo'
+// Side effect: applies the stored theme and follows OS changes app-wide;
+// the picker itself lives on the Settings page.
+import './theme'
 
 export function Shell() {
   return (
@@ -18,13 +12,15 @@ export function Shell() {
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 print:hidden">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-5">
-            <Link to="/" className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-              🧭 Waypoint
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100"
+            >
+              <CompassLogo size={32} /> Waypoint
             </Link>
             <NavLinks />
           </div>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <UserMenu />
           </div>
         </div>
@@ -53,37 +49,6 @@ function NavLinks() {
         Settings
       </Link>
     </>
-  )
-}
-
-const themeIcons: Record<Theme, string> = { light: '☀️', dark: '🌙', system: '💻' }
-
-function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem('waypoint-theme') as Theme) ?? 'system',
-  )
-
-  useEffect(() => {
-    applyTheme(theme)
-    localStorage.setItem('waypoint-theme', theme)
-    if (theme !== 'system') return
-    // Follow OS changes live while in system mode.
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyTheme('system')
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [theme])
-
-  const next: Record<Theme, Theme> = { light: 'dark', dark: 'system', system: 'light' }
-  return (
-    <button
-      type="button"
-      onClick={() => setTheme(next[theme])}
-      title={`Theme: ${theme} — click to switch`}
-      className="rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-    >
-      {themeIcons[theme]}
-    </button>
   )
 }
 
