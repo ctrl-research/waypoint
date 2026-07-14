@@ -197,8 +197,12 @@ export function TripMap({
 
     const el = document.createElement('div')
     el.className = 'relative h-3.5 w-3.5 rounded-full bg-[#2a78d6] ring-2 ring-white shadow'
+    // The vehicle trails just left of the dot — travelling together. Inline
+    // styles, not utility classes: the marker element is MapLibre-managed.
     const vehicle = document.createElement('div')
-    vehicle.className = 'absolute -top-6 left-1/2 -translate-x-1/2 text-lg leading-none'
+    vehicle.style.cssText =
+      'position:absolute;right:100%;top:50%;transform:translateY(-50%);margin-right:3px;' +
+      'font-size:18px;line-height:1;pointer-events:none;filter:drop-shadow(0 1px 1px rgb(0 0 0 / .4));'
     el.appendChild(vehicle)
     replayMarker.current = new maplibregl.Marker({ element: el })
       .setLngLat([pts[0].lon, pts[0].lat])
@@ -226,13 +230,19 @@ export function TripMap({
       // leg's scale, so the dot never outruns the view.
       const line = legLine(from, to)
       vehicle.textContent = (from.category && TRANSPORT_EMOJI[from.category]) || ''
-      const zoomFrom = map.getZoom()
+      // Settle the zoom at the departure point BEFORE the dot moves — mixing
+      // the two made the dot race across the screen while still zoomed in.
       const zoomTo = zoomForKm(km)
+      const zoomDelta = Math.abs(zoomTo - map.getZoom())
+      if (zoomDelta > 0.3) {
+        const zoomDur = Math.min(1300, 250 + zoomDelta * 160)
+        map.easeTo({ center: [from.lon, from.lat], zoom: zoomTo, duration: zoomDur })
+        await wait(zoomDur + 80)
+      }
       await animate(duration, (t) => {
         const [lon, lat] = pointAlong(line, t)
         replayMarker.current?.setLngLat([lon, lat])
-        const zt = Math.min(1, t / 0.35)
-        map.jumpTo({ center: [lon, lat], zoom: zoomFrom + (zoomTo - zoomFrom) * zt })
+        map.jumpTo({ center: [lon, lat], zoom: zoomTo })
         src.setData({
           type: 'Feature',
           properties: {},
