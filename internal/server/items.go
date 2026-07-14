@@ -222,7 +222,7 @@ func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusBadRequest, "invalid", "home does not belong to you")
 		return
 	}
-	// Items land on an explicit layer or the trip's Final layer (#73).
+	// Items land on an explicit layer or the trip's Main layer (#73).
 	var layer store.ItineraryLayer
 	if req.LayerID != nil {
 		var err error
@@ -232,8 +232,8 @@ func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		var err error
-		if layer, err = api.trips.EnsureFinalLayer(r.Context(), trip.ID); err != nil {
-			apiInternalError(w, "ensure final layer", err)
+		if layer, err = api.trips.EnsureMainLayer(r.Context(), trip.ID); err != nil {
+			apiInternalError(w, "ensure main layer", err)
 			return
 		}
 	}
@@ -298,7 +298,7 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Moving between layers is promotion/demotion (#73): the caller must be
-	// allowed to write the target layer too (Final needs editor+).
+	// allowed to write the target layer too (the Main layer needs editor+).
 	if req.LayerID != nil && *req.LayerID != current.LayerID {
 		target, err := api.trips.LayerByID(r.Context(), trip.ID, *req.LayerID)
 		if err != nil {
@@ -325,7 +325,9 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusBadRequest, "invalid", "destinationStopId does not belong to this trip")
 		return
 	}
-	if ok, err := api.homesBelongToUser(r, params.OriginHomeID, params.DestinationHomeID); err != nil {
+	// Only homes set by this request need to be the caller's own — an item
+	// may legitimately keep another member's home on its leg.
+	if ok, err := api.homesBelongToUser(r, req.OriginHomeID, req.DestinationHomeID); err != nil {
 		apiInternalError(w, "check homes", err)
 		return
 	} else if !ok {
@@ -341,7 +343,7 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 }
 
 // reorderItems replaces one day's ordering on one layer (the board's
-// drag-drop). A missing layerId means the Final layer.
+// drag-drop). A missing layerId means the Main layer.
 func (api *tripsAPI) reorderItems(w http.ResponseWriter, r *http.Request) {
 	trip, role, ok := api.tripAccess(w, r, "viewer")
 	if !ok {
@@ -368,8 +370,8 @@ func (api *tripsAPI) reorderItems(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		if layer, err = api.trips.EnsureFinalLayer(r.Context(), trip.ID); err != nil {
-			apiInternalError(w, "ensure final layer", err)
+		if layer, err = api.trips.EnsureMainLayer(r.Context(), trip.ID); err != nil {
+			apiInternalError(w, "ensure main layer", err)
 			return
 		}
 	}

@@ -43,7 +43,7 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("PATCH /api/v1/trips/{tripID}/items/{itemID}", protected(api.updateItem))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/items/{itemID}", protected(api.deleteItem))
 
-	mux.Handle("POST /api/v1/trips/{tripID}/layers", protected(api.ensureMyLayer))
+	mux.Handle("POST /api/v1/trips/{tripID}/layers", protected(api.createLayer))
 	mux.Handle("PATCH /api/v1/trips/{tripID}/layers/{layerID}", protected(api.updateLayer))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/layers/{layerID}", protected(api.deleteLayer))
 

@@ -11,65 +11,22 @@ import (
 	"github.com/google/uuid"
 )
 
-const deleteProposalLayer = `-- name: DeleteProposalLayer :execrows
-DELETE FROM itinerary_layers WHERE id = $2 AND trip_id = $1 AND owner_id IS NOT NULL
-`
-
-type DeleteProposalLayerParams struct {
-	TripID uuid.UUID
-	ID     uuid.UUID
-}
-
-// The Final layer (owner_id NULL) is never deletable; items cascade.
-func (q *Queries) DeleteProposalLayer(ctx context.Context, arg DeleteProposalLayerParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteProposalLayer, arg.TripID, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const ensureFinalLayer = `-- name: EnsureFinalLayer :one
-INSERT INTO itinerary_layers (trip_id, owner_id, name)
-VALUES ($1, NULL, 'Final')
-ON CONFLICT (trip_id) WHERE owner_id IS NULL
-DO UPDATE SET name = itinerary_layers.name
-RETURNING id, trip_id, owner_id, name, color, created_at
-`
-
-// Creates the trip's Final layer on first use (new trips get one lazily).
-func (q *Queries) EnsureFinalLayer(ctx context.Context, tripID uuid.UUID) (ItineraryLayer, error) {
-	row := q.db.QueryRow(ctx, ensureFinalLayer, tripID)
-	var i ItineraryLayer
-	err := row.Scan(
-		&i.ID,
-		&i.TripID,
-		&i.OwnerID,
-		&i.Name,
-		&i.Color,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const ensureMemberLayer = `-- name: EnsureMemberLayer :one
+const createLayer = `-- name: CreateLayer :one
 INSERT INTO itinerary_layers (trip_id, owner_id, name, color)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (trip_id, owner_id) WHERE owner_id IS NOT NULL
-DO UPDATE SET name = itinerary_layers.name
-RETURNING id, trip_id, owner_id, name, color, created_at
+RETURNING id, trip_id, owner_id, name, color, created_at, visible
 `
 
-type EnsureMemberLayerParams struct {
+type CreateLayerParams struct {
 	TripID  uuid.UUID
 	OwnerID *uuid.UUID
 	Name    string
 	Color   string
 }
 
-// A member's proposal layer, created on first use; name/color stick once set.
-func (q *Queries) EnsureMemberLayer(ctx context.Context, arg EnsureMemberLayerParams) (ItineraryLayer, error) {
-	row := q.db.QueryRow(ctx, ensureMemberLayer,
+// A member's named layer; anyone on the trip can hold several.
+func (q *Queries) CreateLayer(ctx context.Context, arg CreateLayerParams) (ItineraryLayer, error) {
+	row := q.db.QueryRow(ctx, createLayer,
 		arg.TripID,
 		arg.OwnerID,
 		arg.Name,
@@ -83,12 +40,55 @@ func (q *Queries) EnsureMemberLayer(ctx context.Context, arg EnsureMemberLayerPa
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.Visible,
+	)
+	return i, err
+}
+
+const deleteProposalLayer = `-- name: DeleteProposalLayer :execrows
+DELETE FROM itinerary_layers WHERE id = $2 AND trip_id = $1 AND owner_id IS NOT NULL
+`
+
+type DeleteProposalLayerParams struct {
+	TripID uuid.UUID
+	ID     uuid.UUID
+}
+
+// The Main layer (owner_id NULL) is never deletable; items cascade.
+func (q *Queries) DeleteProposalLayer(ctx context.Context, arg DeleteProposalLayerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteProposalLayer, arg.TripID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const ensureMainLayer = `-- name: EnsureMainLayer :one
+INSERT INTO itinerary_layers (trip_id, owner_id, name)
+VALUES ($1, NULL, 'Main')
+ON CONFLICT (trip_id) WHERE owner_id IS NULL
+DO UPDATE SET name = itinerary_layers.name
+RETURNING id, trip_id, owner_id, name, color, created_at, visible
+`
+
+// The trip's default layer (owner_id NULL), created on first use.
+func (q *Queries) EnsureMainLayer(ctx context.Context, tripID uuid.UUID) (ItineraryLayer, error) {
+	row := q.db.QueryRow(ctx, ensureMainLayer, tripID)
+	var i ItineraryLayer
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Color,
+		&i.CreatedAt,
+		&i.Visible,
 	)
 	return i, err
 }
 
 const layerByID = `-- name: LayerByID :one
-SELECT id, trip_id, owner_id, name, color, created_at FROM itinerary_layers WHERE id = $2 AND trip_id = $1
+SELECT id, trip_id, owner_id, name, color, created_at, visible FROM itinerary_layers WHERE id = $2 AND trip_id = $1
 `
 
 type LayerByIDParams struct {
@@ -106,12 +106,13 @@ func (q *Queries) LayerByID(ctx context.Context, arg LayerByIDParams) (Itinerary
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.Visible,
 	)
 	return i, err
 }
 
 const listLayers = `-- name: ListLayers :many
-SELECT id, trip_id, owner_id, name, color, created_at FROM itinerary_layers WHERE trip_id = $1 ORDER BY (owner_id IS NOT NULL), created_at
+SELECT id, trip_id, owner_id, name, color, created_at, visible FROM itinerary_layers WHERE trip_id = $1 ORDER BY (owner_id IS NOT NULL), created_at
 `
 
 func (q *Queries) ListLayers(ctx context.Context, tripID uuid.UUID) ([]ItineraryLayer, error) {
@@ -130,6 +131,7 @@ func (q *Queries) ListLayers(ctx context.Context, tripID uuid.UUID) ([]Itinerary
 			&i.Name,
 			&i.Color,
 			&i.CreatedAt,
+			&i.Visible,
 		); err != nil {
 			return nil, err
 		}
@@ -142,16 +144,17 @@ func (q *Queries) ListLayers(ctx context.Context, tripID uuid.UUID) ([]Itinerary
 }
 
 const updateLayer = `-- name: UpdateLayer :one
-UPDATE itinerary_layers SET name = $3, color = $4
+UPDATE itinerary_layers SET name = $3, color = $4, visible = $5
 WHERE id = $2 AND trip_id = $1
-RETURNING id, trip_id, owner_id, name, color, created_at
+RETURNING id, trip_id, owner_id, name, color, created_at, visible
 `
 
 type UpdateLayerParams struct {
-	TripID uuid.UUID
-	ID     uuid.UUID
-	Name   string
-	Color  string
+	TripID  uuid.UUID
+	ID      uuid.UUID
+	Name    string
+	Color   string
+	Visible bool
 }
 
 func (q *Queries) UpdateLayer(ctx context.Context, arg UpdateLayerParams) (ItineraryLayer, error) {
@@ -160,6 +163,7 @@ func (q *Queries) UpdateLayer(ctx context.Context, arg UpdateLayerParams) (Itine
 		arg.ID,
 		arg.Name,
 		arg.Color,
+		arg.Visible,
 	)
 	var i ItineraryLayer
 	err := row.Scan(
@@ -169,6 +173,7 @@ func (q *Queries) UpdateLayer(ctx context.Context, arg UpdateLayerParams) (Itine
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.Visible,
 	)
 	return i, err
 }

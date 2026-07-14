@@ -5,15 +5,20 @@ import {
   ApiError,
   createItem,
   createStop,
+  deleteItem,
   deleteStop,
   deleteTrip,
   fetchMe,
   geocode,
   getTrip,
   listHomes,
+  updateItem,
   updateStop,
   updateTrip,
+  type ItemInput,
   type ItineraryCategory,
+  type ItineraryItem,
+  type ItineraryLayer,
   type Stop,
   type StopInput,
   type Trip,
@@ -66,11 +71,11 @@ export function TripDetailPage() {
   }
   if (!detail.data) return null
 
-  const { trip, stops, items, homes, layers } = detail.data
+  const { trip, stops, items, layers } = detail.data
   const canEdit = trip.role !== 'viewer'
-  // The trip page shows the published plan: Final-layer items only (#73).
-  const finalLayerId = layers.find((l) => l.ownerId === null)?.id
-  const finalItems = finalLayerId ? items.filter((i) => i.layerId === finalLayerId) : items
+  // The itinerary is the merge of visible layers (#73).
+  const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.id))
+  const planItems = items.filter((i) => !hiddenLayers.has(i.layerId))
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
@@ -80,7 +85,7 @@ export function TripDetailPage() {
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
           <TripMap
             stops={stops}
-            items={finalItems}
+            items={planItems}
             highlightKey={highlightKey}
             picking={pickingStop !== null}
             onPick={(lat, lon) => {
@@ -110,7 +115,7 @@ export function TripDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">The final plan, day by day.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Everything on the visible layers, day by day.</p>
           </div>
           {canEdit && (
             <Link
@@ -124,10 +129,10 @@ export function TripDetailPage() {
         </div>
         <ItineraryBoard
           trip={trip}
-          items={finalItems}
-          stops={stops}
-          homes={homes}
+          items={planItems}
           readOnly
+          combined
+          layers={layers}
           onHover={setHighlightKey}
         />
       </section>
@@ -611,27 +616,96 @@ function shortName(displayName: string): string {
 }
 
 
-export function NewItemForm({ trip, stops, layerId }: { trip: Trip; stops: Stop[]; layerId?: string }) {
+/** Select value encoding one leg endpoint: '' | stopId | 'home:<id>'. */
+function endpointValue(stopId: string | null, homeId: string | null): string {
+  return homeId ? `home:${homeId}` : (stopId ?? '')
+}
+
+/**
+ * Create/edit form for itinerary items. With `item` set it edits in place —
+ * every field is sent explicitly (empty = clear) so removals stick — and
+ * only changed leg endpoints are touched, keeping other members' homes.
+ */
+export function NewItemForm({
+  trip,
+  stops,
+  item,
+  layers,
+  onDone,
+}: {
+  trip: Trip
+  stops: Stop[]
+  item?: ItineraryItem
+  /** Layers the caller may write; new items land on the selected one and
+   * edit mode offers moving between them. An empty id means the default
+   * Main layer (it may not exist yet). */
+  layers?: ItineraryLayer[]
+  onDone?: () => void
+}) {
   const tripId = trip.id
   const queryClient = useQueryClient()
-  const [title, setTitle] = useState('')
-  const [day, setDay] = useState(() => defaultTripDay(trip.startDate, trip.endDate))
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
-  const [category, setCategory] = useState<ItineraryCategory>('activity')
-  const [stopId, setStopId] = useState('')
-  const [destinationStopId, setDestinationStopId] = useState('')
-  const [venue, setVenue] = useState<{ address: string; lat?: number; lon?: number } | null>(null)
+  const [title, setTitle] = useState(item?.title ?? '')
+  const [day, setDay] = useState(() => item?.day ?? defaultTripDay(trip.startDate, trip.endDate))
+  const [startTime, setStartTime] = useState(item?.startTime ?? '')
+  const [endTime, setEndTime] = useState(item?.endTime ?? '')
+  const [category, setCategory] = useState<ItineraryCategory>(item?.category ?? 'activity')
+  const [stopId, setStopId] = useState(item ? endpointValue(item.stopId, item.originHomeId) : '')
+  const [destinationStopId, setDestinationStopId] = useState(
+    item ? endpointValue(item.destinationStopId, item.destinationHomeId) : '',
+  )
+  const [venue, setVenue] = useState<{ address: string; lat?: number; lon?: number } | null>(
+    item?.address
+      ? { address: item.address, lat: item.lat ?? undefined, lon: item.lon ?? undefined }
+      : null,
+  )
+  const [itemLayerId, setItemLayerId] = useState(item?.layerId ?? layers?.[0]?.id ?? '')
   const isLeg = category === 'flight' || category === 'train'
   const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
   const add = useMutation({
-    mutationFn: () =>
-      createItem(tripId, {
+    mutationFn: () => {
+      const origin: ItemInput = stopId.startsWith('home:')
+        ? { originHomeId: stopId.slice(5), clearStop: true }
+        : stopId
+          ? { stopId, clearOriginHome: true }
+          : { clearStop: true, clearOriginHome: true }
+      const destination: ItemInput =
+        isLeg && destinationStopId.startsWith('home:')
+          ? { destinationHomeId: destinationStopId.slice(5), clearDestination: true }
+          : isLeg && destinationStopId
+            ? { destinationStopId, clearDestinationHome: true }
+            : { clearDestination: true, clearDestinationHome: true }
+      const venueFields: ItemInput = venue
+        ? {
+            address: venue.address,
+            ...(venue.lat !== undefined && venue.lon !== undefined
+              ? { lat: venue.lat, lon: venue.lon }
+              : { clearLatLon: true }),
+          }
+        : { address: '', clearLatLon: true }
+
+      if (item) {
+        return updateItem(tripId, item.id, {
+          title,
+          day,
+          category,
+          startTime,
+          endTime,
+          ...(itemLayerId && itemLayerId !== item.layerId ? { layerId: itemLayerId } : {}),
+          ...venueFields,
+          // Untouched endpoints stay as they are — they may reference
+          // another member's home, which we could not re-submit.
+          ...(stopId !== endpointValue(item.stopId, item.originHomeId) ? origin : {}),
+          ...(destinationStopId !== endpointValue(item.destinationStopId, item.destinationHomeId)
+            ? destination
+            : {}),
+        })
+      }
+      return createItem(tripId, {
         title,
         day,
         category,
-        ...(layerId ? { layerId } : {}),
+        ...(itemLayerId ? { layerId: itemLayerId } : {}),
         ...(startTime ? { startTime } : {}),
         ...(endTime ? { endTime } : {}),
         ...(venue
@@ -652,11 +726,22 @@ export function NewItemForm({ trip, stops, layerId }: { trip: Trip; stops: Stop[
           : isLeg && destinationStopId
             ? { destinationStopId }
             : {}),
-      }),
+      })
+    },
     onSuccess: async () => {
-      setTitle('')
-      setVenue(null)
+      if (!item) {
+        setTitle('')
+        setVenue(null)
+      }
       await queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
+      onDone?.()
+    },
+  })
+  const remove = useMutation({
+    mutationFn: () => deleteItem(tripId, item!.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
+      onDone?.()
     },
   })
 
@@ -730,6 +815,21 @@ export function NewItemForm({ trip, stops, layerId }: { trip: Trip; stops: Stop[
             </option>
           ))}
         </select>
+        {layers && layers.length > 1 && (
+          <select
+            value={itemLayerId}
+            onChange={(e) => setItemLayerId(e.target.value)}
+            aria-label="Layer"
+            title="Layer this item belongs to"
+            className={field}
+          >
+            {layers.map((l) => (
+              <option key={l.id} value={l.id}>
+                ⬤ {l.name}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={stopId} onChange={(e) => setStopId(e.target.value)} className={field}>
           <option value="">{isLeg ? 'from' : 'no stop'}</option>
           {isLeg &&
@@ -768,12 +868,33 @@ export function NewItemForm({ trip, stops, layerId }: { trip: Trip; stops: Stop[
           disabled={add.isPending || !title.trim() || !day}
           className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
         >
-          Add
+          {item ? 'Save' : 'Add'}
         </button>
+        {item && onDone && (
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+          >
+            Cancel
+          </button>
+        )}
+        {item && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm(`Delete "${item.title}"?`)) remove.mutate()
+            }}
+            disabled={remove.isPending}
+            className="ml-auto rounded-lg px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
+          >
+            Delete item
+          </button>
+        )}
       </div>
       {add.error && (
         <p className="text-sm text-red-600 dark:text-red-400">
-          {add.error instanceof ApiError ? add.error.message : 'Could not add item'}
+          {add.error instanceof ApiError ? add.error.message : item ? 'Could not save item' : 'Could not add item'}
         </p>
       )}
     </form>

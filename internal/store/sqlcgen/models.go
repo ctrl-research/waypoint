@@ -182,6 +182,7 @@ type ItineraryLayer struct {
 	Name      string
 	Color     string
 	CreatedAt time.Time
+	Visible   bool
 }
 
 type JournalEntry struct {

@@ -121,8 +121,10 @@ export type ItineraryLayer = {
   id: string
   name: string
   color: string
-  /** null marks the trip's Final layer — the published plan. */
+  /** null marks the trip's default Main layer. */
   ownerId: string | null
+  /** The itinerary is the merge of visible layers — shared trip state. */
+  visible: boolean
 }
 
 export type TripDetail = {
@@ -206,6 +208,12 @@ export type ItemInput = Partial<{
   lat: number
   lon: number
   layerId: string
+  /** Clear flags for PATCH: unset the referenced field server-side. */
+  clearStop: boolean
+  clearDestination: boolean
+  clearOriginHome: boolean
+  clearDestinationHome: boolean
+  clearLatLon: boolean
 }>
 
 export function createItem(tripId: string, input: ItemInput): Promise<ItineraryItem> {
@@ -237,15 +245,18 @@ export function reorderItems(
 
 // ---- itinerary layers (#73) ----------------------------------------------------
 
-/** The caller's proposal layer, created on first use. */
-export function ensureMyLayer(tripId: string): Promise<ItineraryLayer> {
-  return requestJSON(`/api/v1/trips/${tripId}/layers`, { method: 'POST' })
+/** A new named member layer; members can hold any number of them. */
+export function createLayer(tripId: string, name: string, color?: string): Promise<ItineraryLayer> {
+  return requestJSON(`/api/v1/trips/${tripId}/layers`, {
+    method: 'POST',
+    body: JSON.stringify({ name, ...(color ? { color } : {}) }),
+  })
 }
 
 export function updateLayer(
   tripId: string,
   layerId: string,
-  input: Partial<{ name: string; color: string }>,
+  input: Partial<{ name: string; color: string; visible: boolean }>,
 ): Promise<ItineraryLayer> {
   return requestJSON(`/api/v1/trips/${tripId}/layers/${layerId}`, {
     method: 'PATCH',

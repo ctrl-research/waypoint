@@ -2,28 +2,28 @@ import { Suspense, lazy, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useParams } from '@tanstack/react-router'
 import {
+  createLayer,
   deleteLayer,
-  ensureMyLayer,
   fetchMe,
   getTrip,
-  updateItem,
   updateLayer,
+  type ItineraryItem,
   type ItineraryLayer,
 } from '../api'
-import { EyeIcon } from '../icons'
+import { EyeIcon, PencilIcon } from '../icons'
 import { ItineraryBoard } from './ItineraryBoard'
 import { NewItemForm } from './TripDetail'
 
 const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
 type MarkerKey = `stop:${string}` | `item:${string}`
 
-/** Swatches offered in layer settings — the server's palette plus Final blue. */
+/** Swatches offered in layer settings — the server's palette plus Main blue. */
 const LAYER_SWATCHES = ['#2a78d6', '#d97706', '#059669', '#7c3aed', '#db2777', '#0891b2', '#65a30d']
 
 /**
- * Dedicated itinerary editor (#73). One layer is active on the board at a
- * time — Final or a member's proposal; the map overlays every visible layer
- * in its color. Promotion moves an item's layer_id, never copies.
+ * Dedicated itinerary editor (#73). Members organize items on any number
+ * of named layers; the itinerary is simply the merge of all visible
+ * layers, everywhere — the map, this list, the trip page, and exports.
  */
 export function ItineraryEditorPage() {
   const { tripId } = useParams({ from: '/trips/$tripId/itinerary' })
@@ -31,34 +31,27 @@ export function ItineraryEditorPage() {
   const detail = useQuery({ queryKey: ['trip', tripId], queryFn: () => getTrip(tripId), enabled: !!me })
   const queryClient = useQueryClient()
   const [highlightKey, setHighlightKey] = useState<MarkerKey | null>(null)
-  const [activeLayerId, setActiveLayerId] = useState<string | null>(null)
-  const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set())
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [layerName, setLayerName] = useState('')
+  const [editing, setEditing] = useState<ItineraryItem | null>(null)
+  const [newLayerOpen, setNewLayerOpen] = useState(false)
+  const [newLayerName, setNewLayerName] = useState('')
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null)
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
-  const propose = useMutation({
-    mutationFn: () => ensureMyLayer(tripId),
-    onSuccess: (layer) => {
-      setActiveLayerId(layer.id)
+  const addLayer = useMutation({
+    mutationFn: (name: string) => createLayer(tripId, name),
+    onSuccess: () => {
+      setNewLayerOpen(false)
+      setNewLayerName('')
       invalidate()
     },
   })
   const removeLayer = useMutation({
     mutationFn: (layerId: string) => deleteLayer(tripId, layerId),
-    onSuccess: () => {
-      setActiveLayerId(null)
-      invalidate()
-    },
+    onSuccess: invalidate,
   })
   const customize = useMutation({
-    mutationFn: ({ layerId, name, color }: { layerId: string; name?: string; color?: string }) =>
-      updateLayer(tripId, layerId, { ...(name ? { name } : {}), ...(color ? { color } : {}) }),
-    onSettled: invalidate,
-  })
-  const promote = useMutation({
-    mutationFn: ({ itemId, layerId }: { itemId: string; layerId: string }) =>
-      updateItem(tripId, itemId, { layerId }),
+    mutationFn: ({ layerId, ...input }: { layerId: string; name?: string; color?: string; visible?: boolean }) =>
+      updateLayer(tripId, layerId, input),
     onSettled: invalidate,
   })
 
@@ -82,45 +75,31 @@ export function ItineraryEditorPage() {
   }
   if (!detail.data) return null
 
-  const { trip, stops, items, homes } = detail.data
-  const finalLayer = layers.find((l) => l.ownerId === null)
-  const myLayer = layers.find((l) => l.ownerId === me.id)
-  const canEditFinal = trip.role !== 'viewer'
+  const { trip, stops, items } = detail.data
+  const canEditMain = trip.role !== 'viewer'
 
-  // The board edits one layer at a time; Final is the default. A trip that
-  // predates its Final layer (no items yet) behaves as Final until the
-  // first item creates it.
-  const activeLayer: ItineraryLayer | null =
-    layers.find((l) => l.id === activeLayerId) ?? finalLayer ?? null
-  const activeIsFinal = !activeLayer || activeLayer.ownerId === null
-  const canEditActive = activeIsFinal ? canEditFinal : activeLayer?.ownerId === me.id || canEditFinal
-  const boardItems = activeLayer ? items.filter((i) => i.layerId === activeLayer.id) : items
-  const mapItems = items.filter((i) => !hiddenLayers.has(i.layerId))
+  // The itinerary is the merge of visible layers.
+  const hidden = new Set(layers.filter((l) => !l.visible).map((l) => l.id))
+  const visibleItems = items.filter((i) => !hidden.has(i.layerId))
+  const countFor = (layerId: string) => items.filter((i) => i.layerId === layerId).length
 
-  // Promotion targets: proposals send items to Final (editor+); Final sends
-  // them back to your own proposal layer.
-  // Mirrors the server's rules: Final needs editor+, a proposal belongs to
-  // its owner (the trip owner can moderate).
-  const canManageActive = activeLayer
-    ? activeIsFinal
-      ? canEditFinal
-      : activeLayer.ownerId === me.id || trip.role === 'owner'
-    : false
+  // Mirrors the server's rules (layerEditable / layerManageable).
+  const canEditLayer = (layer: ItineraryLayer) => canEditMain || layer.ownerId === me.id
+  const canManageLayer = (layer: ItineraryLayer) =>
+    layer.ownerId === null ? canEditMain : layer.ownerId === me.id || trip.role === 'owner'
+  const canEditItem = (item: ItineraryItem) => {
+    const layer = layers.find((l) => l.id === item.layerId)
+    return canEditMain || layer?.ownerId === me.id
+  }
 
-  const promoteTarget =
-    !activeIsFinal && canEditFinal && finalLayer
-      ? { layerId: finalLayer.id, label: '→ Final' }
-      : activeIsFinal && myLayer
-        ? { layerId: myLayer.id, label: `→ ${myLayer.name}` }
-        : null
-
-  const toggleLayerVisibility = (layerId: string) =>
-    setHiddenLayers((cur) => {
-      const next = new Set(cur)
-      if (next.has(layerId)) next.delete(layerId)
-      else next.add(layerId)
-      return next
-    })
+  // Layers offered by the add/edit forms. Until the Main layer exists (it
+  // is created lazily with the first item) editors get a stand-in option.
+  const editableLayers = layers.filter(canEditLayer)
+  const formLayers =
+    canEditMain && !layers.some((l) => l.ownerId === null)
+      ? [{ id: '', name: 'Main', color: '#2a78d6', ownerId: null, visible: true }, ...editableLayers]
+      : editableLayers
+  const canAddItems = formLayers.length > 0
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
@@ -136,9 +115,9 @@ export function ItineraryEditorPage() {
           Itinerary editor
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {canEditActive
-            ? 'Changes save as you go. Use the layer chips to switch between the final plan and proposals.'
-            : 'You have view-only access to this layer — propose changes on your own layer.'}
+          {canAddItems
+            ? 'The itinerary is everything on the visible layers, ordered by start time. Changes save as you go.'
+            : 'You have view-only access — add a layer of your own to start suggesting items.'}
         </p>
       </div>
 
@@ -148,7 +127,7 @@ export function ItineraryEditorPage() {
         >
           <TripMap
             stops={stops}
-            items={mapItems}
+            items={visibleItems}
             layerColors={layerColors}
             highlightKey={highlightKey}
             picking={false}
@@ -157,157 +136,245 @@ export function ItineraryEditorPage() {
         </Suspense>
       </div>
 
-      {/* Layer switcher: click a chip to edit that layer; the eye keeps other
-          layers overlaid on the map for comparison. */}
-      <div className="mt-6 flex flex-wrap items-center gap-2">
-        {(layers.length > 0 ? layers : []).map((layer) => {
-          const active = activeLayer?.id === layer.id
-          return (
-            <div
-              key={layer.id}
-              className={`flex items-center overflow-hidden rounded-full border text-sm ${
-                active
-                  ? 'border-slate-900 dark:border-slate-100 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
-                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'
-              }`}
+      <section className="mt-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Layers</h2>
+          {newLayerOpen ? (
+            <form
+              className="flex items-center gap-1"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (newLayerName.trim()) addLayer.mutate(newLayerName.trim())
+              }}
             >
+              <input
+                autoFocus
+                value={newLayerName}
+                onChange={(e) => setNewLayerName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setNewLayerOpen(false)
+                }}
+                placeholder="Layer name"
+                aria-label="New layer name"
+                className="w-40 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-1 text-sm text-slate-900 dark:text-slate-100 focus:border-slate-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={addLayer.isPending || !newLayerName.trim()}
+                className="rounded-lg bg-slate-900 dark:bg-slate-100 px-3 py-1 text-sm text-white dark:text-slate-900 disabled:opacity-50"
+              >
+                Add
+              </button>
               <button
                 type="button"
-                onClick={() => setActiveLayerId(layer.id)}
-                className="flex items-center gap-2 py-1 pl-3 pr-1"
+                onClick={() => setNewLayerOpen(false)}
+                className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+                aria-label="Cancel new layer"
+              >
+                ✕
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setNewLayerOpen(true)}
+              className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+            >
+              ＋ New layer
+            </button>
+          )}
+        </div>
+
+        <div className="mt-2 divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          {layers.length === 0 && (
+            <p className="px-4 py-3 text-sm text-slate-400 dark:text-slate-500">
+              Items live on the Main layer; add layers to organize ideas separately.
+            </p>
+          )}
+          {layers.map((layer) =>
+            editingLayerId === layer.id ? (
+              <LayerSettingsRow
+                key={layer.id}
+                layer={layer}
+                onSave={(input) => {
+                  customize.mutate({ layerId: layer.id, ...input })
+                  setEditingLayerId(null)
+                }}
+                onCancel={() => setEditingLayerId(null)}
+              />
+            ) : (
+              <div
+                key={layer.id}
+                className={`flex items-center gap-3 px-4 py-2.5 ${layer.visible ? '' : 'opacity-50'}`}
               >
                 <span
-                  className="h-2.5 w-2.5 rounded-full"
+                  className="h-3 w-3 shrink-0 rounded-full"
                   style={{ backgroundColor: layer.color }}
+                  aria-hidden="true"
                 />
-                {layer.name}
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleLayerVisibility(layer.id)}
-                className={`py-1 pl-1 pr-2.5 ${hiddenLayers.has(layer.id) ? 'opacity-40' : ''}`}
-                title={hiddenLayers.has(layer.id) ? 'Show on map' : 'Hide from map'}
-                aria-label={`Toggle ${layer.name} on the map`}
-              >
-                <EyeIcon open={!hiddenLayers.has(layer.id)} />
-              </button>
-            </div>
-          )
-        })}
-        {layers.length === 0 && (
-          <span className="rounded-full border border-slate-200 dark:border-slate-700 px-3 py-1 text-sm text-slate-500 dark:text-slate-400">
-            Final
-          </span>
-        )}
-        {!myLayer && (
-          <button
-            type="button"
-            onClick={() => propose.mutate()}
-            disabled={propose.isPending}
-            className="rounded-full border border-dashed border-slate-300 dark:border-slate-600 px-3 py-1 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-900 dark:hover:border-slate-100 hover:text-slate-900 dark:hover:text-slate-100"
-          >
-            ＋ Propose changes
-          </button>
-        )}
-        {activeLayer && canManageActive && (
-          <button
-            type="button"
-            onClick={() => {
-              setLayerName(activeLayer.name)
-              setSettingsOpen((open) => !open)
-            }}
-            className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
-            title={`Customize ${activeLayer.name}`}
-          >
-            ✎ Customize
-          </button>
-        )}
-        {activeLayer && !activeIsFinal && canManageActive && (
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm(`Delete "${activeLayer.name}" and its ${boardItems.length} item(s)?`)) {
-                removeLayer.mutate(activeLayer.id)
-              }
-            }}
-            className="ml-auto text-xs text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
-          >
-            Delete layer
-          </button>
-        )}
-      </div>
-
-      {settingsOpen && activeLayer && canManageActive && (
-        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2">
-          <input
-            value={layerName}
-            onChange={(e) => setLayerName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && layerName.trim()) {
-                customize.mutate({ layerId: activeLayer.id, name: layerName.trim() })
-              }
-            }}
-            onBlur={() => {
-              if (layerName.trim() && layerName.trim() !== activeLayer.name) {
-                customize.mutate({ layerId: activeLayer.id, name: layerName.trim() })
-              }
-            }}
-            aria-label="Layer name"
-            className="w-40 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
-          />
-          <div className="flex items-center gap-1.5">
-            {LAYER_SWATCHES.map((color) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => customize.mutate({ layerId: activeLayer.id, color })}
-                className={`h-5 w-5 rounded-full ${
-                  activeLayer.color === color ? 'ring-2 ring-slate-900 dark:ring-slate-100 ring-offset-1' : ''
-                }`}
-                style={{ backgroundColor: color }}
-                aria-label={`Set color ${color}`}
-              />
-            ))}
-            <input
-              type="color"
-              value={activeLayer.color}
-              onChange={(e) => customize.mutate({ layerId: activeLayer.id, color: e.target.value })}
-              aria-label="Custom color"
-              className="h-6 w-8 cursor-pointer rounded border border-slate-200 dark:border-slate-700 bg-transparent"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(false)}
-            className="ml-auto text-xs text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
-          >
-            Done
-          </button>
+                <span className="min-w-0 truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {layer.name}
+                </span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">
+                  {countFor(layer.id)} item{countFor(layer.id) === 1 ? '' : 's'}
+                </span>
+                <div className="ml-auto flex items-center gap-1">
+                  {canEditLayer(layer) && (
+                    <button
+                      type="button"
+                      onClick={() => customize.mutate({ layerId: layer.id, visible: !layer.visible })}
+                      className="rounded-md p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                      title={layer.visible ? 'Hide from the itinerary' : 'Include in the itinerary'}
+                      aria-pressed={layer.visible}
+                      aria-label={`${layer.visible ? 'Hide' : 'Show'} ${layer.name}`}
+                    >
+                      <EyeIcon open={layer.visible} className="h-4 w-4" />
+                    </button>
+                  )}
+                  {canManageLayer(layer) && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingLayerId(layer.id)}
+                      className="rounded-md p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                      title={`Rename or recolor ${layer.name}`}
+                      aria-label={`Edit ${layer.name}`}
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                  {layer.ownerId !== null && canManageLayer(layer) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Delete "${layer.name}" and its ${countFor(layer.id)} item(s)?`)) {
+                          removeLayer.mutate(layer.id)
+                        }
+                      }}
+                      className="rounded-md p-1.5 text-sm leading-none text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-400"
+                      title={`Delete ${layer.name}`}
+                      aria-label={`Delete ${layer.name}`}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            ),
+          )}
         </div>
-      )}
+      </section>
 
       <div className="mt-2">
         <ItineraryBoard
           trip={trip}
-          items={boardItems}
-          stops={stops}
-          homes={homes}
-          readOnly={!canEditActive}
+          items={visibleItems}
+          combined
+          layers={layers}
+          canEditItem={canEditItem}
+          onEdit={(item) => setEditing(item)}
           onHover={setHighlightKey}
-          layerId={activeLayer?.id}
-          promoteLabel={canEditActive && promoteTarget ? promoteTarget.label : undefined}
-          onPromote={
-            canEditActive && promoteTarget
-              ? (itemId) => promote.mutate({ itemId, layerId: promoteTarget.layerId })
-              : undefined
-          }
         />
-        {canEditActive && (
+        {editing ? (
           <div className="mt-4">
-            <NewItemForm trip={trip} stops={stops} layerId={activeLayer?.id} />
+            <h3 className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Editing “{editing.title}”
+            </h3>
+            <NewItemForm
+              key={editing.id}
+              trip={trip}
+              stops={stops}
+              item={editing}
+              layers={editableLayers}
+              onDone={() => setEditing(null)}
+            />
           </div>
+        ) : (
+          canAddItems && (
+            <div className="mt-4">
+              <NewItemForm trip={trip} stops={stops} layers={formLayers} />
+            </div>
+          )
         )}
       </div>
     </div>
+  )
+}
+
+/** Inline rename + recolor, in place of the layer's row. */
+function LayerSettingsRow({
+  layer,
+  onSave,
+  onCancel,
+}: {
+  layer: ItineraryLayer
+  onSave: (input: { name?: string; color?: string }) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(layer.name)
+  const [color, setColor] = useState(layer.color)
+
+  const save = () => {
+    const input: { name?: string; color?: string } = {}
+    if (name.trim() && name.trim() !== layer.name) input.name = name.trim()
+    if (color !== layer.color) input.color = color
+    if (input.name || input.color) onSave(input)
+    else onCancel()
+  }
+
+  return (
+    <form
+      className="flex flex-wrap items-center gap-3 px-4 py-2.5"
+      onSubmit={(e) => {
+        e.preventDefault()
+        save()
+      }}
+    >
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onCancel()
+        }}
+        aria-label="Layer name"
+        className="w-40 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-2 py-1 text-sm text-slate-900 dark:text-slate-100 focus:border-slate-500 focus:outline-none"
+      />
+      <div className="flex items-center gap-1.5">
+        {LAYER_SWATCHES.map((swatch) => (
+          <button
+            key={swatch}
+            type="button"
+            onClick={() => setColor(swatch)}
+            className={`h-5 w-5 rounded-full ${
+              color === swatch ? 'ring-2 ring-slate-900 dark:ring-slate-100 ring-offset-1' : ''
+            }`}
+            style={{ backgroundColor: swatch }}
+            aria-label={`Set color ${swatch}`}
+          />
+        ))}
+        <input
+          type="color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          aria-label="Custom color"
+          className="h-6 w-8 cursor-pointer rounded border border-slate-200 dark:border-slate-700 bg-transparent"
+        />
+      </div>
+      <div className="ml-auto flex items-center gap-2">
+        <button
+          type="submit"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 px-3 py-1 text-sm text-white dark:text-slate-900"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   )
 }

@@ -13,6 +13,7 @@ import {
 } from '../api'
 import { formatRange } from './Home'
 import { categoryIcons } from './ItineraryBoard'
+import { mapsLink } from '../maps'
 
 /**
  * Print-optimized trip document (#50): the plan and journal as one clean
@@ -43,9 +44,9 @@ export function PrintTripPage() {
   if (!detail.data || !journal.data) return null
 
   const { trip, stops, items: allItems, homes, layers } = detail.data
-  // Print is the published plan: Final-layer items only (#73).
-  const finalLayerId = layers.find((l) => l.ownerId === null)?.id
-  const items = finalLayerId ? allItems.filter((i) => i.layerId === finalLayerId) : allItems
+  // Print shows the itinerary: the merge of visible layers (#73).
+  const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.id))
+  const items = allItems.filter((i) => !hiddenLayers.has(i.layerId))
   const entries = journal.data
   const days = [...new Set([...items.map((i) => i.day), ...entries.map((e) => e.entryDate)])].sort()
 
@@ -120,6 +121,16 @@ export function PrintTripPage() {
                         <span className="font-medium text-slate-900">{item.title}</span>
                         {printRoute(item, stops, homes) && (
                           <span className="text-slate-500"> · {printRoute(item, stops, homes)}</span>
+                        )}
+                        {item.address && (
+                          <a
+                            href={mapsLink(item)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-slate-500 print:no-underline"
+                          >
+                            {' '}· 📍 {item.address}
+                          </a>
                         )}
                         {item.notes && <span className="text-slate-500"> — {item.notes}</span>}
                       </li>

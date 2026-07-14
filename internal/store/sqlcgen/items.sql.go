@@ -218,80 +218,6 @@ func (q *Queries) ItemByID(ctx context.Context, arg ItemByIDParams) (ItemByIDRow
 	return i, err
 }
 
-const listFinalItems = `-- name: ListFinalItems :many
-SELECT i.id, i.trip_id, i.stop_id, i.day,
-       CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
-       i.title, i.category, i.notes, i.cost_cents, i.currency, i.position,
-       CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
-       i.destination_stop_id, i.origin_home_id, i.destination_home_id, i.address, i.lat, i.lon, i.layer_id
-FROM itinerary_items i
-JOIN itinerary_layers l ON l.id = i.layer_id AND l.owner_id IS NULL
-WHERE i.trip_id = $1 ORDER BY i.day, i.position, i.id
-`
-
-type ListFinalItemsRow struct {
-	ID                uuid.UUID
-	TripID            uuid.UUID
-	StopID            *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Position          int32
-	EndTime           string
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
-}
-
-// Only the published plan — what shares, exports, and stats should see.
-func (q *Queries) ListFinalItems(ctx context.Context, tripID uuid.UUID) ([]ListFinalItemsRow, error) {
-	rows, err := q.db.Query(ctx, listFinalItems, tripID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListFinalItemsRow
-	for rows.Next() {
-		var i ListFinalItemsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.TripID,
-			&i.StopID,
-			&i.Day,
-			&i.StartTime,
-			&i.Title,
-			&i.Category,
-			&i.Notes,
-			&i.CostCents,
-			&i.Currency,
-			&i.Position,
-			&i.EndTime,
-			&i.DestinationStopID,
-			&i.OriginHomeID,
-			&i.DestinationHomeID,
-			&i.Address,
-			&i.Lat,
-			&i.Lon,
-			&i.LayerID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listItems = `-- name: ListItems :many
 SELECT id, trip_id, stop_id, day,
        CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
@@ -332,6 +258,81 @@ func (q *Queries) ListItems(ctx context.Context, tripID uuid.UUID) ([]ListItemsR
 	var items []ListItemsRow
 	for rows.Next() {
 		var i ListItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TripID,
+			&i.StopID,
+			&i.Day,
+			&i.StartTime,
+			&i.Title,
+			&i.Category,
+			&i.Notes,
+			&i.CostCents,
+			&i.Currency,
+			&i.Position,
+			&i.EndTime,
+			&i.DestinationStopID,
+			&i.OriginHomeID,
+			&i.DestinationHomeID,
+			&i.Address,
+			&i.Lat,
+			&i.Lon,
+			&i.LayerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVisibleItems = `-- name: ListVisibleItems :many
+SELECT i.id, i.trip_id, i.stop_id, i.day,
+       CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
+       i.title, i.category, i.notes, i.cost_cents, i.currency, i.position,
+       CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
+       i.destination_stop_id, i.origin_home_id, i.destination_home_id, i.address, i.lat, i.lon, i.layer_id
+FROM itinerary_items i
+JOIN itinerary_layers l ON l.id = i.layer_id AND l.visible
+WHERE i.trip_id = $1 ORDER BY i.day, i.position, i.id
+`
+
+type ListVisibleItemsRow struct {
+	ID                uuid.UUID
+	TripID            uuid.UUID
+	StopID            *uuid.UUID
+	Day               time.Time
+	StartTime         string
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
+	Position          int32
+	EndTime           string
+	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
+	Address           string
+	Lat               *float64
+	Lon               *float64
+	LayerID           uuid.UUID
+}
+
+// The itinerary is the merge of visible layers — what shares, exports,
+// and read-only views see.
+func (q *Queries) ListVisibleItems(ctx context.Context, tripID uuid.UUID) ([]ListVisibleItemsRow, error) {
+	rows, err := q.db.Query(ctx, listVisibleItems, tripID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListVisibleItemsRow
+	for rows.Next() {
+		var i ListVisibleItemsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TripID,

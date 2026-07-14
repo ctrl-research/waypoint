@@ -96,10 +96,10 @@ func (s *Trips) UpdateItem(ctx context.Context, tripID, itemID uuid.UUID, p Itin
 	return ItineraryItem(row), translate(err)
 }
 
-// ListFinalItems returns only the published plan — the Final layer's items.
+// ListVisibleItems returns the itinerary — the merge of visible layers.
 // Shares, exports, and read-only views use this; the editor sees everything.
-func (s *Trips) ListFinalItems(ctx context.Context, tripID uuid.UUID) ([]ItineraryItem, error) {
-	rows, err := s.q.ListFinalItems(ctx, tripID)
+func (s *Trips) ListVisibleItems(ctx context.Context, tripID uuid.UUID) ([]ItineraryItem, error) {
+	rows, err := s.q.ListVisibleItems(ctx, tripID)
 	items := make([]ItineraryItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, ItineraryItem(row))
