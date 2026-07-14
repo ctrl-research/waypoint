@@ -460,14 +460,18 @@ export type StatsPayload = {
     planning: number
     active: number
     completed: number
+    /** Travelled (trip has started) vs still-planned splits (#53). */
     daysOnRoad: number
+    daysOnRoadPlanned: number
+    traveledDistanceKm: number
     plannedDistanceKm: number
     cities: number
+    citiesPlanned: number
   }
   flights: LegAggregate
   trains: LegAggregate
-  tripsPerYear: { year: number; count: number }[]
-  stops: { name: string; lat: number; lon: number; tripTitle: string }[]
+  tripsPerYear: { year: number; travelled: number; planned: number }[]
+  stops: { name: string; lat: number; lon: number; tripTitle: string; travelled: boolean }[]
 }
 
 export function fetchStats(): Promise<StatsPayload> {

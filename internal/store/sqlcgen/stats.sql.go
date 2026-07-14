@@ -7,12 +7,13 @@ package sqlcgen
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 const listLocatedStopsForUser = `-- name: ListLocatedStopsForUser :many
-SELECT s.name, s.lat, s.lon, s.position, t.id AS trip_id, t.title AS trip_title
+SELECT s.id, s.name, s.lat, s.lon, s.position, t.id AS trip_id, t.title AS trip_title, t.start_date, t.end_date
 FROM stops s
 JOIN trips t ON t.id = s.trip_id
 LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
@@ -22,12 +23,15 @@ ORDER BY t.id, s.position
 `
 
 type ListLocatedStopsForUserRow struct {
+	ID        uuid.UUID
 	Name      string
 	Lat       *float64
 	Lon       *float64
 	Position  int32
 	TripID    uuid.UUID
 	TripTitle string
+	StartDate *time.Time
+	EndDate   *time.Time
 }
 
 // Every located stop across trips the user can see, in route order —
@@ -42,12 +46,15 @@ func (q *Queries) ListLocatedStopsForUser(ctx context.Context, userID uuid.UUID)
 	for rows.Next() {
 		var i ListLocatedStopsForUserRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Name,
 			&i.Lat,
 			&i.Lon,
 			&i.Position,
 			&i.TripID,
 			&i.TripTitle,
+			&i.StartDate,
+			&i.EndDate,
 		); err != nil {
 			return nil, err
 		}
@@ -60,7 +67,7 @@ func (q *Queries) ListLocatedStopsForUser(ctx context.Context, userID uuid.UUID)
 }
 
 const listTravelLegsForUser = `-- name: ListTravelLegsForUser :many
-SELECT i.category,
+SELECT i.category, i.trip_id, i.stop_id, i.destination_stop_id,
        CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
        CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
        s1.lat AS from_stop_lat, s1.lon AS from_stop_lon,
@@ -79,17 +86,20 @@ WHERE i.category IN ('flight', 'train') AND (t.owner_id = $1 OR m.user_id IS NOT
 `
 
 type ListTravelLegsForUserRow struct {
-	Category    ItineraryCategory
-	StartTime   string
-	EndTime     string
-	FromStopLat *float64
-	FromStopLon *float64
-	ToStopLat   *float64
-	ToStopLon   *float64
-	FromHomeLat *float64
-	FromHomeLon *float64
-	ToHomeLat   *float64
-	ToHomeLon   *float64
+	Category          ItineraryCategory
+	TripID            uuid.UUID
+	StopID            *uuid.UUID
+	DestinationStopID *uuid.UUID
+	StartTime         string
+	EndTime           string
+	FromStopLat       *float64
+	FromStopLon       *float64
+	ToStopLat         *float64
+	ToStopLon         *float64
+	FromHomeLat       *float64
+	FromHomeLon       *float64
+	ToHomeLat         *float64
+	ToHomeLon         *float64
 }
 
 // Flight and train items across accessible trips. Each endpoint is either a
@@ -105,6 +115,9 @@ func (q *Queries) ListTravelLegsForUser(ctx context.Context, userID uuid.UUID) (
 		var i ListTravelLegsForUserRow
 		if err := rows.Scan(
 			&i.Category,
+			&i.TripID,
+			&i.StopID,
+			&i.DestinationStopID,
 			&i.StartTime,
 			&i.EndTime,
 			&i.FromStopLat,
