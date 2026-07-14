@@ -8,13 +8,16 @@ import { mapsLink } from './maps'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
 const ROUTE_SOURCE = 'route'
+const ITEMS_PATH_SOURCE = 'items-path'
 const REPLAY_SOURCE = 'replay'
+const PATH_LAYERS = ['route-line', 'route-arrows', 'items-path-line', 'items-path-arrows'] as const
 
 /** Key for map markers and hover-highlighting: stop:<id> or item:<id>. */
 export type MarkerKey = `stop:${string}` | `item:${string}`
 
-/** One chronological point of the trip's replay animation (#62). */
-export type ReplayPoint = { lat: number; lon: number; label: string; day: string }
+/** One chronological point of the itinerary path / replay (#62). */
+type PathPoint = { lat: number; lon: number; label: string; day: string }
+type LngLat = [number, number]
 
 /**
  * TripMap renders the trip's stops as S-numbered markers connected by a
@@ -28,7 +31,7 @@ export function TripMap({
   highlightKey = null,
   mapConfig,
   layerColors,
-  replay,
+  replayable = false,
 }: {
   stops: Stop[]
   items?: ItineraryItem[]
@@ -37,8 +40,8 @@ export function TripMap({
   layerColors?: Record<string, string>
   /** Overrides the authed /api/v1/config lookup (used by the public page). */
   mapConfig?: MapSourceConfig
-  /** Chronological points enabling the ▶ Replay control (#62). */
-  replay?: ReplayPoint[]
+  /** Enables the ▶ Replay control (#62). */
+  replayable?: boolean
 }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -70,11 +73,42 @@ export function TripMap({
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       })
+      // Stop route: curved directed arcs — dashed lines plus solid arrowheads.
       map.addLayer({
-        id: ROUTE_SOURCE,
+        id: 'route-line',
         type: 'line',
         source: ROUTE_SOURCE,
+        filter: ['==', ['get', 'kind'], 'line'],
         paint: { 'line-color': '#0f172a', 'line-width': 2, 'line-dasharray': [2, 1.5] },
+      })
+      map.addLayer({
+        id: 'route-arrows',
+        type: 'line',
+        source: ROUTE_SOURCE,
+        filter: ['==', ['get', 'kind'], 'arrow'],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#0f172a', 'line-width': 2 },
+      })
+      // Sequential itinerary items: dotted directed links.
+      map.addSource(ITEMS_PATH_SOURCE, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'items-path-line',
+        type: 'line',
+        source: ITEMS_PATH_SOURCE,
+        filter: ['==', ['get', 'kind'], 'line'],
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#6366f1', 'line-width': 2, 'line-dasharray': [0, 2] },
+      })
+      map.addLayer({
+        id: 'items-path-arrows',
+        type: 'line',
+        source: ITEMS_PATH_SOURCE,
+        filter: ['==', ['get', 'kind'], 'arrow'],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#6366f1', 'line-width': 2 },
       })
       map.addSource(REPLAY_SOURCE, {
         type: 'geojson',
@@ -84,7 +118,8 @@ export function TripMap({
         id: REPLAY_SOURCE,
         type: 'line',
         source: REPLAY_SOURCE,
-        paint: { 'line-color': '#2a78d6', 'line-width': 3 },
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#2a78d6', 'line-width': 3, 'line-dasharray': [0, 2] },
       })
       mapRef.current = map
       syncMap(map, stopsRef.current, itemsRef.current, markersRef, layerColorsRef.current)
@@ -123,23 +158,35 @@ export function TripMap({
     }
   }, [highlightKey])
 
-  // Layer visibility (default: everything shown).
+  // ---- Replay (#62): fly the camera point to point while the path draws.
+  const [replaying, setReplaying] = useState(false)
+  const [caption, setCaption] = useState<PathPoint | null>(null)
+
+  // Layer visibility (default: everything shown). Markers and their
+  // connecting lines toggle independently; replays hide the static lines.
   const [showStops, setShowStops] = useState(true)
   const [showItems, setShowItems] = useState(true)
+  const [showRoute, setShowRoute] = useState(true)
+  const [showPath, setShowPath] = useState(true)
   useEffect(() => {
     for (const [key, marker] of markersRef.current) {
       const visible = key.startsWith('stop:') ? showStops : showItems
       marker.getElement().style.display = visible ? '' : 'none'
     }
     const map = mapRef.current
-    if (map?.getLayer(ROUTE_SOURCE)) {
-      map.setLayoutProperty(ROUTE_SOURCE, 'visibility', showStops ? 'visible' : 'none')
+    if (!map) return
+    const visible: Record<(typeof PATH_LAYERS)[number], boolean> = {
+      'route-line': showRoute && !replaying,
+      'route-arrows': showRoute && !replaying,
+      'items-path-line': showPath && !replaying,
+      'items-path-arrows': showPath && !replaying,
     }
-  }, [showStops, showItems, stops, items])
-
-  // ---- Replay (#62): fly the camera point to point while the path draws.
-  const [replaying, setReplaying] = useState(false)
-  const [caption, setCaption] = useState<ReplayPoint | null>(null)
+    for (const layer of PATH_LAYERS) {
+      if (map.getLayer(layer)) {
+        map.setLayoutProperty(layer, 'visibility', visible[layer] ? 'visible' : 'none')
+      }
+    }
+  }, [showStops, showItems, showRoute, showPath, stops, items, replaying])
   const cancelRef = useRef(false)
   const replayMarker = useRef<maplibregl.Marker | null>(null)
 
@@ -156,12 +203,8 @@ export function TripMap({
 
   async function startReplay() {
     const map = mapRef.current
-    if (!map || !replay || replay.length < 2 || replaying) return
-    // Consecutive items at the same spot draw nothing — collapse them.
-    const pts = replay.filter(
-      (p, i) => i === 0 || p.lat !== replay[i - 1].lat || p.lon !== replay[i - 1].lon,
-    )
-    if (pts.length < 2) return
+    const pts = replayPath(items, stops)
+    if (!map || pts.length < 2 || replaying) return
     cancelRef.current = false
     setReplaying(true)
 
@@ -225,7 +268,7 @@ export function TripMap({
   return (
     <div className="relative">
       <div ref={container} className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-700" />
-      {replay && replay.length >= 2 && (
+      {replayable && replayPath(items, stops).length >= 2 && (
         <button
           type="button"
           onClick={() => (replaying ? stopReplay() : startReplay())}
@@ -249,6 +292,8 @@ export function TripMap({
           [
             ['Stops', showStops, setShowStops],
             ['Items', showItems, setShowItems],
+            ['Route', showRoute, setShowRoute],
+            ['Path', showPath, setShowPath],
           ] as const
         ).map(([label, on, set]) => (
           <button
@@ -266,6 +311,106 @@ export function TripMap({
       </div>
     </div>
   )
+}
+
+/** Chronological located itinerary points: day/time order, venue coords
+ * with stop fallback, consecutive same-spot items collapsed. */
+function itineraryPath(items: ItineraryItem[], stops: Stop[]): PathPoint[] {
+  const locate = (it: ItineraryItem): { lat: number; lon: number } | null => {
+    if (it.lat !== null && it.lon !== null) return { lat: it.lat, lon: it.lon }
+    const stop = stops.find((s) => s.id === it.stopId)
+    return stop && stop.lat !== null && stop.lon !== null ? { lat: stop.lat, lon: stop.lon } : null
+  }
+  const ordered = [...items].sort((a, b) => {
+    if (a.day !== b.day) return a.day < b.day ? -1 : 1
+    if (a.startTime && b.startTime) return a.startTime < b.startTime ? -1 : 1
+    if (a.startTime) return -1
+    if (b.startTime) return 1
+    return a.position - b.position
+  })
+  const pts = ordered.flatMap((it) => {
+    const at = locate(it)
+    return at ? [{ ...at, label: it.title, day: it.day }] : []
+  })
+  return pts.filter((p, i) => i === 0 || p.lat !== pts[i - 1].lat || p.lon !== pts[i - 1].lon)
+}
+
+/** Replay path: the itinerary path, or the stop route when it's too short. */
+function replayPath(items: ItineraryItem[], stops: Stop[]): PathPoint[] {
+  const pts = itineraryPath(items, stops)
+  if (pts.length >= 2) return pts
+  return stops.flatMap((s) =>
+    s.lat !== null && s.lon !== null
+      ? [{ lat: s.lat, lon: s.lon, label: s.name, day: s.arrivalDate ?? '' }]
+      : [],
+  )
+}
+
+/** Quadratic-bezier arc between two points, bulging left of travel. Lon is
+ * scaled by cos(lat) so the curve looks round on screen. */
+function arcCoords(a: LngLat, b: LngLat, curvature = 0.18, steps = 24): LngLat[] {
+  const k = Math.cos((((a[1] + b[1]) / 2) * Math.PI) / 180) || 1e-6
+  const x1 = a[0] * k
+  const x2 = b[0] * k
+  const dx = x2 - x1
+  const dy = b[1] - a[1]
+  const cx = (x1 + x2) / 2 - dy * curvature
+  const cy = (a[1] + b[1]) / 2 + dx * curvature
+  const out: LngLat[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const x = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t ** 2 * x2
+    const y = (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * cy + t ** 2 * b[1]
+    out.push([x / k, y])
+  }
+  return out
+}
+
+/** A direction chevron at the polyline's midpoint, sized to its span. */
+function arrowFeature(line: LngLat[]): GeoJSON.Feature | null {
+  if (line.length < 2) return null
+  const k = Math.cos((line[0][1] * Math.PI) / 180) || 1e-6
+  const P = line.map(([x, y]): LngLat => [x * k, y])
+  const i = Math.max(1, Math.floor(P.length / 2))
+  const [ax, ay] = P[i - 1]
+  const [bx, by] = P[i]
+  const dx = bx - ax
+  const dy = by - ay
+  const len = Math.hypot(dx, dy)
+  if (!len) return null
+  const ux = dx / len
+  const uy = dy / len
+  const span = Math.hypot(P[P.length - 1][0] - P[0][0], P[P.length - 1][1] - P[0][1])
+  const h = Math.min(Math.max(span * 0.12, 0.004), 0.8)
+  const tx = (ax + bx) / 2
+  const ty = (ay + by) / 2
+  const wing = (sign: number): LngLat => {
+    const rad = (sign * 155 * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    return [(tx + (ux * cos - uy * sin) * h) / k, ty + (ux * sin + uy * cos) * h]
+  }
+  return {
+    type: 'Feature',
+    properties: { kind: 'arrow' },
+    geometry: { type: 'LineString', coordinates: [wing(1), [tx / k, ty], wing(-1)] },
+  }
+}
+
+/** Line + arrowhead features for consecutive point pairs. */
+function directedFeatures(points: LngLat[], curved: boolean): GeoJSON.Feature[] {
+  const features: GeoJSON.Feature[] = []
+  for (let i = 1; i < points.length; i++) {
+    const line = curved ? arcCoords(points[i - 1], points[i]) : [points[i - 1], points[i]]
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'line' },
+      geometry: { type: 'LineString', coordinates: line },
+    })
+    const arrow = arrowFeature(line)
+    if (arrow) features.push(arrow)
+  }
+  return features
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -364,12 +509,13 @@ function syncMap(
 
   const route = map.getSource(ROUTE_SOURCE) as maplibregl.GeoJSONSource | undefined
   route?.setData({
-    type: 'Feature',
-    properties: {},
-    geometry: {
-      type: 'LineString',
-      coordinates: located.map((s) => [s.lon!, s.lat!]),
-    },
+    type: 'FeatureCollection',
+    features: directedFeatures(located.map((s): LngLat => [s.lon!, s.lat!]), true),
+  })
+  const itemsPath = map.getSource(ITEMS_PATH_SOURCE) as maplibregl.GeoJSONSource | undefined
+  itemsPath?.setData({
+    type: 'FeatureCollection',
+    features: directedFeatures(itineraryPath(items, stops).map((p): LngLat => [p.lon, p.lat]), false),
   })
 
   if (located.length === 1) {

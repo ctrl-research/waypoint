@@ -43,36 +43,6 @@ import { MembersSection, ShareSection } from './Members'
 const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
 type MarkerKey = `stop:${string}` | `item:${string}`
 
-/** Chronological located points for the replay animation (#62): plan items
- * in day/time order (venue coords, else their stop's), falling back to the
- * stop route when the itinerary has too few located points. */
-export function replayPoints(
-  items: ItineraryItem[],
-  stops: Stop[],
-): { lat: number; lon: number; label: string; day: string }[] {
-  const locate = (it: ItineraryItem) => {
-    if (it.lat !== null && it.lon !== null) return { lat: it.lat, lon: it.lon }
-    const stop = stops.find((s) => s.id === it.stopId)
-    return stop && stop.lat !== null && stop.lon !== null ? { lat: stop.lat, lon: stop.lon } : null
-  }
-  const ordered = [...items].sort((a, b) => {
-    if (a.day !== b.day) return a.day < b.day ? -1 : 1
-    if (a.startTime && b.startTime) return a.startTime < b.startTime ? -1 : 1
-    if (a.startTime) return -1
-    if (b.startTime) return 1
-    return a.position - b.position
-  })
-  const pts = ordered.flatMap((it) => {
-    const at = locate(it)
-    return at ? [{ ...at, label: it.title, day: it.day }] : []
-  })
-  if (pts.length >= 2) return pts
-  return stops.flatMap((s) =>
-    s.lat !== null && s.lon !== null
-      ? [{ lat: s.lat, lon: s.lon, label: s.name, day: s.arrivalDate ?? '' }]
-      : [],
-  )
-}
 
 
 export function TripDetailPage() {
@@ -113,12 +83,7 @@ export function TripDetailPage() {
 
       <div className="mt-6">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
-          <TripMap
-            stops={stops}
-            items={planItems}
-            highlightKey={highlightKey}
-            replay={replayPoints(planItems, stops)}
-          />
+          <TripMap stops={stops} items={planItems} highlightKey={highlightKey} replayable />
         </Suspense>
       </div>
 
