@@ -110,7 +110,7 @@ export function TripMap({
       const active = key === highlightKey
       el.classList.toggle('scale-125', active)
       el.classList.toggle('ring-2', active)
-      el.classList.toggle('ring-amber-400', active)
+      el.classList.toggle('ring-sky-400', active)
       el.classList.toggle('z-10', active)
     }
   }, [highlightKey])
