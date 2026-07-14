@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { fetchConfig, type ItineraryItem, type Stop } from './api'
+import { fetchConfig, type ItineraryCategory, type ItineraryItem, type Stop } from './api'
 import { EyeIcon, categoryIcons } from './icons'
 import { mapsLink } from './maps'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
@@ -22,8 +22,15 @@ type PathPoint = {
   lon: number
   label: string
   day: string
-  flight?: boolean
+  category?: ItineraryCategory
   minutes?: number
+}
+
+/** Emoji that rides the replay dot during a transportation leg. */
+const TRANSPORT_EMOJI: Partial<Record<ItineraryCategory, string>> = {
+  flight: categoryIcons.flight,
+  train: categoryIcons.train,
+  transport: categoryIcons.transport,
 }
 type LngLat = [number, number]
 
@@ -189,7 +196,10 @@ export function TripMap({
     setReplaying(true)
 
     const el = document.createElement('div')
-    el.className = 'h-3.5 w-3.5 rounded-full bg-[#2a78d6] ring-2 ring-white shadow'
+    el.className = 'relative h-3.5 w-3.5 rounded-full bg-[#2a78d6] ring-2 ring-white shadow'
+    const vehicle = document.createElement('div')
+    vehicle.className = 'absolute -top-6 left-1/2 -translate-x-1/2 text-lg leading-none'
+    el.appendChild(vehicle)
     replayMarker.current = new maplibregl.Marker({ element: el })
       .setLngLat([pts[0].lon, pts[0].lat])
       .addTo(map)
@@ -215,6 +225,7 @@ export function TripMap({
       // camera rides the dot every frame while the zoom glides to the
       // leg's scale, so the dot never outruns the view.
       const line = legLine(from, to)
+      vehicle.textContent = (from.category && TRANSPORT_EMOJI[from.category]) || ''
       const zoomFrom = map.getZoom()
       const zoomTo = zoomForKm(km)
       await animate(duration, (t) => {
@@ -342,7 +353,7 @@ function itineraryPath(items: ItineraryItem[], stops: Stop[]): PathPoint[] {
             ...at,
             label: it.title,
             day: it.day,
-            flight: it.category === 'flight',
+            category: it.category,
             minutes: legMinutes(it.startTime, it.endTime),
           },
         ]
@@ -406,7 +417,7 @@ function chevronImage(size = 16): ImageData {
 function legLine(from: PathPoint, to: PathPoint): LngLat[] {
   const a: LngLat = [from.lon, from.lat]
   const b: LngLat = [to.lon, to.lat]
-  return from.flight ? arcCoords(a, b) : [a, b]
+  return from.category === 'flight' ? arcCoords(a, b) : [a, b]
 }
 
 /** Position at parameter t along a polyline (per-vertex interpolation). */
@@ -441,10 +452,11 @@ function directedFeatures(points: PathPoint[]): GeoJSON.Feature[] {
   return features
 }
 
-/** A zoom where a leg of this length reads well: ~street level for
- * blocks-apart venues down to a wide view for long flights. */
+/** A zoom where a leg of this length reads well — street level between
+ * venues, a regional view for trains, wide (but not global) for flights.
+ * The camera rides the dot, so the whole leg never needs to fit on screen. */
 function zoomForKm(km: number): number {
-  return Math.min(14.5, Math.max(4, 14 - Math.log2(Math.max(km, 0.5))))
+  return Math.min(14.5, Math.max(6, 14 - 2 * Math.log10(Math.max(km, 1))))
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
