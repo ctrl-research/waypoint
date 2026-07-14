@@ -8,9 +8,13 @@ import { mapsLink } from './maps'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
 const ROUTE_SOURCE = 'route'
+const REPLAY_SOURCE = 'replay'
 
 /** Key for map markers and hover-highlighting: stop:<id> or item:<id>. */
 export type MarkerKey = `stop:${string}` | `item:${string}`
+
+/** One chronological point of the trip's replay animation (#62). */
+export type ReplayPoint = { lat: number; lon: number; label: string; day: string }
 
 /**
  * TripMap renders the trip's stops as S-numbered markers connected by a
@@ -24,6 +28,7 @@ export function TripMap({
   highlightKey = null,
   mapConfig,
   layerColors,
+  replay,
 }: {
   stops: Stop[]
   items?: ItineraryItem[]
@@ -32,6 +37,8 @@ export function TripMap({
   layerColors?: Record<string, string>
   /** Overrides the authed /api/v1/config lookup (used by the public page). */
   mapConfig?: MapSourceConfig
+  /** Chronological points enabling the ▶ Replay control (#62). */
+  replay?: ReplayPoint[]
 }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -68,6 +75,16 @@ export function TripMap({
         type: 'line',
         source: ROUTE_SOURCE,
         paint: { 'line-color': '#0f172a', 'line-width': 2, 'line-dasharray': [2, 1.5] },
+      })
+      map.addSource(REPLAY_SOURCE, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: REPLAY_SOURCE,
+        type: 'line',
+        source: REPLAY_SOURCE,
+        paint: { 'line-color': '#2a78d6', 'line-width': 3 },
       })
       mapRef.current = map
       syncMap(map, stopsRef.current, itemsRef.current, markersRef, layerColorsRef.current)
@@ -120,9 +137,113 @@ export function TripMap({
     }
   }, [showStops, showItems, stops, items])
 
+  // ---- Replay (#62): fly the camera point to point while the path draws.
+  const [replaying, setReplaying] = useState(false)
+  const [caption, setCaption] = useState<ReplayPoint | null>(null)
+  const cancelRef = useRef(false)
+  const replayMarker = useRef<maplibregl.Marker | null>(null)
+
+  const stopReplay = () => {
+    cancelRef.current = true
+    setReplaying(false)
+    setCaption(null)
+    replayMarker.current?.remove()
+    replayMarker.current = null
+    const src = mapRef.current?.getSource(REPLAY_SOURCE) as maplibregl.GeoJSONSource | undefined
+    src?.setData({ type: 'FeatureCollection', features: [] })
+  }
+  useEffect(() => () => stopReplay(), []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function startReplay() {
+    const map = mapRef.current
+    if (!map || !replay || replay.length < 2 || replaying) return
+    // Consecutive items at the same spot draw nothing — collapse them.
+    const pts = replay.filter(
+      (p, i) => i === 0 || p.lat !== replay[i - 1].lat || p.lon !== replay[i - 1].lon,
+    )
+    if (pts.length < 2) return
+    cancelRef.current = false
+    setReplaying(true)
+
+    const el = document.createElement('div')
+    el.className = 'h-3.5 w-3.5 rounded-full bg-[#2a78d6] ring-2 ring-white shadow'
+    replayMarker.current = new maplibregl.Marker({ element: el })
+      .setLngLat([pts[0].lon, pts[0].lat])
+      .addTo(map)
+
+    const src = map.getSource(REPLAY_SOURCE) as maplibregl.GeoJSONSource
+    const done: [number, number][] = [[pts[0].lon, pts[0].lat]]
+    setCaption(pts[0])
+    map.easeTo({ center: [pts[0].lon, pts[0].lat], zoom: Math.max(map.getZoom(), 5), duration: 900 })
+    await wait(1000)
+
+    for (let i = 1; i < pts.length && !cancelRef.current; i++) {
+      const from = pts[i - 1]
+      const to = pts[i]
+      setCaption(to)
+      const km = haversineKm(from.lat, from.lon, to.lat, to.lon)
+      const duration = Math.min(2600, Math.max(700, km * 6))
+      map.easeTo({ center: [to.lon, to.lat], duration, easing: (t) => t })
+      await animate(duration, (t) => {
+        const lon = from.lon + (to.lon - from.lon) * t
+        const lat = from.lat + (to.lat - from.lat) * t
+        replayMarker.current?.setLngLat([lon, lat])
+        src.setData({
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: [...done, [lon, lat]] },
+        })
+      })
+      done.push([to.lon, to.lat])
+      await wait(350)
+    }
+    if (!cancelRef.current) {
+      await wait(1600)
+      stopReplay()
+    }
+  }
+
+  function animate(duration: number, frame: (t: number) => void): Promise<void> {
+    return new Promise((resolve) => {
+      const start = performance.now()
+      const tick = (now: number) => {
+        if (cancelRef.current) return resolve()
+        const t = Math.min(1, (now - start) / duration)
+        frame(t)
+        if (t < 1) requestAnimationFrame(tick)
+        else resolve()
+      }
+      requestAnimationFrame(tick)
+    })
+  }
+  const wait = (ms: number) =>
+    new Promise<void>((resolve) => {
+      if (cancelRef.current) return resolve()
+      window.setTimeout(resolve, ms)
+    })
+
   return (
     <div className="relative">
       <div ref={container} className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-700" />
+      {replay && replay.length >= 2 && (
+        <button
+          type="button"
+          onClick={() => (replaying ? stopReplay() : startReplay())}
+          className="absolute bottom-3 left-3 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-900 shadow hover:bg-white"
+        >
+          {replaying ? '⏹ Stop' : '▶ Replay'}
+        </button>
+      )}
+      {caption && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/90 px-4 py-1.5 text-sm text-white shadow">
+          {caption.day
+            ? `${new Date(caption.day + 'T00:00:00').toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+              })} · ${caption.label}`
+            : caption.label}
+        </div>
+      )}
       <div className="absolute left-3 top-3 flex gap-1 rounded-lg bg-white/90 p-1 text-xs shadow">
         {(
           [
@@ -145,6 +266,15 @@ export function TripMap({
       </div>
     </div>
   )
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const rad = (d: number) => (d * Math.PI) / 180
+  const dLat = rad(lat2 - lat1)
+  const dLon = rad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.sqrt(a))
 }
 
 function makeMarkerEl(label: string, kind: 'stop' | 'item', color?: string): HTMLElement {

@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { fetchPublicTrip, type ItineraryItem } from '../api'
 import { formatRange, statusStyles } from './Home'
 import { CompassLogo } from '../CompassLogo'
+import { replayPoints } from './TripDetail'
 import { categoryIcons } from './ItineraryBoard'
 import { mapsLink } from '../maps'
 
@@ -51,7 +52,12 @@ export function PublicTripPage() {
 
       <div className="mt-6">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
-          <TripMap stops={stops} items={items} mapConfig={{ tileUrl, mapStyleUrl, language }} />
+          <TripMap
+            stops={stops}
+            items={items}
+            mapConfig={{ tileUrl, mapStyleUrl, language }}
+            replay={replayPoints(items, stops)}
+          />
         </Suspense>
       </div>
 
