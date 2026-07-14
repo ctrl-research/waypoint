@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchConfig, type ItineraryItem, type Stop } from './api'
+import { EyeIcon } from './icons'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
 const ROUTE_SOURCE = 'route'
@@ -154,8 +155,10 @@ export function TripMap({
             key={label}
             type="button"
             onClick={() => set(!on)}
-            className={`rounded-md px-2 py-1 ${on ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 ${on ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+            title={on ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
           >
+            <EyeIcon open={on} />
             {label}
           </button>
         ))}

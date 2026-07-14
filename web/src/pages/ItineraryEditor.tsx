@@ -9,6 +9,7 @@ import {
   updateItem,
   type ItineraryLayer,
 } from '../api'
+import { EyeIcon } from '../icons'
 import { ItineraryBoard } from './ItineraryBoard'
 import { NewItemForm } from './TripDetail'
 
@@ -165,11 +166,11 @@ export function ItineraryEditorPage() {
               <button
                 type="button"
                 onClick={() => toggleLayerVisibility(layer.id)}
-                className={`py-1 pl-1 pr-2.5 text-xs ${hiddenLayers.has(layer.id) ? 'opacity-30' : ''}`}
+                className={`py-1 pl-1 pr-2.5 ${hiddenLayers.has(layer.id) ? 'opacity-40' : ''}`}
                 title={hiddenLayers.has(layer.id) ? 'Show on map' : 'Hide from map'}
                 aria-label={`Toggle ${layer.name} on the map`}
               >
-                👁
+                <EyeIcon open={!hiddenLayers.has(layer.id)} />
               </button>
             </div>
           )
