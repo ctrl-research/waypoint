@@ -369,7 +369,21 @@ function itineraryPath(items: ItineraryItem[], stops: Stop[]): PathPoint[] {
         ]
       : []
   })
-  return pts.filter((p, i) => i === 0 || p.lat !== pts[i - 1].lat || p.lon !== pts[i - 1].lon)
+  // Collapse consecutive same-spot points, but let the survivor describe
+  // the DEPARTURE: a flight sits at its origin stop — same coordinates as
+  // the activity before it — and the leg leaving must carry the flight's
+  // category (arc, emoji) and duration (pace), not the activity's.
+  const collapsed: PathPoint[] = []
+  for (const p of pts) {
+    const prev = collapsed[collapsed.length - 1]
+    if (prev && prev.lat === p.lat && prev.lon === p.lon) {
+      prev.category = p.category
+      prev.minutes = p.minutes
+    } else {
+      collapsed.push({ ...p })
+    }
+  }
+  return collapsed
 }
 
 /** Replay path: the itinerary path, or the stop route when it's too short. */
