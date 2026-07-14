@@ -33,40 +33,33 @@ export function StatsPage() {
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Your travels</h1>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        Across every trip you own or share. <span style={{ color: TRAVELLED }}>Green</span> is where
-        you’ve been; <span style={{ color: PLANNED }}>+N</span> is still ahead.
+        Across every trip you own or share — the amber{' '}
+        <span className="font-medium" style={{ color: PLANNED }}>+N</span> counts what’s still
+        planned.
       </p>
 
       <section className="mt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Trips</h2>
         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatTile label="Trips" value={totals.trips} hint={tileHint(totals)} />
+          <StatTile label="Trips" value={totals.completed} plus={totals.planning + totals.active} />
           <StatTile
             label="Continents"
             value={visited.continents.length}
             plus={visited.plannedContinents.length}
             hint="of 7 continents"
-            travelled
           />
           <StatTile
             label="Countries"
             value={visited.countries.length}
             plus={visited.plannedCountries.length}
             hint={`of ${visited.countryTotal || '…'} countries`}
-            travelled
           />
-          <StatTile label="Cities" value={totals.cities} plus={totals.citiesPlanned} travelled />
-          <StatTile
-            label="Days on the road"
-            value={totals.daysOnRoad}
-            plus={totals.daysOnRoadPlanned}
-            travelled
-          />
+          <StatTile label="Cities" value={totals.cities} plus={totals.citiesPlanned} />
+          <StatTile label="Days on the road" value={totals.daysOnRoad} plus={totals.daysOnRoadPlanned} />
           <StatTile
             label="Traveled distance"
             value={`${totals.traveledDistanceKm.toLocaleString()} km`}
-            plus={totals.plannedDistanceKm ? `${totals.plannedDistanceKm.toLocaleString()} km` : 0}
-            travelled
+            plus={totals.plannedDistanceKm ? totals.plannedDistanceKm.toLocaleString() : 0}
           />
         </div>
       </section>
@@ -113,47 +106,21 @@ export function StatsPage() {
             <StatsMap stops={stops} mode={mode} projection={projection} onVisited={setVisited} />
           </Suspense>
         </div>
-        {mode === 'countries' && (visited.countries.length > 0 || visited.plannedCountries.length > 0) && (
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            {visited.countries.length > 0 && (
-              <>
-                <span className="font-medium" style={{ color: TRAVELLED }}>
-                  {visited.countries.length} visited:
-                </span>{' '}
-                {visited.countries.join(', ')}
-              </>
-            )}
-            {visited.plannedCountries.length > 0 && (
-              <>
-                {visited.countries.length > 0 && ' · '}
-                <span className="font-medium" style={{ color: PLANNED }}>
-                  {visited.plannedCountries.length} planned:
-                </span>{' '}
-                {visited.plannedCountries.join(', ')}
-              </>
-            )}
-          </p>
+        {mode === 'countries' && (
+          <VisitedLegend
+            visitedLabel={`${visited.countries.length} visited`}
+            visitedList={visited.countries}
+            plannedLabel={`${visited.plannedCountries.length} planned`}
+            plannedList={visited.plannedCountries}
+          />
         )}
-        {mode === 'continents' && (visited.continents.length > 0 || visited.plannedContinents.length > 0) && (
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            {visited.continents.length > 0 && (
-              <>
-                <span className="font-medium" style={{ color: TRAVELLED }}>
-                  {visited.continents.length} of 7 continents:
-                </span>{' '}
-                {visited.continents.join(', ')}
-              </>
-            )}
-            {visited.plannedContinents.length > 0 && (
-              <>
-                {visited.continents.length > 0 && ' · '}
-                <span className="font-medium" style={{ color: PLANNED }}>
-                  {visited.plannedContinents.length} planned:
-                </span>{' '}
-                {visited.plannedContinents.join(', ')}
-              </>
-            )}
-          </p>
+        {mode === 'continents' && (
+          <VisitedLegend
+            visitedLabel={`${visited.continents.length} of 7 continents`}
+            visitedList={visited.continents}
+            plannedLabel={`${visited.plannedContinents.length} planned`}
+            plannedList={visited.plannedContinents}
+          />
         )}
         {stops.length === 0 && (
           <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">
@@ -203,6 +170,37 @@ function TripsPerYear({ data }: { data: { year: number; travelled: number; plann
   )
 }
 
+/** Map legend rows: a colored dot carries the series, the text stays ink. */
+function VisitedLegend({
+  visitedLabel,
+  visitedList,
+  plannedLabel,
+  plannedList,
+}: {
+  visitedLabel: string
+  visitedList: string[]
+  plannedLabel: string
+  plannedList: string[]
+}) {
+  if (visitedList.length === 0 && plannedList.length === 0) return null
+  const rows: [string, string, string[]][] = []
+  if (visitedList.length > 0) rows.push([TRAVELLED, visitedLabel, visitedList])
+  if (plannedList.length > 0) rows.push([PLANNED, plannedLabel, plannedList])
+  return (
+    <div className="mt-2 space-y-1 text-sm text-slate-500 dark:text-slate-400">
+      {rows.map(([color, label, list]) => (
+        <p key={label} className="flex items-baseline gap-2">
+          <span className="h-2 w-2 shrink-0 self-center rounded-full" style={{ backgroundColor: color }} />
+          <span>
+            <span className="font-medium text-slate-700 dark:text-slate-300">{label}:</span>{' '}
+            {list.join(', ')}
+          </span>
+        </p>
+      ))}
+    </div>
+  )
+}
+
 function formatMinutes(minutes: number): string {
   if (minutes === 0) return '0h'
   const h = Math.floor(minutes / 60)
@@ -210,34 +208,24 @@ function formatMinutes(minutes: number): string {
   return m ? `${h}h ${m}m` : `${h}h`
 }
 
-function tileHint(totals: { planning: number; active: number; completed: number }): string {
-  const parts = []
-  if (totals.active) parts.push(`${totals.active} active`)
-  if (totals.planning) parts.push(`${totals.planning} planning`)
-  if (totals.completed) parts.push(`${totals.completed} done`)
-  return parts.join(' · ') || '—'
-}
-
 function StatTile({
   label,
   value,
   plus,
   hint,
-  travelled = false,
 }: {
   label: string
   value: number | string
-  /** Still-planned remainder, shown as an amber "+N" (#53). */
+  /** Still-planned remainder, shown as an amber "+N" delta (#53). */
   plus?: number | string
   hint?: string
-  travelled?: boolean
 }) {
   const showPlus = typeof plus === 'string' ? true : (plus ?? 0) > 0
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums" style={travelled ? { color: TRAVELLED } : undefined}>
-        <span className={travelled ? '' : 'text-slate-900 dark:text-slate-100'}>{value}</span>
+      <p className="text-xs font-medium text-slate-400 dark:text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+        {value}
         {showPlus && (
           <span className="ml-1 text-sm font-semibold" style={{ color: PLANNED }}>
             +{plus}
