@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { fetchMe, logout } from './api'
+import { CompassLogo } from './CompassLogo'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -18,8 +19,11 @@ export function Shell() {
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 print:hidden">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-5">
-            <Link to="/" className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-              🧭 Waypoint
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100"
+            >
+              <CompassLogo size={32} /> Waypoint
             </Link>
             <NavLinks />
           </div>
