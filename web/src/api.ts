@@ -452,6 +452,22 @@ export function fetchPublicTrip(token: string): Promise<PublicTripPayload> {
   return requestJSON(`/api/v1/public/${token}`)
 }
 
+// ---- calendar feed (#52) --------------------------------------------------------
+
+export async function getCalendarToken(): Promise<string | null> {
+  const body = await requestJSON<{ token: string | null }>('/api/v1/calendar/token')
+  return body.token
+}
+
+export async function createCalendarToken(): Promise<string> {
+  const body = await requestJSON<{ token: string }>('/api/v1/calendar/token', { method: 'POST' })
+  return body.token
+}
+
+export function deleteCalendarToken(): Promise<void> {
+  return requestJSON('/api/v1/calendar/token', { method: 'DELETE' })
+}
+
 // ---- stats ---------------------------------------------------------------------
 
 export type LegAggregate = { count: number; distanceKm: number; minutes: number }

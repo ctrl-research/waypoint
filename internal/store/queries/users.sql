@@ -27,3 +27,11 @@ RETURNING *;
 
 -- name: CountUsers :one
 SELECT count(*) FROM users;
+
+-- name: SetCalendarToken :one
+-- NULL clears the token, disabling the user's calendar feed.
+UPDATE users SET calendar_token = $2 WHERE id = $1
+RETURNING *;
+
+-- name: UserByCalendarToken :one
+SELECT * FROM users WHERE calendar_token = $1;
