@@ -30,17 +30,17 @@ func (q *Queries) CountItemsForDay(ctx context.Context, arg CountItemsForDayPara
 
 const createItem = `-- name: CreateItem :one
 
-INSERT INTO itinerary_items (trip_id, stop_id, destination_stop_id, origin_home_id, destination_home_id, day, start_time, end_time, title, category, notes, cost_cents, currency, address, lat, lon, position)
+INSERT INTO itinerary_items (trip_id, stop_id, destination_stop_id, origin_home_id, destination_home_id, day, start_time, end_time, title, category, notes, cost_cents, currency, address, lat, lon, layer_id, position)
 VALUES ($1, $2, $3, $4, $5, $6,
         NULLIF($7::text, '')::time, NULLIF($8::text, '')::time,
         $9, $10, $11, $12, $13,
-        $14, $15, $16,
+        $14, $15, $16, $17,
         (SELECT COALESCE(MAX(position) + 1, 0) FROM itinerary_items i WHERE i.trip_id = $1 AND i.day = $6))
 RETURNING id, trip_id, stop_id, day,
           CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
           title, category, notes, cost_cents, currency, position,
           CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
-          destination_stop_id, origin_home_id, destination_home_id, address, lat, lon
+          destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
 `
 
 type CreateItemParams struct {
@@ -60,6 +60,7 @@ type CreateItemParams struct {
 	Address           string
 	Lat               *float64
 	Lon               *float64
+	LayerID           uuid.UUID
 }
 
 type CreateItemRow struct {
@@ -81,6 +82,7 @@ type CreateItemRow struct {
 	Address           string
 	Lat               *float64
 	Lon               *float64
+	LayerID           uuid.UUID
 }
 
 // start_time/end_time are `time` columns exposed as "HH:MM" strings; ”
@@ -105,6 +107,7 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (CreateI
 		arg.Address,
 		arg.Lat,
 		arg.Lon,
+		arg.LayerID,
 	)
 	var i CreateItemRow
 	err := row.Scan(
@@ -126,6 +129,7 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (CreateI
 		&i.Address,
 		&i.Lat,
 		&i.Lon,
+		&i.LayerID,
 	)
 	return i, err
 }
@@ -152,7 +156,7 @@ SELECT id, trip_id, stop_id, day,
        CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
        title, category, notes, cost_cents, currency, position,
        CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
-       destination_stop_id, origin_home_id, destination_home_id, address, lat, lon
+       destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
 FROM itinerary_items WHERE id = $2 AND trip_id = $1
 `
 
@@ -180,6 +184,7 @@ type ItemByIDRow struct {
 	Address           string
 	Lat               *float64
 	Lon               *float64
+	LayerID           uuid.UUID
 }
 
 func (q *Queries) ItemByID(ctx context.Context, arg ItemByIDParams) (ItemByIDRow, error) {
@@ -204,6 +209,7 @@ func (q *Queries) ItemByID(ctx context.Context, arg ItemByIDParams) (ItemByIDRow
 		&i.Address,
 		&i.Lat,
 		&i.Lon,
+		&i.LayerID,
 	)
 	return i, err
 }
@@ -213,7 +219,7 @@ SELECT id, trip_id, stop_id, day,
        CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
        title, category, notes, cost_cents, currency, position,
        CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
-       destination_stop_id, origin_home_id, destination_home_id, address, lat, lon
+       destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
 FROM itinerary_items WHERE trip_id = $1 ORDER BY day, position
 `
 
@@ -236,6 +242,7 @@ type ListItemsRow struct {
 	Address           string
 	Lat               *float64
 	Lon               *float64
+	LayerID           uuid.UUID
 }
 
 func (q *Queries) ListItems(ctx context.Context, tripID uuid.UUID) ([]ListItemsRow, error) {
@@ -266,6 +273,7 @@ func (q *Queries) ListItems(ctx context.Context, tripID uuid.UUID) ([]ListItemsR
 			&i.Address,
 			&i.Lat,
 			&i.Lon,
+			&i.LayerID,
 		); err != nil {
 			return nil, err
 		}
@@ -330,7 +338,7 @@ RETURNING id, trip_id, stop_id, day,
           CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
           title, category, notes, cost_cents, currency, position,
           CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
-          destination_stop_id, origin_home_id, destination_home_id, address, lat, lon
+          destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
 `
 
 type UpdateItemParams struct {
@@ -372,6 +380,7 @@ type UpdateItemRow struct {
 	Address           string
 	Lat               *float64
 	Lon               *float64
+	LayerID           uuid.UUID
 }
 
 func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (UpdateItemRow, error) {
@@ -414,6 +423,7 @@ func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (UpdateI
 		&i.Address,
 		&i.Lat,
 		&i.Lon,
+		&i.LayerID,
 	)
 	return i, err
 }

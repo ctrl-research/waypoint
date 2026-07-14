@@ -198,6 +198,9 @@ func TestTripsAPI(t *testing.T) {
 	if item["address"] != "68 Fukakusa Yabunouchicho, Kyoto" || item["lat"].(float64) != 34.9671 {
 		t.Fatalf("venue = %v / %v", item["address"], item["lat"])
 	}
+	if item["layerId"] == nil || item["layerId"] == "" {
+		t.Fatalf("item layerId = %v, want Final layer id", item["layerId"])
+	}
 	itemID := item["id"].(string)
 
 	t.Run("item validation", func(t *testing.T) {
@@ -213,6 +216,7 @@ func TestTripsAPI(t *testing.T) {
 			"half venue coords":   `{"title":"x","day":"2027-03-24","lat":35.0}`,
 			"home and stop both":  fmt.Sprintf(`{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001","stopId":%q}`, stopIDs[0]),
 			"foreign home":        `{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001"}`,
+			"foreign layerId":     `{"title":"x","day":"2027-03-24","layerId":"00000000-0000-0000-0000-000000000001"}`,
 		} {
 			if code, _ := call(t, h, alice, "POST", tripPath+"/items", body); code != 400 {
 				t.Fatalf("%s: code = %d, want 400", name, code)
@@ -234,6 +238,18 @@ func TestTripsAPI(t *testing.T) {
 		_, detail := call(t, h, alice, "GET", tripPath, "")
 		if len(detail["stops"].([]any)) != 3 || len(detail["items"].([]any)) != 1 {
 			t.Fatalf("detail: %d stops, %d items", len(detail["stops"].([]any)), len(detail["items"].([]any)))
+		}
+		layers := detail["layers"].([]any)
+		if len(layers) != 1 {
+			t.Fatalf("detail layers = %d, want 1", len(layers))
+		}
+		final := layers[0].(map[string]any)
+		if final["name"] != "Final" || final["ownerId"] != nil {
+			t.Fatalf("final layer = %v", final)
+		}
+		got := detail["items"].([]any)[0].(map[string]any)
+		if got["layerId"] != final["id"] {
+			t.Fatalf("item layerId = %v, want final layer %v", got["layerId"], final["id"])
 		}
 	})
 

@@ -111,12 +111,27 @@ export type ItineraryItem = {
   address: string
   lat: number | null
   lon: number | null
+  layerId: string
   position: number
 }
 
 export type TripHome = { id: string; name: string }
 
-export type TripDetail = { trip: Trip; stops: Stop[]; items: ItineraryItem[]; homes: TripHome[] }
+export type ItineraryLayer = {
+  id: string
+  name: string
+  color: string
+  /** null marks the trip's Final layer — the published plan. */
+  ownerId: string | null
+}
+
+export type TripDetail = {
+  trip: Trip
+  stops: Stop[]
+  items: ItineraryItem[]
+  homes: TripHome[]
+  layers: ItineraryLayer[]
+}
 
 /** Fields for creating/patching; dates are "YYYY-MM-DD", "" clears. */
 export type TripInput = Partial<{
@@ -190,6 +205,7 @@ export type ItemInput = Partial<{
   address: string
   lat: number
   lon: number
+  layerId: string
 }>
 
 export function createItem(tripId: string, input: ItemInput): Promise<ItineraryItem> {
