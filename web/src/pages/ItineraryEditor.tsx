@@ -130,8 +130,6 @@ export function ItineraryEditorPage() {
             items={visibleItems}
             layerColors={layerColors}
             highlightKey={highlightKey}
-            picking={false}
-            onPick={() => {}}
           />
         </Suspense>
       </div>
