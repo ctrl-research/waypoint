@@ -249,9 +249,33 @@ func (api *tripsAPI) list(w http.ResponseWriter, r *http.Request) {
 		apiInternalError(w, "list trips", err)
 		return
 	}
-	out := make([]tripJSON, 0, len(trips))
+	// Located stops ride along so the home page can search by city — and,
+	// via client-side point-in-polygon, by country (#60).
+	stops, err := api.trips.ListLocatedStops(r.Context(), user.ID)
+	if err != nil {
+		apiInternalError(w, "list stops", err)
+		return
+	}
+	type cityJSON struct {
+		Name string  `json:"name"`
+		Lat  float64 `json:"lat"`
+		Lon  float64 `json:"lon"`
+	}
+	citiesByTrip := map[uuid.UUID][]cityJSON{}
+	for _, s := range stops {
+		citiesByTrip[s.TripID] = append(citiesByTrip[s.TripID], cityJSON{Name: s.Name, Lat: *s.Lat, Lon: *s.Lon})
+	}
+	type listItem struct {
+		tripJSON
+		Cities []cityJSON `json:"cities"`
+	}
+	out := make([]listItem, 0, len(trips))
 	for _, t := range trips {
-		out = append(out, toTripJSON(t.Trip, t.Role))
+		cities := citiesByTrip[t.Trip.ID]
+		if cities == nil {
+			cities = []cityJSON{}
+		}
+		out = append(out, listItem{tripJSON: toTripJSON(t.Trip, t.Role), Cities: cities})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"trips": out})
 }
