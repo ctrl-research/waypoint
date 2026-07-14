@@ -79,6 +79,8 @@ export type Trip = {
   role: TripRole
   /** Derived from dates (#68): what the badge should say today. */
   effectiveStatus: EffectiveStatus
+  /** Located stops, on the list endpoint only — trip search raw material (#60). */
+  cities?: { name: string; lat: number; lon: number }[]
 }
 
 export type Stop = {

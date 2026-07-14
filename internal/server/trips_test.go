@@ -129,6 +129,19 @@ func TestTripsAPI(t *testing.T) {
 		}
 	})
 
+	t.Run("list carries located stops for search", func(t *testing.T) {
+		_, list := call(t, h, alice, "GET", "/api/v1/trips", "")
+		first := list["trips"].([]any)[0].(map[string]any)
+		cities := first["cities"].([]any)
+		if len(cities) == 0 {
+			t.Fatalf("list cities = %v, want the trip's located stops", first["cities"])
+		}
+		city := cities[0].(map[string]any)
+		if city["name"] == "" || city["lat"] == nil || city["lon"] == nil {
+			t.Fatalf("city = %v", city)
+		}
+	})
+
 	t.Run("patch merges and clears", func(t *testing.T) {
 		code, updated := call(t, h, alice, "PATCH", tripPath, `{"status":"active","endDate":""}`)
 		if code != 200 {

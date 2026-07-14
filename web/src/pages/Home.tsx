@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate } from '@tanstack/react-router'
 import { ApiError, createTrip, fetchMe, listTrips, type EffectiveStatus, type Trip } from '../api'
+import { geometryContains, loadCountries } from '../geo'
 
 export const statusStyles: Record<EffectiveStatus, string> = {
   planned: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300',
@@ -13,9 +14,55 @@ export function HomePage() {
   const { data: me, isLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
   const trips = useQuery({ queryKey: ['trips'], queryFn: listTrips, enabled: !!me })
   const [creating, setCreating] = useState(false)
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<'' | EffectiveStatus>('')
+  const [year, setYear] = useState('')
+
+  // Country polygons load only once someone actually types a search (#60).
+  const geo = useQuery({
+    queryKey: ['countries-geo'],
+    queryFn: loadCountries,
+    staleTime: Infinity,
+    enabled: query.trim().length > 0,
+  })
+
+  // Each trip's country names, from its stop coordinates — computed once
+  // per trips+geo load, then string matching stays cheap per keystroke.
+  const countriesByTrip = useMemo(() => {
+    const m = new Map<string, string[]>()
+    if (!geo.data || !trips.data) return m
+    for (const trip of trips.data) {
+      const names = new Set<string>()
+      for (const city of trip.cities ?? []) {
+        const hit = geo.data.features.find((f) => geometryContains(f.geometry, city.lon, city.lat))
+        if (hit) names.add(hit.properties.name.toLowerCase())
+      }
+      m.set(trip.id, [...names])
+    }
+    return m
+  }, [geo.data, trips.data])
+
+  const years = useMemo(
+    () =>
+      [...new Set((trips.data ?? []).flatMap((t) => (t.startDate ? [t.startDate.slice(0, 4)] : [])))].sort(
+        (a, b) => b.localeCompare(a),
+      ),
+    [trips.data],
+  )
 
   if (isLoading) return null
   if (!me) return <Navigate to="/login" />
+
+  const q = query.trim().toLowerCase()
+  const filtering = q !== '' || status !== '' || year !== ''
+  const filtered = (trips.data ?? []).filter((trip) => {
+    if (status && trip.effectiveStatus !== status) return false
+    if (year && trip.startDate?.slice(0, 4) !== year) return false
+    if (!q) return true
+    if (trip.title.toLowerCase().includes(q)) return true
+    if ((trip.cities ?? []).some((c) => c.name.toLowerCase().includes(q))) return true
+    return (countriesByTrip.get(trip.id) ?? []).some((c) => c.includes(q))
+  })
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-16">
@@ -32,20 +79,82 @@ export function HomePage() {
 
       {creating && <NewTripForm onDone={() => setCreating(false)} />}
 
+      {trips.data && trips.data.length > 0 && (
+        <div className="mt-6 flex flex-wrap gap-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, city, or country"
+            aria-label="Search trips"
+            className="min-w-52 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-slate-500 focus:outline-none"
+          />
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as '' | EffectiveStatus)}
+            aria-label="Filter by status"
+            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-slate-500 focus:outline-none"
+          >
+            <option value="">All statuses</option>
+            <option value="planned">Planned</option>
+            <option value="in-progress">In progress</option>
+            <option value="completed">Completed</option>
+          </select>
+          <select
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            aria-label="Filter by year"
+            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-slate-500 focus:outline-none"
+          >
+            <option value="">All years</option>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {trips.data && trips.data.length === 0 && !creating && (
         <p className="mt-12 text-center text-slate-500 dark:text-slate-400">
           No trips yet — plan your first one with “New trip”.
         </p>
       )}
+      {trips.data && trips.data.length > 0 && filtered.length === 0 && (
+        <p className="mt-12 text-center text-slate-500 dark:text-slate-400">
+          No trips match{q && geo.isLoading ? ' yet — still loading country outlines…' : ''}. Try a
+          different search.
+        </p>
+      )}
 
-      {trips.data && <GroupedTrips trips={trips.data} />}
+      {trips.data && <GroupedTrips trips={filtered} flat={filtering} />}
     </div>
   )
 }
 
 /** Splits trips into happening-now / upcoming (soonest first, undated last) /
- * past (most recent first). Completed trips are always past (#49). */
-function GroupedTrips({ trips }: { trips: Trip[] }) {
+ * past (most recent first). Completed trips are always past (#49). While a
+ * search or filter is active the sections collapse into one flat result
+ * list, most recent first (#60). */
+function GroupedTrips({ trips, flat = false }: { trips: Trip[]; flat?: boolean }) {
+  if (flat) {
+    const results = [...trips].sort((a, b) =>
+      (b.startDate ?? '9999').localeCompare(a.startDate ?? '9999'),
+    )
+    return (
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          {results.length} result{results.length === 1 ? '' : 's'}
+        </h2>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {results.map((trip) => (
+            <TripCard key={trip.id} trip={trip} />
+          ))}
+        </div>
+      </section>
+    )
+  }
   const now = trips.filter((t) => t.effectiveStatus === 'in-progress')
   const isPast = (t: Trip) => t.effectiveStatus === 'completed'
   const past = trips
