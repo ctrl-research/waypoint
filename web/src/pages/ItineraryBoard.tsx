@@ -20,22 +20,15 @@ import {
   deleteItem,
   reorderItems,
   updateItem,
-  type ItineraryCategory,
   type ItineraryItem,
   type Stop,
   type Trip,
   type TripHome,
 } from '../api'
 
-export const categoryIcons: Record<ItineraryCategory, string> = {
-  activity: '🎟️',
-  food: '🍜',
-  lodging: '🛏️',
-  transport: '🚌',
-  flight: '✈️',
-  train: '🚆',
-  other: '📌',
-}
+import { categoryIcons } from '../icons'
+
+export { categoryIcons }
 
 const MAX_RANGE_DAYS = 60
 

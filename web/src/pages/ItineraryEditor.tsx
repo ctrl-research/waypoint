@@ -7,6 +7,7 @@ import {
   fetchMe,
   getTrip,
   updateItem,
+  updateLayer,
   type ItineraryLayer,
 } from '../api'
 import { EyeIcon } from '../icons'
@@ -15,6 +16,9 @@ import { NewItemForm } from './TripDetail'
 
 const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
 type MarkerKey = `stop:${string}` | `item:${string}`
+
+/** Swatches offered in layer settings — the server's palette plus Final blue. */
+const LAYER_SWATCHES = ['#2a78d6', '#d97706', '#059669', '#7c3aed', '#db2777', '#0891b2', '#65a30d']
 
 /**
  * Dedicated itinerary editor (#73). One layer is active on the board at a
@@ -29,6 +33,8 @@ export function ItineraryEditorPage() {
   const [highlightKey, setHighlightKey] = useState<MarkerKey | null>(null)
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null)
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set())
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [layerName, setLayerName] = useState('')
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
   const propose = useMutation({
@@ -44,6 +50,11 @@ export function ItineraryEditorPage() {
       setActiveLayerId(null)
       invalidate()
     },
+  })
+  const customize = useMutation({
+    mutationFn: ({ layerId, name, color }: { layerId: string; name?: string; color?: string }) =>
+      updateLayer(tripId, layerId, { ...(name ? { name } : {}), ...(color ? { color } : {}) }),
+    onSettled: invalidate,
   })
   const promote = useMutation({
     mutationFn: ({ itemId, layerId }: { itemId: string; layerId: string }) =>
@@ -88,6 +99,14 @@ export function ItineraryEditorPage() {
 
   // Promotion targets: proposals send items to Final (editor+); Final sends
   // them back to your own proposal layer.
+  // Mirrors the server's rules: Final needs editor+, a proposal belongs to
+  // its owner (the trip owner can moderate).
+  const canManageActive = activeLayer
+    ? activeIsFinal
+      ? canEditFinal
+      : activeLayer.ownerId === me.id || trip.role === 'owner'
+    : false
+
   const promoteTarget =
     !activeIsFinal && canEditFinal && finalLayer
       ? { layerId: finalLayer.id, label: '→ Final' }
@@ -138,7 +157,7 @@ export function ItineraryEditorPage() {
         </Suspense>
       </div>
 
-      {/* Layer switcher: click a chip to edit that layer; the 👁 keeps other
+      {/* Layer switcher: click a chip to edit that layer; the eye keeps other
           layers overlaid on the map for comparison. */}
       <div className="mt-6 flex flex-wrap items-center gap-2">
         {(layers.length > 0 ? layers : []).map((layer) => {
@@ -190,7 +209,20 @@ export function ItineraryEditorPage() {
             ＋ Propose changes
           </button>
         )}
-        {activeLayer && !activeIsFinal && (activeLayer.ownerId === me.id || trip.role === 'owner') && (
+        {activeLayer && canManageActive && (
+          <button
+            type="button"
+            onClick={() => {
+              setLayerName(activeLayer.name)
+              setSettingsOpen((open) => !open)
+            }}
+            className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+            title={`Customize ${activeLayer.name}`}
+          >
+            ✎ Customize
+          </button>
+        )}
+        {activeLayer && !activeIsFinal && canManageActive && (
           <button
             type="button"
             onClick={() => {
@@ -204,6 +236,55 @@ export function ItineraryEditorPage() {
           </button>
         )}
       </div>
+
+      {settingsOpen && activeLayer && canManageActive && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2">
+          <input
+            value={layerName}
+            onChange={(e) => setLayerName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && layerName.trim()) {
+                customize.mutate({ layerId: activeLayer.id, name: layerName.trim() })
+              }
+            }}
+            onBlur={() => {
+              if (layerName.trim() && layerName.trim() !== activeLayer.name) {
+                customize.mutate({ layerId: activeLayer.id, name: layerName.trim() })
+              }
+            }}
+            aria-label="Layer name"
+            className="w-40 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
+          />
+          <div className="flex items-center gap-1.5">
+            {LAYER_SWATCHES.map((color) => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => customize.mutate({ layerId: activeLayer.id, color })}
+                className={`h-5 w-5 rounded-full ${
+                  activeLayer.color === color ? 'ring-2 ring-slate-900 dark:ring-slate-100 ring-offset-1' : ''
+                }`}
+                style={{ backgroundColor: color }}
+                aria-label={`Set color ${color}`}
+              />
+            ))}
+            <input
+              type="color"
+              value={activeLayer.color}
+              onChange={(e) => customize.mutate({ layerId: activeLayer.id, color: e.target.value })}
+              aria-label="Custom color"
+              className="h-6 w-8 cursor-pointer rounded border border-slate-200 dark:border-slate-700 bg-transparent"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(false)}
+            className="ml-auto text-xs text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+          >
+            Done
+          </button>
+        </div>
+      )}
 
       <div className="mt-2">
         <ItineraryBoard

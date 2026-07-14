@@ -1,3 +1,16 @@
+import type { ItineraryCategory } from './api'
+
+/** One emoji per itinerary category — board rows, print, and map pins. */
+export const categoryIcons: Record<ItineraryCategory, string> = {
+  activity: '🎟️',
+  food: '🍜',
+  lodging: '🛏️',
+  transport: '🚌',
+  flight: '✈️',
+  train: '🚆',
+  other: '📌',
+}
+
 /** Shared inline SVG icons; stroke follows currentColor. */
 export function EyeIcon({ open, className = 'h-3.5 w-3.5' }: { open: boolean; className?: string }) {
   return (

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchConfig, type ItineraryItem, type Stop } from './api'
-import { EyeIcon } from './icons'
+import { EyeIcon, categoryIcons } from './icons'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
 const ROUTE_SOURCE = 'route'
@@ -13,7 +13,8 @@ export type MarkerKey = `stop:${string}` | `item:${string}`
 
 /**
  * TripMap renders the trip's stops as S-numbered markers connected by a
- * route line, plus D{day}_{n} pins for itinerary items at their stop (#72).
+ * route line, plus category-icon pins for itinerary items at their venue
+ * or stop (#72, #73).
  * `highlightKey` enlarges the hovered list row's marker (#71). When
  * `picking` is set, the next map click reports coordinates via onPick (#14).
  */
@@ -103,7 +104,8 @@ export function TripMap({
     if (mapRef.current) syncMap(mapRef.current, stops, items, markersRef, layerColors)
   }, [stops, items, layerColors])
 
-  // Hover-highlight from the lists (#71).
+  // Hover-highlight from the lists (#71): the hovered marker pops, every
+  // other POI fades back so the emphasis is unmistakable.
   useEffect(() => {
     for (const [key, marker] of markersRef.current) {
       const el = marker.getElement().firstElementChild as HTMLElement | null
@@ -113,6 +115,7 @@ export function TripMap({
       el.classList.toggle('ring-2', active)
       el.classList.toggle('ring-sky-400', active)
       el.classList.toggle('z-10', active)
+      el.classList.toggle('opacity-40', highlightKey !== null && !active)
     }
   }, [highlightKey])
 
@@ -174,8 +177,8 @@ function makeMarkerEl(label: string, kind: 'stop' | 'item', color?: string): HTM
   const el = document.createElement('div')
   el.className =
     kind === 'stop'
-      ? 'flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-900 px-1 text-xs font-semibold text-white shadow-md transition-transform'
-      : 'flex h-5 items-center justify-center rounded bg-indigo-600 px-1 text-[10px] font-semibold text-white shadow transition-transform'
+      ? 'flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-900 px-1 text-xs font-semibold text-white shadow-md transition'
+      : 'flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[11px] text-white shadow transition'
   if (color) el.style.backgroundColor = color
   el.textContent = label
   wrap.appendChild(el)
@@ -202,16 +205,11 @@ function syncMap(
     markersRef.current.set(`stop:${stop.id}`, marker)
   }
 
-  // Itinerary pins (#72): D{day}_{n} at the item's own venue when it has an
-  // address, otherwise stacked below its stop's marker.
-  const days = [...new Set(items.map((it) => it.day))].sort()
-  const dayNumber = new Map(days.map((d, i) => [d, i + 1]))
-  const perDayCount = new Map<string, number>()
+  // Itinerary pins (#72): the category icon at the item's own venue when it
+  // has an address, otherwise stacked below its stop's marker.
   const perStopStack = new Map<string, number>()
   for (const item of items) {
-    const n = (perDayCount.get(item.day) ?? 0) + 1
-    perDayCount.set(item.day, n)
-    const label = `D${dayNumber.get(item.day)}_${n}`
+    const label = categoryIcons[item.category]
     const stop = item.stopId ? located.find((s) => s.id === item.stopId) : undefined
     let lngLat: [number, number] | null = null
     let offset: [number, number] = [0, 0]
