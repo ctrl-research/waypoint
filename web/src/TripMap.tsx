@@ -73,23 +73,18 @@ export function TripMap({
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
       })
-      // Stop route: curved directed arcs — dashed lines plus solid arrowheads.
+      // One small direction chevron per leg, at constant screen size.
+      map.addImage('chevron', chevronImage(), { pixelRatio: 2 })
+      const arrows = { 'symbol-placement': 'line-center', 'icon-image': 'chevron', 'icon-allow-overlap': true, 'icon-ignore-placement': true } as const
+      // Stop route: solid curved directed arcs.
       map.addLayer({
         id: 'route-line',
         type: 'line',
         source: ROUTE_SOURCE,
-        filter: ['==', ['get', 'kind'], 'line'],
-        paint: { 'line-color': '#0f172a', 'line-width': 2, 'line-dasharray': [2, 1.5] },
-      })
-      map.addLayer({
-        id: 'route-arrows',
-        type: 'line',
-        source: ROUTE_SOURCE,
-        filter: ['==', ['get', 'kind'], 'arrow'],
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#0f172a', 'line-width': 2 },
       })
-      // Sequential itinerary items: dotted directed links.
+      map.addLayer({ id: 'route-arrows', type: 'symbol', source: ROUTE_SOURCE, layout: { ...arrows } })
+      // Sequential itinerary items: dashed directed links.
       map.addSource(ITEMS_PATH_SOURCE, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -98,18 +93,10 @@ export function TripMap({
         id: 'items-path-line',
         type: 'line',
         source: ITEMS_PATH_SOURCE,
-        filter: ['==', ['get', 'kind'], 'line'],
-        layout: { 'line-cap': 'round' },
-        paint: { 'line-color': '#6366f1', 'line-width': 2, 'line-dasharray': [0, 2] },
+        paint: { 'line-color': '#0f172a', 'line-width': 2, 'line-dasharray': [2, 1.5] },
       })
-      map.addLayer({
-        id: 'items-path-arrows',
-        type: 'line',
-        source: ITEMS_PATH_SOURCE,
-        filter: ['==', ['get', 'kind'], 'arrow'],
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#6366f1', 'line-width': 2 },
-      })
+      map.addLayer({ id: 'items-path-arrows', type: 'symbol', source: ITEMS_PATH_SOURCE, layout: { ...arrows } })
+      // Replay redraws the itinerary path in blue.
       map.addSource(REPLAY_SOURCE, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -118,8 +105,7 @@ export function TripMap({
         id: REPLAY_SOURCE,
         type: 'line',
         source: REPLAY_SOURCE,
-        layout: { 'line-cap': 'round' },
-        paint: { 'line-color': '#2a78d6', 'line-width': 3, 'line-dasharray': [0, 2] },
+        paint: { 'line-color': '#2a78d6', 'line-width': 3, 'line-dasharray': [2, 1.5] },
       })
       mapRef.current = map
       syncMap(map, stopsRef.current, itemsRef.current, markersRef, layerColorsRef.current)
@@ -168,6 +154,7 @@ export function TripMap({
   const [showItems, setShowItems] = useState(true)
   const [showRoute, setShowRoute] = useState(true)
   const [showPath, setShowPath] = useState(true)
+  const [legendOpen, setLegendOpen] = useState(false)
   useEffect(() => {
     for (const [key, marker] of markersRef.current) {
       const visible = key.startsWith('stop:') ? showStops : showItems
@@ -287,27 +274,40 @@ export function TripMap({
             : caption.label}
         </div>
       )}
-      <div className="absolute left-3 top-3 flex gap-1 rounded-lg bg-white/90 p-1 text-xs shadow">
-        {(
-          [
-            ['Stops', showStops, setShowStops],
-            ['Items', showItems, setShowItems],
-            ['Route', showRoute, setShowRoute],
-            ['Path', showPath, setShowPath],
-          ] as const
-        ).map(([label, on, set]) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => set(!on)}
-            className={`flex items-center gap-1 rounded-md px-2 py-1 hover:bg-slate-100 ${on ? 'text-slate-900' : 'text-slate-400'}`}
-            title={on ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
-            aria-pressed={on}
-          >
-            <EyeIcon open={on} />
-            {label}
-          </button>
-        ))}
+      <div className="absolute left-3 top-3 rounded-lg bg-white/90 p-1 text-xs shadow">
+        <button
+          type="button"
+          onClick={() => setLegendOpen((v) => !v)}
+          className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-slate-900 hover:bg-slate-100"
+          aria-expanded={legendOpen}
+        >
+          <span className={`text-[9px] transition-transform ${legendOpen ? 'rotate-90' : ''}`}>▶</span>
+          Layers
+        </button>
+        {legendOpen && (
+          <div className="mt-0.5 flex flex-col">
+            {(
+              [
+                ['Stops', showStops, setShowStops],
+                ['Items', showItems, setShowItems],
+                ['Route', showRoute, setShowRoute],
+                ['Path', showPath, setShowPath],
+              ] as const
+            ).map(([label, on, set]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => set(!on)}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-left hover:bg-slate-100 ${on ? 'text-slate-900' : 'text-slate-400'}`}
+                title={on ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+                aria-pressed={on}
+              >
+                <EyeIcon open={on} />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -366,49 +366,36 @@ function arcCoords(a: LngLat, b: LngLat, curvature = 0.18, steps = 24): LngLat[]
   return out
 }
 
-/** A direction chevron at the polyline's midpoint, sized to its span. */
-function arrowFeature(line: LngLat[]): GeoJSON.Feature | null {
-  if (line.length < 2) return null
-  const k = Math.cos((line[0][1] * Math.PI) / 180) || 1e-6
-  const P = line.map(([x, y]): LngLat => [x * k, y])
-  const i = Math.max(1, Math.floor(P.length / 2))
-  const [ax, ay] = P[i - 1]
-  const [bx, by] = P[i]
-  const dx = bx - ax
-  const dy = by - ay
-  const len = Math.hypot(dx, dy)
-  if (!len) return null
-  const ux = dx / len
-  const uy = dy / len
-  const span = Math.hypot(P[P.length - 1][0] - P[0][0], P[P.length - 1][1] - P[0][1])
-  const h = Math.min(Math.max(span * 0.12, 0.004), 0.8)
-  const tx = (ax + bx) / 2
-  const ty = (ay + by) / 2
-  const wing = (sign: number): LngLat => {
-    const rad = (sign * 155 * Math.PI) / 180
-    const cos = Math.cos(rad)
-    const sin = Math.sin(rad)
-    return [(tx + (ux * cos - uy * sin) * h) / k, ty + (ux * sin + uy * cos) * h]
-  }
-  return {
-    type: 'Feature',
-    properties: { kind: 'arrow' },
-    geometry: { type: 'LineString', coordinates: [wing(1), [tx / k, ty], wing(-1)] },
-  }
+/** A small right-pointing chevron sprite; symbol layers rotate it along
+ * each leg (~2× the line width on screen, at every zoom). */
+function chevronImage(size = 16): ImageData {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const g = canvas.getContext('2d')!
+  g.strokeStyle = '#0f172a'
+  g.lineWidth = 3.5
+  g.lineCap = 'round'
+  g.lineJoin = 'round'
+  g.beginPath()
+  g.moveTo(size * 0.32, size * 0.18)
+  g.lineTo(size * 0.72, size * 0.5)
+  g.lineTo(size * 0.32, size * 0.82)
+  g.stroke()
+  return g.getImageData(0, 0, size, size)
 }
 
-/** Line + arrowhead features for consecutive point pairs. */
+/** One LineString per consecutive point pair (line-center symbols put a
+ * chevron on each). */
 function directedFeatures(points: LngLat[], curved: boolean): GeoJSON.Feature[] {
   const features: GeoJSON.Feature[] = []
   for (let i = 1; i < points.length; i++) {
     const line = curved ? arcCoords(points[i - 1], points[i]) : [points[i - 1], points[i]]
     features.push({
       type: 'Feature',
-      properties: { kind: 'line' },
+      properties: {},
       geometry: { type: 'LineString', coordinates: line },
     })
-    const arrow = arrowFeature(line)
-    if (arrow) features.push(arrow)
   }
   return features
 }
