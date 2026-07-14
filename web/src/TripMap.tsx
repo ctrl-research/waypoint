@@ -24,8 +24,6 @@ type PathPoint = {
   day: string
   category?: ItineraryCategory
   minutes?: number
-  /** Transport whose origin is unknown: the PREVIOUS point lends the leg. */
-  inbound?: { category: ItineraryCategory; minutes: number }
 }
 
 /** Emoji that rides the replay dot during a transportation leg. */
@@ -357,42 +355,20 @@ function itineraryPath(items: ItineraryItem[], stops: Stop[]): PathPoint[] {
     if (b.startTime) return 1
     return a.position - b.position
   })
-  const stopCoords = (id: string | null): { lat: number; lon: number } | null => {
-    const stop = stops.find((s) => s.id === id)
-    return stop && stop.lat !== null && stop.lon !== null ? { lat: stop.lat, lon: stop.lon } : null
-  }
-  const pts: PathPoint[] = ordered.flatMap((it): PathPoint[] => {
-    const base = { label: it.title, day: it.day }
-    const isTransport = it.category === 'flight' || it.category === 'train' || it.category === 'transport'
-    if (isTransport) {
-      // A transport item IS a leg: the journey runs from its origin to its
-      // destination for exactly its departure→arrival duration — that's
-      // where the vehicle emoji, the arc, and the pacing belong (#62).
-      const origin = stopCoords(it.stopId) ?? locate(it)
-      const dest = stopCoords(it.destinationStopId)
-      const travel = { category: it.category, minutes: legMinutes(it.startTime, it.endTime) }
-      if (origin && dest && (origin.lat !== dest.lat || origin.lon !== dest.lon)) {
-        return [
-          { ...origin, ...base, ...travel },
-          { ...dest, ...base },
-        ]
-      }
-      if (origin) return [{ ...origin, ...base, ...travel }]
-      if (dest) return [{ ...dest, ...base, inbound: travel }]
-      return []
-    }
+  const pts = ordered.flatMap((it) => {
     const at = locate(it)
-    return at ? [{ ...at, ...base }] : []
+    return at
+      ? [
+          {
+            ...at,
+            label: it.title,
+            day: it.day,
+            category: it.category,
+            minutes: legMinutes(it.startTime, it.endTime),
+          },
+        ]
+      : []
   })
-  // A destination-only transport point can't describe its own leg — the
-  // point before it does.
-  for (let i = 1; i < pts.length; i++) {
-    const inbound = pts[i].inbound
-    if (inbound) {
-      pts[i - 1] = { ...pts[i - 1], category: inbound.category, minutes: inbound.minutes }
-      delete pts[i].inbound
-    }
-  }
   // Collapse consecutive same-spot points, but let the survivor describe
   // the DEPARTURE: a flight sits at its origin stop — same coordinates as
   // the activity before it — and the leg leaving must carry the flight's
