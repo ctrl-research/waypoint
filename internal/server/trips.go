@@ -68,12 +68,18 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/trips/{tripID}/export/gpx", protected(api.exportGPX))
 	mux.Handle("GET /api/v1/trips/{tripID}/export/geojson", protected(api.exportGeoJSON))
 	mux.Handle("GET /api/v1/trips/{tripID}/export/markdown", protected(api.exportMarkdown))
+	mux.Handle("GET /api/v1/trips/{tripID}/export/ics", protected(api.exportICS))
+
+	mux.Handle("GET /api/v1/calendar/token", protected(api.getCalendarToken))
+	mux.Handle("POST /api/v1/calendar/token", protected(api.createCalendarToken))
+	mux.Handle("DELETE /api/v1/calendar/token", protected(api.deleteCalendarToken))
 
 	mux.Handle("GET /api/v1/trips/{tripID}/shares", protected(api.listShares))
 	mux.Handle("POST /api/v1/trips/{tripID}/shares", protected(api.createShare))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/shares/{shareID}", protected(api.revokeShare))
 
 	// Public, token-scoped read-only access — deliberately NOT session-guarded.
+	mux.HandleFunc("GET /api/v1/calendar/{token}/waypoint.ics", api.serveCalendarFeed)
 	mux.HandleFunc("GET /api/v1/public/{token}", api.servePublicTrip)
 	mux.HandleFunc("GET /api/v1/public/{token}/photos/{photoID}", api.servePublicPhoto)
 }

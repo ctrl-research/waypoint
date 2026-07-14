@@ -1,7 +1,17 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from '@tanstack/react-router'
-import { ApiError, createHome, deleteHome, fetchMe, geocode, listHomes } from '../api'
+import {
+  ApiError,
+  createCalendarToken,
+  createHome,
+  deleteCalendarToken,
+  deleteHome,
+  fetchMe,
+  geocode,
+  getCalendarToken,
+  listHomes,
+} from '../api'
 import { getTheme, setTheme, subscribeTheme, type Theme } from '../theme'
 
 const field =
@@ -34,6 +44,81 @@ export function SettingsPage() {
         </p>
         <HomesEditor />
       </section>
+
+      <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+        <h2 className="font-medium text-slate-900 dark:text-slate-100">Calendar sync</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Subscribe your personal calendar to all your trips: Google Calendar → “From URL”, Apple
+          Calendar → “New Calendar Subscription”. The link is the only credential — reset it if it
+          leaks.
+        </p>
+        <CalendarSync />
+      </section>
+    </div>
+  )
+}
+
+function CalendarSync() {
+  const queryClient = useQueryClient()
+  const token = useQuery({ queryKey: ['calendar-token'], queryFn: getCalendarToken })
+  const [copied, setCopied] = useState(false)
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['calendar-token'] })
+  const create = useMutation({ mutationFn: createCalendarToken, onSuccess: invalidate })
+  const remove = useMutation({ mutationFn: deleteCalendarToken, onSuccess: invalidate })
+
+  if (token.data === undefined) return null
+  const url = token.data
+    ? `${window.location.origin}/api/v1/calendar/${token.data}/waypoint.ics`
+    : null
+
+  if (!url) {
+    return (
+      <button
+        type="button"
+        onClick={() => create.mutate()}
+        disabled={create.isPending}
+        className="mt-3 rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
+      >
+        Create subscription link
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300">
+          {url}
+        </code>
+        <button
+          type="button"
+          onClick={async () => {
+            await navigator.clipboard.writeText(url)
+            setCopied(true)
+            window.setTimeout(() => setCopied(false), 1500)
+          }}
+          className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          {copied ? 'Copied ✓' : 'Copy'}
+        </button>
+      </div>
+      <div className="flex gap-3 text-xs">
+        <button
+          type="button"
+          onClick={() => create.mutate()}
+          className="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+          title="Generates a new link; the old one stops working"
+        >
+          Reset link
+        </button>
+        <button
+          type="button"
+          onClick={() => remove.mutate()}
+          className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+        >
+          Disable
+        </button>
+      </div>
     </div>
   )
 }

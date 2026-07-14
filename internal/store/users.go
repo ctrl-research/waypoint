@@ -68,3 +68,15 @@ func (s *Users) SetPassword(ctx context.Context, id uuid.UUID, passwordHash stri
 func (s *Users) Count(ctx context.Context) (int64, error) {
 	return s.q.CountUsers(ctx)
 }
+
+// SetCalendarToken stores (or, with nil, revokes) the user's calendar-feed
+// token — the sole credential for the ICS subscription URL (#52).
+func (s *Users) SetCalendarToken(ctx context.Context, id uuid.UUID, token *string) (User, error) {
+	u, err := s.q.SetCalendarToken(ctx, sqlcgen.SetCalendarTokenParams{ID: id, CalendarToken: token})
+	return u, translate(err)
+}
+
+func (s *Users) ByCalendarToken(ctx context.Context, token string) (User, error) {
+	u, err := s.q.UserByCalendarToken(ctx, &token)
+	return u, translate(err)
+}

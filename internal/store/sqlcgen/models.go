@@ -259,12 +259,13 @@ type TripMember struct {
 }
 
 type User struct {
-	ID           uuid.UUID
-	Email        string
-	DisplayName  string
-	AvatarURL    *string
-	GoogleSub    *string
-	PasswordHash *string
-	IsAdmin      bool
-	CreatedAt    time.Time
+	ID            uuid.UUID
+	Email         string
+	DisplayName   string
+	AvatarURL     *string
+	GoogleSub     *string
+	PasswordHash  *string
+	IsAdmin       bool
+	CreatedAt     time.Time
+	CalendarToken *string
 }

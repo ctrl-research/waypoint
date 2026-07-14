@@ -134,6 +134,7 @@ export function TripDetailPage() {
               ['gpx', 'GPX', 'stops + route for GPS apps'],
               ['geojson', 'GeoJSON', 'stops, route, and journal points'],
               ['markdown', 'Markdown', 'trip.md + photos as a zip'],
+              ['ics', 'Calendar (.ics)', 'trip + itinerary as calendar events'],
             ] as const
           ).map(([format, label, hint]) => (
             <a

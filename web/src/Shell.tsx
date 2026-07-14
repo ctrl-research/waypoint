@@ -42,6 +42,9 @@ function NavLinks() {
       <Link to="/" activeOptions={{ exact: true }} className={link}>
         Trips
       </Link>
+      <Link to="/calendar" className={link}>
+        Calendar
+      </Link>
       <Link to="/stats" className={link}>
         Stats
       </Link>

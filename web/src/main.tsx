@@ -17,6 +17,7 @@ import { StatsPage } from './pages/Stats'
 import { SettingsPage } from './pages/Settings'
 import { PrintTripPage } from './pages/PrintTrip'
 import { ItineraryEditorPage } from './pages/ItineraryEditor'
+import { CalendarPage } from './pages/Calendar'
 
 const rootRoute = createRootRoute({ component: Shell })
 
@@ -56,6 +57,12 @@ const shareRoute = createRoute({
   component: PublicTripPage,
 })
 
+const calendarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/calendar',
+  component: CalendarPage,
+})
+
 const statsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/stats',
@@ -68,7 +75,7 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 })
 
-const router = createRouter({ routeTree: rootRoute.addChildren([indexRoute, loginRoute, tripRoute, printRoute, editorRoute, shareRoute, statsRoute, settingsRoute]) })
+const router = createRouter({ routeTree: rootRoute.addChildren([indexRoute, loginRoute, tripRoute, printRoute, editorRoute, shareRoute, calendarRoute, statsRoute, settingsRoute]) })
 
 declare module '@tanstack/react-router' {
   interface Register {
