@@ -121,7 +121,7 @@ export type ItineraryLayer = {
   id: string
   name: string
   color: string
-  /** null marks the trip's Final layer — the published plan. */
+  /** null marks the trip's shared Plan layer — what the trip page shows. */
   ownerId: string | null
 }
 
@@ -243,9 +243,12 @@ export function reorderItems(
 
 // ---- itinerary layers (#73) ----------------------------------------------------
 
-/** The caller's proposal layer, created on first use. */
-export function ensureMyLayer(tripId: string): Promise<ItineraryLayer> {
-  return requestJSON(`/api/v1/trips/${tripId}/layers`, { method: 'POST' })
+/** A new named member layer; members can hold any number of them. */
+export function createLayer(tripId: string, name: string, color?: string): Promise<ItineraryLayer> {
+  return requestJSON(`/api/v1/trips/${tripId}/layers`, {
+    method: 'POST',
+    body: JSON.stringify({ name, ...(color ? { color } : {}) }),
+  })
 }
 
 export function updateLayer(

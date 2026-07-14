@@ -43,9 +43,9 @@ export function PrintTripPage() {
   if (!detail.data || !journal.data) return null
 
   const { trip, stops, items: allItems, homes, layers } = detail.data
-  // Print is the published plan: Final-layer items only (#73).
-  const finalLayerId = layers.find((l) => l.ownerId === null)?.id
-  const items = finalLayerId ? allItems.filter((i) => i.layerId === finalLayerId) : allItems
+  // Print is the shared Plan layer only (#73).
+  const planLayerId = layers.find((l) => l.ownerId === null)?.id
+  const items = planLayerId ? allItems.filter((i) => i.layerId === planLayerId) : allItems
   const entries = journal.data
   const days = [...new Set([...items.map((i) => i.day), ...entries.map((e) => e.entryDate)])].sort()
 

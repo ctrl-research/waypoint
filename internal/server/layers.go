@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -14,8 +15,8 @@ import (
 
 var hexColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
-// proposalPalette colors new proposal layers in fixed order (dataviz
-// categorical rules); the Final layer keeps the default #2a78d6 blue.
+// proposalPalette colors new member layers in fixed order (dataviz
+// categorical rules); the Plan layer keeps the default #2a78d6 blue.
 var proposalPalette = []string{"#d97706", "#059669", "#7c3aed", "#db2777", "#0891b2", "#65a30d"}
 
 func layerJSON(l store.ItineraryLayer) map[string]any {
@@ -31,39 +32,49 @@ func layerEditable(role string, layer store.ItineraryLayer, userID uuid.UUID) bo
 	return layer.OwnerID != nil && *layer.OwnerID == userID
 }
 
-// ensureMyLayer returns the caller's proposal layer, creating it on first
-// use — any member can propose, regardless of role.
-func (api *tripsAPI) ensureMyLayer(w http.ResponseWriter, r *http.Request) {
+// createLayer adds a named member layer — any member, any number of
+// layers, organized however they like (#73 follow-up).
+func (api *tripsAPI) createLayer(w http.ResponseWriter, r *http.Request) {
 	trip, _, ok := api.tripAccess(w, r, "viewer")
 	if !ok {
 		return
 	}
 	user, _ := auth.UserFrom(r.Context())
 
-	layers, err := api.trips.ListLayers(r.Context(), trip.ID)
-	if err != nil {
-		apiInternalError(w, "list layers", err)
+	var req struct {
+		Name  string `json:"name"`
+		Color string `json:"color"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
-	proposals := 0
-	for _, l := range layers {
-		if l.OwnerID == nil {
-			continue
-		}
-		if *l.OwnerID == user.ID {
-			writeJSON(w, http.StatusOK, layerJSON(l))
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		apiError(w, http.StatusBadRequest, "invalid", "name is required")
+		return
+	}
+	if req.Color == "" {
+		layers, err := api.trips.ListLayers(r.Context(), trip.ID)
+		if err != nil {
+			apiInternalError(w, "list layers", err)
 			return
 		}
-		proposals++
+		owned := 0
+		for _, l := range layers {
+			if l.OwnerID != nil {
+				owned++
+			}
+		}
+		req.Color = proposalPalette[owned%len(proposalPalette)]
+	} else if !hexColorRe.MatchString(req.Color) {
+		apiError(w, http.StatusBadRequest, "invalid", "color must be #rrggbb")
+		return
 	}
 
-	name := user.DisplayName
-	if name == "" {
-		name = "Proposal"
-	}
-	layer, err := api.trips.EnsureMemberLayer(r.Context(), trip.ID, user.ID, name, proposalPalette[proposals%len(proposalPalette)])
+	layer, err := api.trips.CreateLayer(r.Context(), trip.ID, user.ID, req.Name, req.Color)
 	if err != nil {
-		apiInternalError(w, "ensure member layer", err)
+		apiInternalError(w, "create layer", err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, layerJSON(layer))
@@ -88,8 +99,8 @@ func (api *tripsAPI) layerFromPath(w http.ResponseWriter, r *http.Request, tripI
 	return layer, true
 }
 
-// layerManageable guards layer metadata changes: the Final layer needs
-// editor+, a proposal belongs to its owner (the trip owner can moderate).
+// layerManageable guards layer metadata changes: the Plan layer needs
+// editor+, a member layer belongs to its owner (the trip owner can moderate).
 func layerManageable(role string, layer store.ItineraryLayer, userID uuid.UUID) bool {
 	if layer.OwnerID == nil {
 		return roleRank(role) >= roleRank("editor")
@@ -153,7 +164,7 @@ func (api *tripsAPI) deleteLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if layer.OwnerID == nil {
-		apiError(w, http.StatusBadRequest, "invalid", "the Final layer cannot be deleted")
+		apiError(w, http.StatusBadRequest, "invalid", "the Plan layer cannot be deleted")
 		return
 	}
 	user, _ := auth.UserFrom(r.Context())

@@ -24,8 +24,8 @@ SELECT id, trip_id, stop_id, day,
        destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
 FROM itinerary_items WHERE trip_id = $1 ORDER BY day, position, id;
 
--- name: ListFinalItems :many
--- Only the published plan — what shares, exports, and stats should see.
+-- name: ListPlanItems :many
+-- Only the shared Plan layer — what shares, exports, and stats should see.
 SELECT i.id, i.trip_id, i.stop_id, i.day,
        CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
        i.title, i.category, i.notes, i.cost_cents, i.currency, i.position,

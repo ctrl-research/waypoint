@@ -2,8 +2,8 @@ import { Suspense, lazy, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useParams } from '@tanstack/react-router'
 import {
+  createLayer,
   deleteLayer,
-  ensureMyLayer,
   fetchMe,
   getTrip,
   updateLayer,
@@ -21,9 +21,10 @@ type MarkerKey = `stop:${string}` | `item:${string}`
 const LAYER_SWATCHES = ['#2a78d6', '#d97706', '#059669', '#7c3aed', '#db2777', '#0891b2', '#65a30d']
 
 /**
- * Dedicated itinerary editor (#73). One layer is active on the board at a
- * time — Final or a member's proposal; the map overlays every visible layer
- * in its color. Promotion moves an item's layer_id, never copies.
+ * Dedicated itinerary editor (#73). Members organize items on any number
+ * of named layers and compile them into the shared Plan layer — the one
+ * the trip page shows. The list and map overlay every visible layer in
+ * its color; promotion moves an item's layer_id, never copies.
  */
 export function ItineraryEditorPage() {
   const { tripId } = useParams({ from: '/trips/$tripId/itinerary' })
@@ -36,12 +37,16 @@ export function ItineraryEditorPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [layerName, setLayerName] = useState('')
   const [editing, setEditing] = useState<ItineraryItem | null>(null)
+  const [newLayerOpen, setNewLayerOpen] = useState(false)
+  const [newLayerName, setNewLayerName] = useState('')
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
-  const propose = useMutation({
-    mutationFn: () => ensureMyLayer(tripId),
+  const addLayer = useMutation({
+    mutationFn: (name: string) => createLayer(tripId, name),
     onSuccess: (layer) => {
       setActiveLayerId(layer.id)
+      setNewLayerOpen(false)
+      setNewLayerName('')
       invalidate()
     },
   })
@@ -78,45 +83,44 @@ export function ItineraryEditorPage() {
   if (!detail.data) return null
 
   const { trip, stops, items, homes } = detail.data
-  const finalLayer = layers.find((l) => l.ownerId === null)
-  const myLayer = layers.find((l) => l.ownerId === me.id)
-  const canEditFinal = trip.role !== 'viewer'
+  const planLayer = layers.find((l) => l.ownerId === null)
+  const canEditPlan = trip.role !== 'viewer'
 
-  // The board edits one layer at a time; Final is the default. A trip that
-  // predates its Final layer (no items yet) behaves as Final until the
+  // New items land on the active layer; Plan is the default. A trip that
+  // predates its Plan layer (no items yet) behaves as Plan until the
   // first item creates it.
   const activeLayer: ItineraryLayer | null =
-    layers.find((l) => l.id === activeLayerId) ?? finalLayer ?? null
-  const activeIsFinal = !activeLayer || activeLayer.ownerId === null
-  const canEditActive = activeIsFinal ? canEditFinal : activeLayer?.ownerId === me.id || canEditFinal
+    layers.find((l) => l.id === activeLayerId) ?? planLayer ?? null
+  const activeIsPlan = !activeLayer || activeLayer.ownerId === null
+  const canEditActive = activeIsPlan ? canEditPlan : activeLayer?.ownerId === me.id || canEditPlan
 
   // The list and map show every visible layer combined; the active chip
   // only decides where new items land and which layer Customize targets.
   const visibleItems = items.filter((i) => !hiddenLayers.has(i.layerId))
   const activeCount = activeLayer ? items.filter((i) => i.layerId === activeLayer.id).length : 0
 
-  // Mirrors the server's rules: Final needs editor+, a proposal belongs to
-  // its owner (the trip owner can moderate).
+  // Mirrors the server's rules: Plan needs editor+, a member layer belongs
+  // to its owner (the trip owner can moderate).
   const canManageActive = activeLayer
-    ? activeIsFinal
-      ? canEditFinal
+    ? activeIsPlan
+      ? canEditPlan
       : activeLayer.ownerId === me.id || trip.role === 'owner'
     : false
 
   const canEditItem = (item: ItineraryItem) => {
     const layer = layers.find((l) => l.id === item.layerId)
-    return canEditFinal || (layer?.ownerId === me.id)
+    return canEditPlan || layer?.ownerId === me.id
   }
+  const editableLayers = layers.filter((l) =>
+    l.ownerId === null ? canEditPlan : canEditPlan || l.ownerId === me.id,
+  )
 
-  // Per-row promotion: proposal items go to Final (needs editor+); Final
-  // items come back to your own proposal layer.
+  // Per-row quick action: compile an item into the Plan (editor+). Moving
+  // between member layers happens in the edit form's layer select.
   const promoteFor = (item: ItineraryItem) => {
-    const onFinal = finalLayer && item.layerId === finalLayer.id
-    if (!onFinal && finalLayer && canEditFinal && canEditItem(item)) {
-      return { layerId: finalLayer.id, label: '→ Final' }
-    }
-    if (onFinal && myLayer && canEditFinal) {
-      return { layerId: myLayer.id, label: `→ ${myLayer.name}` }
+    const onPlan = planLayer && item.layerId === planLayer.id
+    if (!onPlan && planLayer && canEditPlan && canEditItem(item)) {
+      return { layerId: planLayer.id, label: '→ Plan' }
     }
     return null
   }
@@ -203,17 +207,51 @@ export function ItineraryEditorPage() {
         })}
         {layers.length === 0 && (
           <span className="rounded-full border border-slate-200 dark:border-slate-700 px-3 py-1 text-sm text-slate-500 dark:text-slate-400">
-            Final
+            Plan
           </span>
         )}
-        {!myLayer && (
+        {newLayerOpen ? (
+          <form
+            className="flex items-center gap-1"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (newLayerName.trim()) addLayer.mutate(newLayerName.trim())
+            }}
+          >
+            <input
+              autoFocus
+              value={newLayerName}
+              onChange={(e) => setNewLayerName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setNewLayerOpen(false)
+              }}
+              placeholder="Layer name"
+              aria-label="New layer name"
+              className="w-36 rounded-full border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-1 text-sm text-slate-900 dark:text-slate-100 focus:border-slate-500 focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={addLayer.isPending || !newLayerName.trim()}
+              className="rounded-full bg-slate-900 dark:bg-slate-100 px-3 py-1 text-sm text-white dark:text-slate-900 disabled:opacity-50"
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewLayerOpen(false)}
+              className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+              aria-label="Cancel new layer"
+            >
+              ✕
+            </button>
+          </form>
+        ) : (
           <button
             type="button"
-            onClick={() => propose.mutate()}
-            disabled={propose.isPending}
+            onClick={() => setNewLayerOpen(true)}
             className="rounded-full border border-dashed border-slate-300 dark:border-slate-600 px-3 py-1 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-900 dark:hover:border-slate-100 hover:text-slate-900 dark:hover:text-slate-100"
           >
-            ＋ Propose changes
+            ＋ New layer
           </button>
         )}
         {activeLayer && canManageActive && (
@@ -229,7 +267,7 @@ export function ItineraryEditorPage() {
             ✎ Customize
           </button>
         )}
-        {activeLayer && !activeIsFinal && canManageActive && (
+        {activeLayer && !activeIsPlan && canManageActive && (
           <button
             type="button"
             onClick={() => {
@@ -316,6 +354,7 @@ export function ItineraryEditorPage() {
               trip={trip}
               stops={stops}
               item={editing}
+              layers={editableLayers}
               onDone={() => setEditing(null)}
             />
           </div>

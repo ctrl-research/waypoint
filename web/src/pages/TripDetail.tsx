@@ -17,6 +17,7 @@ import {
   type ItemInput,
   type ItineraryCategory,
   type ItineraryItem,
+  type ItineraryLayer,
   type Stop,
   type StopInput,
   type Trip,
@@ -71,9 +72,9 @@ export function TripDetailPage() {
 
   const { trip, stops, items, homes, layers } = detail.data
   const canEdit = trip.role !== 'viewer'
-  // The trip page shows the published plan: Final-layer items only (#73).
-  const finalLayerId = layers.find((l) => l.ownerId === null)?.id
-  const finalItems = finalLayerId ? items.filter((i) => i.layerId === finalLayerId) : items
+  // The trip page shows the shared Plan layer only (#73).
+  const planLayerId = layers.find((l) => l.ownerId === null)?.id
+  const planItems = planLayerId ? items.filter((i) => i.layerId === planLayerId) : items
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
@@ -83,7 +84,7 @@ export function TripDetailPage() {
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
           <TripMap
             stops={stops}
-            items={finalItems}
+            items={planItems}
             highlightKey={highlightKey}
             picking={pickingStop !== null}
             onPick={(lat, lon) => {
@@ -113,7 +114,7 @@ export function TripDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">The final plan, day by day.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">The plan, day by day.</p>
           </div>
           {canEdit && (
             <Link
@@ -127,7 +128,7 @@ export function TripDetailPage() {
         </div>
         <ItineraryBoard
           trip={trip}
-          items={finalItems}
+          items={planItems}
           stops={stops}
           homes={homes}
           readOnly
@@ -629,12 +630,15 @@ export function NewItemForm({
   stops,
   layerId,
   item,
+  layers,
   onDone,
 }: {
   trip: Trip
   stops: Stop[]
   layerId?: string
   item?: ItineraryItem
+  /** Layers the caller may write; edit mode offers moving between them. */
+  layers?: ItineraryLayer[]
   onDone?: () => void
 }) {
   const tripId = trip.id
@@ -653,6 +657,7 @@ export function NewItemForm({
       ? { address: item.address, lat: item.lat ?? undefined, lon: item.lon ?? undefined }
       : null,
   )
+  const [itemLayerId, setItemLayerId] = useState(item?.layerId ?? '')
   const isLeg = category === 'flight' || category === 'train'
   const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
@@ -685,6 +690,7 @@ export function NewItemForm({
           category,
           startTime,
           endTime,
+          ...(itemLayerId && itemLayerId !== item.layerId ? { layerId: itemLayerId } : {}),
           ...venueFields,
           // Untouched endpoints stay as they are — they may reference
           // another member's home, which we could not re-submit.
@@ -801,6 +807,20 @@ export function NewItemForm({
             </option>
           ))}
         </select>
+        {item && layers && layers.length > 1 && (
+          <select
+            value={itemLayerId}
+            onChange={(e) => setItemLayerId(e.target.value)}
+            aria-label="Layer"
+            className={field}
+          >
+            {layers.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={stopId} onChange={(e) => setStopId(e.target.value)} className={field}>
           <option value="">{isLeg ? 'from' : 'no stop'}</option>
           {isLeg &&
