@@ -5,6 +5,7 @@ import {
   ApiError,
   createItem,
   createStop,
+  deleteItem,
   deleteStop,
   deleteTrip,
   fetchMe,
@@ -738,6 +739,13 @@ export function NewItemForm({
       onDone?.()
     },
   })
+  const remove = useMutation({
+    mutationFn: () => deleteItem(tripId, item!.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
+      onDone?.()
+    },
+  })
 
   const field = 'rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
 
@@ -871,6 +879,18 @@ export function NewItemForm({
             className="rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
           >
             Cancel
+          </button>
+        )}
+        {item && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm(`Delete "${item.title}"?`)) remove.mutate()
+            }}
+            disabled={remove.isPending}
+            className="ml-auto rounded-lg px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50"
+          >
+            Delete item
           </button>
         )}
       </div>

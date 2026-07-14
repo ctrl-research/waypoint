@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { fetchPublicTrip, type ItineraryItem } from '../api'
 import { formatRange, statusStyles } from './Home'
 import { categoryIcons } from './ItineraryBoard'
+import { mapsLink } from '../maps'
 
 const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
 
@@ -100,6 +101,17 @@ export function PublicTripPage() {
                         <span>{item.title}</span>
                         {stopName(item.stopId) && (
                           <span className="text-xs">@ {stopName(item.stopId)}</span>
+                        )}
+                        {item.address && (
+                          <a
+                            href={mapsLink(item)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="min-w-0 truncate text-xs underline decoration-dotted underline-offset-2 hover:text-sky-600 dark:hover:text-sky-400"
+                            title={`Open "${item.address}" in your maps app`}
+                          >
+                            📍 {item.address}
+                          </a>
                         )}
                       </li>
                     ))}

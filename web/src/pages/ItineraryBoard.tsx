@@ -17,7 +17,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
-  deleteItem,
   reorderItems,
   updateItem,
   type ItineraryItem,
@@ -28,6 +27,7 @@ import {
 } from '../api'
 
 import { PencilIcon, categoryIcons } from '../icons'
+import { mapsLink } from '../maps'
 
 export { categoryIcons }
 
@@ -117,10 +117,6 @@ export function ItineraryBoard({
       await reorderItems(trip.id, day, ids, layerId)
     },
     onSettled: invalidate,
-  })
-  const remove = useMutation({
-    mutationFn: (itemId: string) => deleteItem(trip.id, itemId),
-    onSuccess: invalidate,
   })
 
   // Collapsed days (#69) — long itineraries fold away; drops need the day open.
@@ -212,7 +208,6 @@ export function ItineraryBoard({
             readOnly={readOnly}
             collapsed={collapsed.has(day)}
             onToggle={() => toggleDay(day)}
-            onDelete={(id) => remove.mutate(id)}
             onHover={onHover}
             layers={layers}
             canEditItem={canEditItem}
@@ -232,7 +227,6 @@ function DayColumn({
   readOnly,
   collapsed,
   onToggle,
-  onDelete,
   onHover,
   layers,
   canEditItem,
@@ -245,7 +239,6 @@ function DayColumn({
   readOnly: boolean
   collapsed: boolean
   onToggle: () => void
-  onDelete: (id: string) => void
   onHover: (key: `item:${string}` | null) => void
   layers?: ItineraryLayer[]
   canEditItem?: (item: ItineraryItem) => boolean
@@ -288,7 +281,6 @@ function DayColumn({
                 stops={stops}
                 homes={homes}
                 canEdit={canEditItem ? canEditItem(item) : !readOnly}
-                onDelete={onDelete}
                 onHover={onHover}
                 layerColor={layers?.find((l) => l.id === item.layerId)?.color}
                 onEdit={onEdit}
@@ -306,7 +298,6 @@ function BoardItem({
   stops,
   homes,
   canEdit,
-  onDelete,
   onHover,
   layerColor,
   onEdit,
@@ -315,7 +306,6 @@ function BoardItem({
   stops: Stop[]
   homes: TripHome[]
   canEdit: boolean
-  onDelete: (id: string) => void
   onHover: (key: `item:${string}` | null) => void
   layerColor?: string
   onEdit?: (item: ItineraryItem) => void
@@ -364,6 +354,18 @@ function BoardItem({
         {routeLabel(item, stops, homes) && (
           <span className="truncate text-xs text-slate-400 dark:text-slate-500">{routeLabel(item, stops, homes)}</span>
         )}
+        {item.address && (
+          <a
+            href={mapsLink(item)!}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="min-w-0 truncate text-xs text-slate-400 dark:text-slate-500 underline decoration-dotted underline-offset-2 hover:text-sky-600 dark:hover:text-sky-400"
+            title={`Open "${item.address}" in your maps app`}
+          >
+            📍 {item.address}
+          </a>
+        )}
       </div>
       <div className="flex shrink-0 items-center">
       {canEdit && onEdit && (
@@ -376,16 +378,6 @@ function BoardItem({
         >
           <PencilIcon />
         </button>
-      )}
-      {canEdit && (
-      <button
-        type="button"
-        onClick={() => onDelete(item.id)}
-        className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
-        aria-label={`Remove ${item.title}`}
-      >
-        ✕
-      </button>
       )}
       </div>
     </div>

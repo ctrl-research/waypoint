@@ -4,6 +4,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchConfig, type ItineraryItem, type Stop } from './api'
 import { EyeIcon, categoryIcons } from './icons'
+import { mapsLink } from './maps'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
 const ROUTE_SOURCE = 'route'
@@ -186,6 +187,26 @@ function makeMarkerEl(label: string, kind: 'stop' | 'item', color?: string): HTM
   return wrap
 }
 
+/** Popup content: title plus the venue as a maps-app link (addresses are
+ * user data — build DOM nodes, never HTML strings). */
+function itemPopup(item: ItineraryItem, where: string): HTMLElement {
+  const el = document.createElement('div')
+  el.appendChild(document.createTextNode(where ? `${item.title} — ` : item.title))
+  const href = item.address ? mapsLink(item) : null
+  if (where && href) {
+    const a = document.createElement('a')
+    a.href = href
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.textContent = `📍 ${where}`
+    a.style.textDecoration = 'underline'
+    el.appendChild(a)
+  } else if (where) {
+    el.appendChild(document.createTextNode(where))
+  }
+  return el
+}
+
 function syncMap(
   map: maplibregl.Map,
   stops: Stop[],
@@ -231,11 +252,7 @@ function syncMap(
       offset,
     })
       .setLngLat(lngLat)
-      .setPopup(
-        new maplibregl.Popup({ closeButton: false }).setText(
-          where ? `${item.title} — ${where}` : item.title,
-        ),
-      )
+      .setPopup(new maplibregl.Popup({ closeButton: false }).setDOMContent(itemPopup(item, where)))
       .addTo(map)
     markersRef.current.set(`item:${item.id}`, marker)
   }

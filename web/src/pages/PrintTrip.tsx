@@ -13,6 +13,7 @@ import {
 } from '../api'
 import { formatRange } from './Home'
 import { categoryIcons } from './ItineraryBoard'
+import { mapsLink } from '../maps'
 
 /**
  * Print-optimized trip document (#50): the plan and journal as one clean
@@ -120,6 +121,16 @@ export function PrintTripPage() {
                         <span className="font-medium text-slate-900">{item.title}</span>
                         {printRoute(item, stops, homes) && (
                           <span className="text-slate-500"> · {printRoute(item, stops, homes)}</span>
+                        )}
+                        {item.address && (
+                          <a
+                            href={mapsLink(item)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-slate-500 print:no-underline"
+                          >
+                            {' '}· 📍 {item.address}
+                          </a>
                         )}
                         {item.notes && <span className="text-slate-500"> — {item.notes}</span>}
                       </li>
