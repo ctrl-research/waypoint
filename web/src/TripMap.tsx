@@ -213,14 +213,18 @@ export function TripMap({
       const to = pts[i]
       setCaption(to)
       const km = haversineKm(from.lat, from.lon, to.lat, to.lon)
-      const duration = Math.min(2600, Math.max(700, km * 6))
-      // Zoom to the leg's scale: street level between venues in one city,
-      // wide view for a flight — nearby items stay distinguishable.
-      map.easeTo({ center: [to.lon, to.lat], zoom: zoomForKm(km), duration, easing: (t) => t })
+      const duration = Math.min(4200, Math.max(1400, km * 12))
+      // The camera rides the dot: every frame recenters on it while the
+      // zoom glides to the leg's scale (street level between venues in one
+      // city, wide view for a flight), so the dot never outruns the view.
+      const zoomFrom = map.getZoom()
+      const zoomTo = zoomForKm(km)
       await animate(duration, (t) => {
         const lon = from.lon + (to.lon - from.lon) * t
         const lat = from.lat + (to.lat - from.lat) * t
         replayMarker.current?.setLngLat([lon, lat])
+        const zt = Math.min(1, t / 0.35)
+        map.jumpTo({ center: [lon, lat], zoom: zoomFrom + (zoomTo - zoomFrom) * zt })
         src.setData({
           type: 'Feature',
           properties: {},
@@ -228,7 +232,7 @@ export function TripMap({
         })
       })
       done.push([to.lon, to.lat])
-      await wait(350)
+      await wait(450)
     }
     if (!cancelRef.current) {
       await wait(1600)
