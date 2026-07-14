@@ -6,20 +6,20 @@ import (
 )
 
 // TestItineraryLayers covers #73: named member layers, the viewer
-// carve-out (members edit their own layers regardless of role), and
-// compiling items into the shared Plan layer.
+// carve-out (members edit their own layers regardless of role), and the
+// merge model — the itinerary is every visible layer's items.
 func TestItineraryLayers(t *testing.T) {
 	h, alice, bob := setup(t)
 
 	_, trip := call(t, h, alice, "POST", "/api/v1/trips", `{"title":"Layered trip"}`)
 	tripPath := "/api/v1/trips/" + trip["id"].(string)
 
-	// Alice's first item lazily creates the Plan layer.
-	code, planItem := call(t, h, alice, "POST", tripPath+"/items", `{"title":"Museum","day":"2027-05-02"}`)
+	// Alice's first item lazily creates the Main layer.
+	code, mainItem := call(t, h, alice, "POST", tripPath+"/items", `{"title":"Museum","day":"2027-05-02"}`)
 	if code != 201 {
-		t.Fatalf("alice create item: code = %d %v", code, planItem)
+		t.Fatalf("alice create item: code = %d %v", code, mainItem)
 	}
-	planLayerID := planItem["layerId"].(string)
+	mainLayerID := mainItem["layerId"].(string)
 
 	if code, _ := call(t, h, alice, "POST", tripPath+"/members", `{"email":"bob@example.com","role":"viewer"}`); code != 201 {
 		t.Fatalf("add bob: code = %d", code)
@@ -50,15 +50,15 @@ func TestItineraryLayers(t *testing.T) {
 	})
 
 	t.Run("viewer edits only their own layers", func(t *testing.T) {
-		// No layerId → Plan → forbidden for a viewer.
+		// No layerId → Main → forbidden for a viewer.
 		if code, _ := call(t, h, bob, "POST", tripPath+"/items", `{"title":"Sneaky","day":"2027-05-02"}`); code != 403 {
-			t.Fatalf("viewer create on Plan: code = %d, want 403", code)
+			t.Fatalf("viewer create on Main: code = %d, want 403", code)
 		}
-		if code, _ := call(t, h, bob, "PATCH", tripPath+"/items/"+planItem["id"].(string), `{"title":"hijack"}`); code != 403 {
-			t.Fatalf("viewer patch Plan item: code = %d, want 403", code)
+		if code, _ := call(t, h, bob, "PATCH", tripPath+"/items/"+mainItem["id"].(string), `{"title":"hijack"}`); code != 403 {
+			t.Fatalf("viewer patch Main item: code = %d, want 403", code)
 		}
-		if code, _ := call(t, h, bob, "DELETE", tripPath+"/items/"+planItem["id"].(string), ""); code != 403 {
-			t.Fatalf("viewer delete Plan item: code = %d, want 403", code)
+		if code, _ := call(t, h, bob, "DELETE", tripPath+"/items/"+mainItem["id"].(string), ""); code != 403 {
+			t.Fatalf("viewer delete Main item: code = %d, want 403", code)
 		}
 	})
 
@@ -78,21 +78,22 @@ func TestItineraryLayers(t *testing.T) {
 		if code, _ := call(t, h, bob, "PUT", tripPath+"/items/order", body); code != 204 {
 			t.Fatalf("bob reorder own layer: code = %d, want 204", code)
 		}
-		// Plan (the implicit layer) is off-limits to a viewer.
-		planOrder := fmt.Sprintf(`{"day":"2027-05-02","ids":[%q]}`, planItem["id"])
-		if code, _ := call(t, h, bob, "PUT", tripPath+"/items/order", planOrder); code != 403 {
-			t.Fatalf("bob reorder Plan: code = %d, want 403", code)
+		// Main (the implicit layer) is off-limits to a viewer.
+		mainOrder := fmt.Sprintf(`{"day":"2027-05-02","ids":[%q]}`, mainItem["id"])
+		if code, _ := call(t, h, bob, "PUT", tripPath+"/items/order", mainOrder); code != 403 {
+			t.Fatalf("bob reorder Main: code = %d, want 403", code)
 		}
 	})
 
-	t.Run("promotion compiles the item into the Plan", func(t *testing.T) {
-		promote := fmt.Sprintf(`{"layerId":%q}`, planLayerID)
-		if code, _ := call(t, h, bob, "PATCH", tripPath+"/items/"+bobItems[0], promote); code != 403 {
-			t.Fatalf("viewer promotes to Plan: code = %d, want 403", code)
+	t.Run("items move between layers via edit", func(t *testing.T) {
+		move := fmt.Sprintf(`{"layerId":%q}`, mainLayerID)
+		// A viewer cannot move an item onto Main.
+		if code, _ := call(t, h, bob, "PATCH", tripPath+"/items/"+bobItems[0], move); code != 403 {
+			t.Fatalf("viewer moves to Main: code = %d, want 403", code)
 		}
-		code, moved := call(t, h, alice, "PATCH", tripPath+"/items/"+bobItems[0], promote)
-		if code != 200 || moved["layerId"] != planLayerID {
-			t.Fatalf("alice promote: code = %d layerId = %v", code, moved["layerId"])
+		code, moved := call(t, h, alice, "PATCH", tripPath+"/items/"+bobItems[0], move)
+		if code != 200 || moved["layerId"] != mainLayerID {
+			t.Fatalf("alice move: code = %d layerId = %v", code, moved["layerId"])
 		}
 	})
 
@@ -119,11 +120,33 @@ func TestItineraryLayers(t *testing.T) {
 		}
 	})
 
-	t.Run("shares expose only the Plan layer", func(t *testing.T) {
+	t.Run("the itinerary is the merge of visible layers", func(t *testing.T) {
 		_, share := call(t, h, alice, "POST", tripPath+"/shares", "")
-		_, pub := call(t, h, nil, "GET", "/api/v1/public/"+share["token"].(string), "")
+		token := share["token"].(string)
+
+		// Everything visible: Main's two items plus bob's remaining one.
+		_, pub := call(t, h, nil, "GET", "/api/v1/public/"+token, "")
+		if n := len(pub["items"].([]any)); n != 3 {
+			t.Fatalf("public items = %d, want 3 (all layers visible)", n)
+		}
+
+		// Bob hides his own layer — the shared itinerary shrinks.
+		code, hiddenLayer := call(t, h, bob, "PATCH", tripPath+"/layers/"+bobLayerID, `{"visible":false}`)
+		if code != 200 || hiddenLayer["visible"] != false {
+			t.Fatalf("bob hides layer: code = %d %v", code, hiddenLayer)
+		}
+		_, pub = call(t, h, nil, "GET", "/api/v1/public/"+token, "")
 		if n := len(pub["items"].([]any)); n != 2 {
-			t.Fatalf("public items = %d, want 2 (Final only)", n)
+			t.Fatalf("public items with hidden layer = %d, want 2", n)
+		}
+
+		// A viewer cannot toggle Main's visibility.
+		if code, _ := call(t, h, bob, "PATCH", tripPath+"/layers/"+mainLayerID, `{"visible":false}`); code != 403 {
+			t.Fatalf("viewer hides Main: code = %d, want 403", code)
+		}
+
+		if code, _ := call(t, h, bob, "PATCH", tripPath+"/layers/"+bobLayerID, `{"visible":true}`); code != 200 {
+			t.Fatalf("bob re-shows layer: code = %d", code)
 		}
 	})
 
@@ -135,16 +158,16 @@ func TestItineraryLayers(t *testing.T) {
 		if code != 200 || updated["color"] != "#0891b2" {
 			t.Fatalf("bob recolor: code = %d %v", code, updated)
 		}
-		if code, _ := call(t, h, bob, "PATCH", tripPath+"/layers/"+planLayerID, `{"name":"Nope"}`); code != 403 {
-			t.Fatalf("viewer renames Plan: code = %d, want 403", code)
+		if code, _ := call(t, h, bob, "PATCH", tripPath+"/layers/"+mainLayerID, `{"name":"Nope"}`); code != 403 {
+			t.Fatalf("viewer renames Main: code = %d, want 403", code)
 		}
-		if code, _ := call(t, h, alice, "DELETE", tripPath+"/layers/"+planLayerID, ""); code != 400 {
-			t.Fatalf("delete Plan: code = %d, want 400", code)
+		if code, _ := call(t, h, alice, "DELETE", tripPath+"/layers/"+mainLayerID, ""); code != 400 {
+			t.Fatalf("delete Main: code = %d, want 400", code)
 		}
 		if code, _ := call(t, h, bob, "DELETE", tripPath+"/layers/"+bobLayerID, ""); code != 204 {
 			t.Fatalf("bob delete own layer: code = %d, want 204", code)
 		}
-		// The layer's remaining item went with it; the promoted one survived.
+		// The layer's remaining item went with it; the moved one survived.
 		_, detail := call(t, h, alice, "GET", tripPath, "")
 		if n := len(detail["items"].([]any)); n != 2 {
 			t.Fatalf("items after layer delete = %d, want 2", n)

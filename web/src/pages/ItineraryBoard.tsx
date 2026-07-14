@@ -27,7 +27,7 @@ import {
   type TripHome,
 } from '../api'
 
-import { categoryIcons } from '../icons'
+import { PencilIcon, categoryIcons } from '../icons'
 
 export { categoryIcons }
 
@@ -58,7 +58,6 @@ export function ItineraryBoard({
   layers,
   combined = false,
   canEditItem,
-  promoteFor,
   onEdit,
 }: {
   trip: Trip
@@ -79,8 +78,6 @@ export function ItineraryBoard({
   combined?: boolean
   /** Per-item write access; defaults to !readOnly for the whole board. */
   canEditItem?: (item: ItineraryItem) => boolean
-  /** Target layer for an item's promote/demote action, or null to hide it. */
-  promoteFor?: (item: ItineraryItem) => { layerId: string; label: string } | null
   /** Opens the edit form for a row. */
   onEdit?: (item: ItineraryItem) => void
 }) {
@@ -124,11 +121,6 @@ export function ItineraryBoard({
   const remove = useMutation({
     mutationFn: (itemId: string) => deleteItem(trip.id, itemId),
     onSuccess: invalidate,
-  })
-  const promote = useMutation({
-    mutationFn: ({ itemId, layerId }: { itemId: string; layerId: string }) =>
-      updateItem(trip.id, itemId, { layerId }),
-    onSettled: invalidate,
   })
 
   // Collapsed days (#69) — long itineraries fold away; drops need the day open.
@@ -224,8 +216,6 @@ export function ItineraryBoard({
             onHover={onHover}
             layers={layers}
             canEditItem={canEditItem}
-            promoteFor={promoteFor}
-            onPromote={(itemId, layerId) => promote.mutate({ itemId, layerId })}
             onEdit={onEdit}
           />
         ))}
@@ -246,8 +236,6 @@ function DayColumn({
   onHover,
   layers,
   canEditItem,
-  promoteFor,
-  onPromote,
   onEdit,
 }: {
   day: string
@@ -261,8 +249,6 @@ function DayColumn({
   onHover: (key: `item:${string}` | null) => void
   layers?: ItineraryLayer[]
   canEditItem?: (item: ItineraryItem) => boolean
-  promoteFor?: (item: ItineraryItem) => { layerId: string; label: string } | null
-  onPromote: (itemId: string, layerId: string) => void
   onEdit?: (item: ItineraryItem) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${day}` })
@@ -305,8 +291,6 @@ function DayColumn({
                 onDelete={onDelete}
                 onHover={onHover}
                 layerColor={layers?.find((l) => l.id === item.layerId)?.color}
-                promoteTarget={promoteFor?.(item) ?? null}
-                onPromote={onPromote}
                 onEdit={onEdit}
               />
             ))}
@@ -325,8 +309,6 @@ function BoardItem({
   onDelete,
   onHover,
   layerColor,
-  promoteTarget,
-  onPromote,
   onEdit,
 }: {
   item: ItineraryItem
@@ -336,8 +318,6 @@ function BoardItem({
   onDelete: (id: string) => void
   onHover: (key: `item:${string}` | null) => void
   layerColor?: string
-  promoteTarget: { layerId: string; label: string } | null
-  onPromote: (itemId: string, layerId: string) => void
   onEdit?: (item: ItineraryItem) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -386,24 +366,15 @@ function BoardItem({
         )}
       </div>
       <div className="flex shrink-0 items-center">
-      {promoteTarget && (
-        <button
-          type="button"
-          onClick={() => onPromote(item.id, promoteTarget.layerId)}
-          className="rounded px-1.5 py-0.5 text-xs text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
-          title={promoteTarget.label}
-        >
-          {promoteTarget.label}
-        </button>
-      )}
       {canEdit && onEdit && (
         <button
           type="button"
           onClick={() => onEdit(item)}
-          className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+          className="px-1.5 py-1 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
           aria-label={`Edit ${item.title}`}
+          title={`Edit ${item.title}`}
         >
-          ✎
+          <PencilIcon />
         </button>
       )}
       {canEdit && (

@@ -14,7 +14,7 @@ import (
 const createLayer = `-- name: CreateLayer :one
 INSERT INTO itinerary_layers (trip_id, owner_id, name, color)
 VALUES ($1, $2, $3, $4)
-RETURNING id, trip_id, owner_id, name, color, created_at
+RETURNING id, trip_id, owner_id, name, color, created_at, visible
 `
 
 type CreateLayerParams struct {
@@ -40,6 +40,7 @@ func (q *Queries) CreateLayer(ctx context.Context, arg CreateLayerParams) (Itine
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.Visible,
 	)
 	return i, err
 }
@@ -53,7 +54,7 @@ type DeleteProposalLayerParams struct {
 	ID     uuid.UUID
 }
 
-// The Plan layer (owner_id NULL) is never deletable; items cascade.
+// The Main layer (owner_id NULL) is never deletable; items cascade.
 func (q *Queries) DeleteProposalLayer(ctx context.Context, arg DeleteProposalLayerParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteProposalLayer, arg.TripID, arg.ID)
 	if err != nil {
@@ -62,17 +63,17 @@ func (q *Queries) DeleteProposalLayer(ctx context.Context, arg DeleteProposalLay
 	return result.RowsAffected(), nil
 }
 
-const ensurePlanLayer = `-- name: EnsurePlanLayer :one
+const ensureMainLayer = `-- name: EnsureMainLayer :one
 INSERT INTO itinerary_layers (trip_id, owner_id, name)
-VALUES ($1, NULL, 'Plan')
+VALUES ($1, NULL, 'Main')
 ON CONFLICT (trip_id) WHERE owner_id IS NULL
 DO UPDATE SET name = itinerary_layers.name
-RETURNING id, trip_id, owner_id, name, color, created_at
+RETURNING id, trip_id, owner_id, name, color, created_at, visible
 `
 
-// The trip's shared Plan layer (owner_id NULL), created on first use.
-func (q *Queries) EnsurePlanLayer(ctx context.Context, tripID uuid.UUID) (ItineraryLayer, error) {
-	row := q.db.QueryRow(ctx, ensurePlanLayer, tripID)
+// The trip's default layer (owner_id NULL), created on first use.
+func (q *Queries) EnsureMainLayer(ctx context.Context, tripID uuid.UUID) (ItineraryLayer, error) {
+	row := q.db.QueryRow(ctx, ensureMainLayer, tripID)
 	var i ItineraryLayer
 	err := row.Scan(
 		&i.ID,
@@ -81,12 +82,13 @@ func (q *Queries) EnsurePlanLayer(ctx context.Context, tripID uuid.UUID) (Itiner
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.Visible,
 	)
 	return i, err
 }
 
 const layerByID = `-- name: LayerByID :one
-SELECT id, trip_id, owner_id, name, color, created_at FROM itinerary_layers WHERE id = $2 AND trip_id = $1
+SELECT id, trip_id, owner_id, name, color, created_at, visible FROM itinerary_layers WHERE id = $2 AND trip_id = $1
 `
 
 type LayerByIDParams struct {
@@ -104,12 +106,13 @@ func (q *Queries) LayerByID(ctx context.Context, arg LayerByIDParams) (Itinerary
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.Visible,
 	)
 	return i, err
 }
 
 const listLayers = `-- name: ListLayers :many
-SELECT id, trip_id, owner_id, name, color, created_at FROM itinerary_layers WHERE trip_id = $1 ORDER BY (owner_id IS NOT NULL), created_at
+SELECT id, trip_id, owner_id, name, color, created_at, visible FROM itinerary_layers WHERE trip_id = $1 ORDER BY (owner_id IS NOT NULL), created_at
 `
 
 func (q *Queries) ListLayers(ctx context.Context, tripID uuid.UUID) ([]ItineraryLayer, error) {
@@ -128,6 +131,7 @@ func (q *Queries) ListLayers(ctx context.Context, tripID uuid.UUID) ([]Itinerary
 			&i.Name,
 			&i.Color,
 			&i.CreatedAt,
+			&i.Visible,
 		); err != nil {
 			return nil, err
 		}
@@ -140,16 +144,17 @@ func (q *Queries) ListLayers(ctx context.Context, tripID uuid.UUID) ([]Itinerary
 }
 
 const updateLayer = `-- name: UpdateLayer :one
-UPDATE itinerary_layers SET name = $3, color = $4
+UPDATE itinerary_layers SET name = $3, color = $4, visible = $5
 WHERE id = $2 AND trip_id = $1
-RETURNING id, trip_id, owner_id, name, color, created_at
+RETURNING id, trip_id, owner_id, name, color, created_at, visible
 `
 
 type UpdateLayerParams struct {
-	TripID uuid.UUID
-	ID     uuid.UUID
-	Name   string
-	Color  string
+	TripID  uuid.UUID
+	ID      uuid.UUID
+	Name    string
+	Color   string
+	Visible bool
 }
 
 func (q *Queries) UpdateLayer(ctx context.Context, arg UpdateLayerParams) (ItineraryLayer, error) {
@@ -158,6 +163,7 @@ func (q *Queries) UpdateLayer(ctx context.Context, arg UpdateLayerParams) (Itine
 		arg.ID,
 		arg.Name,
 		arg.Color,
+		arg.Visible,
 	)
 	var i ItineraryLayer
 	err := row.Scan(
@@ -167,6 +173,7 @@ func (q *Queries) UpdateLayer(ctx context.Context, arg UpdateLayerParams) (Itine
 		&i.Name,
 		&i.Color,
 		&i.CreatedAt,
+		&i.Visible,
 	)
 	return i, err
 }

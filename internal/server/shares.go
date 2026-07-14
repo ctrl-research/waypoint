@@ -111,7 +111,7 @@ func (api *tripsAPI) servePublicTrip(w http.ResponseWriter, r *http.Request) {
 		apiInternalError(w, "list stops", err)
 		return
 	}
-	items, err := api.trips.ListPlanItems(ctx, trip.ID)
+	items, err := api.trips.ListVisibleItems(ctx, trip.ID)
 	if err != nil {
 		apiInternalError(w, "list items", err)
 		return

@@ -158,8 +158,9 @@ export function TripMap({
             key={label}
             type="button"
             onClick={() => set(!on)}
-            className={`flex items-center gap-1 rounded-md px-2 py-1 ${on ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'}`}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 hover:bg-slate-100 ${on ? 'text-slate-900' : 'text-slate-400'}`}
             title={on ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+            aria-pressed={on}
           >
             <EyeIcon open={on} />
             {label}

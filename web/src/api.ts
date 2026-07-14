@@ -121,8 +121,10 @@ export type ItineraryLayer = {
   id: string
   name: string
   color: string
-  /** null marks the trip's shared Plan layer — what the trip page shows. */
+  /** null marks the trip's default Main layer. */
   ownerId: string | null
+  /** The itinerary is the merge of visible layers — shared trip state. */
+  visible: boolean
 }
 
 export type TripDetail = {
@@ -254,7 +256,7 @@ export function createLayer(tripId: string, name: string, color?: string): Promi
 export function updateLayer(
   tripId: string,
   layerId: string,
-  input: Partial<{ name: string; color: string }>,
+  input: Partial<{ name: string; color: string; visible: boolean }>,
 ): Promise<ItineraryLayer> {
   return requestJSON(`/api/v1/trips/${tripId}/layers/${layerId}`, {
     method: 'PATCH',

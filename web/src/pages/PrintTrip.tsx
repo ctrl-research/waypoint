@@ -43,9 +43,9 @@ export function PrintTripPage() {
   if (!detail.data || !journal.data) return null
 
   const { trip, stops, items: allItems, homes, layers } = detail.data
-  // Print is the shared Plan layer only (#73).
-  const planLayerId = layers.find((l) => l.ownerId === null)?.id
-  const items = planLayerId ? allItems.filter((i) => i.layerId === planLayerId) : allItems
+  // Print shows the itinerary: the merge of visible layers (#73).
+  const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.id))
+  const items = allItems.filter((i) => !hiddenLayers.has(i.layerId))
   const entries = journal.data
   const days = [...new Set([...items.map((i) => i.day), ...entries.map((e) => e.entryDate)])].sort()
 

@@ -1,7 +1,7 @@
--- name: EnsurePlanLayer :one
--- The trip's shared Plan layer (owner_id NULL), created on first use.
+-- name: EnsureMainLayer :one
+-- The trip's default layer (owner_id NULL), created on first use.
 INSERT INTO itinerary_layers (trip_id, owner_id, name)
-VALUES ($1, NULL, 'Plan')
+VALUES ($1, NULL, 'Main')
 ON CONFLICT (trip_id) WHERE owner_id IS NULL
 DO UPDATE SET name = itinerary_layers.name
 RETURNING *;
@@ -19,10 +19,10 @@ VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: UpdateLayer :one
-UPDATE itinerary_layers SET name = $3, color = $4
+UPDATE itinerary_layers SET name = $3, color = $4, visible = $5
 WHERE id = $2 AND trip_id = $1
 RETURNING *;
 
 -- name: DeleteProposalLayer :execrows
--- The Plan layer (owner_id NULL) is never deletable; items cascade.
+-- The Main layer (owner_id NULL) is never deletable; items cascade.
 DELETE FROM itinerary_layers WHERE id = $2 AND trip_id = $1 AND owner_id IS NOT NULL;

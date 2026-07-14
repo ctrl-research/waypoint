@@ -9,13 +9,13 @@ import (
 )
 
 // ItineraryLayer groups itinerary items for the collaborative editor (#73).
-// OwnerID nil marks the trip's single shared Plan layer; members create any
-// number of named layers of their own and promote items into the Plan.
+// OwnerID nil marks the trip's default Main layer; members create any
+// number of named layers, and the itinerary is the merge of visible ones.
 type ItineraryLayer = sqlcgen.ItineraryLayer
 
-// EnsurePlanLayer returns the trip's Plan layer, creating it on first use.
-func (s *Trips) EnsurePlanLayer(ctx context.Context, tripID uuid.UUID) (ItineraryLayer, error) {
-	l, err := s.q.EnsurePlanLayer(ctx, tripID)
+// EnsureMainLayer returns the trip's Main layer, creating it on first use.
+func (s *Trips) EnsureMainLayer(ctx context.Context, tripID uuid.UUID) (ItineraryLayer, error) {
+	l, err := s.q.EnsureMainLayer(ctx, tripID)
 	return l, translate(err)
 }
 
@@ -40,14 +40,17 @@ func (s *Trips) CreateLayer(ctx context.Context, tripID, ownerID uuid.UUID, name
 	return l, translate(err)
 }
 
-func (s *Trips) UpdateLayer(ctx context.Context, tripID, layerID uuid.UUID, name, color string) (ItineraryLayer, error) {
+func (s *Trips) UpdateLayer(ctx context.Context, tripID, layerID uuid.UUID, name, color string, visible bool) (ItineraryLayer, error) {
 	l, err := s.q.UpdateLayer(ctx, sqlcgen.UpdateLayerParams{
-		TripID: tripID, ID: layerID, Name: name, Color: color,
+		TripID: tripID, ID: layerID, Name: name, Color: color, Visible: visible,
 	})
+	if err == nil {
+		s.touch(ctx, tripID)
+	}
 	return l, translate(err)
 }
 
-// DeleteProposalLayer removes a member's layer and its items. The Plan
+// DeleteProposalLayer removes a member's layer and its items. The Main
 // layer is excluded in SQL, so targeting it reports ErrNotFound.
 func (s *Trips) DeleteProposalLayer(ctx context.Context, tripID, layerID uuid.UUID) error {
 	n, err := s.q.DeleteProposalLayer(ctx, sqlcgen.DeleteProposalLayerParams{TripID: tripID, ID: layerID})

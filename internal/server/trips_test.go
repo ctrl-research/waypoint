@@ -199,7 +199,7 @@ func TestTripsAPI(t *testing.T) {
 		t.Fatalf("venue = %v / %v", item["address"], item["lat"])
 	}
 	if item["layerId"] == nil || item["layerId"] == "" {
-		t.Fatalf("item layerId = %v, want Plan layer id", item["layerId"])
+		t.Fatalf("item layerId = %v, want Main layer id", item["layerId"])
 	}
 	itemID := item["id"].(string)
 
@@ -244,7 +244,7 @@ func TestTripsAPI(t *testing.T) {
 			t.Fatalf("detail layers = %d, want 1", len(layers))
 		}
 		plan := layers[0].(map[string]any)
-		if plan["name"] != "Plan" || plan["ownerId"] != nil {
+		if plan["name"] != "Main" || plan["ownerId"] != nil {
 			t.Fatalf("plan layer = %v", plan)
 		}
 		got := detail["items"].([]any)[0].(map[string]any)

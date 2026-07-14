@@ -72,9 +72,9 @@ export function TripDetailPage() {
 
   const { trip, stops, items, homes, layers } = detail.data
   const canEdit = trip.role !== 'viewer'
-  // The trip page shows the shared Plan layer only (#73).
-  const planLayerId = layers.find((l) => l.ownerId === null)?.id
-  const planItems = planLayerId ? items.filter((i) => i.layerId === planLayerId) : items
+  // The itinerary is the merge of visible layers (#73).
+  const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.id))
+  const planItems = items.filter((i) => !hiddenLayers.has(i.layerId))
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
@@ -114,7 +114,7 @@ export function TripDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">The plan, day by day.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Everything on the visible layers, day by day.</p>
           </div>
           {canEdit && (
             <Link
@@ -132,6 +132,8 @@ export function TripDetailPage() {
           stops={stops}
           homes={homes}
           readOnly
+          combined
+          layers={layers}
           onHover={setHighlightKey}
         />
       </section>
@@ -628,16 +630,16 @@ function endpointValue(stopId: string | null, homeId: string | null): string {
 export function NewItemForm({
   trip,
   stops,
-  layerId,
   item,
   layers,
   onDone,
 }: {
   trip: Trip
   stops: Stop[]
-  layerId?: string
   item?: ItineraryItem
-  /** Layers the caller may write; edit mode offers moving between them. */
+  /** Layers the caller may write; new items land on the selected one and
+   * edit mode offers moving between them. An empty id means the default
+   * Main layer (it may not exist yet). */
   layers?: ItineraryLayer[]
   onDone?: () => void
 }) {
@@ -657,7 +659,7 @@ export function NewItemForm({
       ? { address: item.address, lat: item.lat ?? undefined, lon: item.lon ?? undefined }
       : null,
   )
-  const [itemLayerId, setItemLayerId] = useState(item?.layerId ?? '')
+  const [itemLayerId, setItemLayerId] = useState(item?.layerId ?? layers?.[0]?.id ?? '')
   const isLeg = category === 'flight' || category === 'train'
   const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
@@ -704,7 +706,7 @@ export function NewItemForm({
         title,
         day,
         category,
-        ...(layerId ? { layerId } : {}),
+        ...(itemLayerId ? { layerId: itemLayerId } : {}),
         ...(startTime ? { startTime } : {}),
         ...(endTime ? { endTime } : {}),
         ...(venue
@@ -807,16 +809,17 @@ export function NewItemForm({
             </option>
           ))}
         </select>
-        {item && layers && layers.length > 1 && (
+        {layers && layers.length > 1 && (
           <select
             value={itemLayerId}
             onChange={(e) => setItemLayerId(e.target.value)}
             aria-label="Layer"
+            title="Layer this item belongs to"
             className={field}
           >
             {layers.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.name}
+                ⬤ {l.name}
               </option>
             ))}
           </select>

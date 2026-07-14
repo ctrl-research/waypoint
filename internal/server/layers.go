@@ -16,11 +16,11 @@ import (
 var hexColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 // proposalPalette colors new member layers in fixed order (dataviz
-// categorical rules); the Plan layer keeps the default #2a78d6 blue.
+// categorical rules); the Main layer keeps the default #2a78d6 blue.
 var proposalPalette = []string{"#d97706", "#059669", "#7c3aed", "#db2777", "#0891b2", "#65a30d"}
 
 func layerJSON(l store.ItineraryLayer) map[string]any {
-	return map[string]any{"id": l.ID, "name": l.Name, "color": l.Color, "ownerId": l.OwnerID}
+	return map[string]any{"id": l.ID, "name": l.Name, "color": l.Color, "ownerId": l.OwnerID, "visible": l.Visible}
 }
 
 // layerEditable reports whether the user may change a layer's items:
@@ -99,7 +99,7 @@ func (api *tripsAPI) layerFromPath(w http.ResponseWriter, r *http.Request, tripI
 	return layer, true
 }
 
-// layerManageable guards layer metadata changes: the Plan layer needs
+// layerManageable guards layer metadata changes: the Main layer needs
 // editor+, a member layer belongs to its owner (the trip owner can moderate).
 func layerManageable(role string, layer store.ItineraryLayer, userID uuid.UUID) bool {
 	if layer.OwnerID == nil {
@@ -118,20 +118,17 @@ func (api *tripsAPI) updateLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := auth.UserFrom(r.Context())
-	if !layerManageable(role, layer, user.ID) {
-		apiError(w, http.StatusForbidden, "forbidden", "you cannot manage this layer")
-		return
-	}
 
 	var req struct {
-		Name  *string `json:"name"`
-		Color *string `json:"color"`
+		Name    *string `json:"name"`
+		Color   *string `json:"color"`
+		Visible *bool   `json:"visible"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apiError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
-	name, color := layer.Name, layer.Color
+	name, color, visible := layer.Name, layer.Color, layer.Visible
 	if req.Name != nil {
 		if *req.Name == "" {
 			apiError(w, http.StatusBadRequest, "invalid", "name cannot be empty")
@@ -146,7 +143,20 @@ func (api *tripsAPI) updateLayer(w http.ResponseWriter, r *http.Request) {
 		}
 		color = *req.Color
 	}
-	updated, err := api.trips.UpdateLayer(r.Context(), trip.ID, layer.ID, name, color)
+	if req.Visible != nil {
+		visible = *req.Visible
+	}
+	// Rename/recolor is the owner's call; visibility shapes the shared
+	// itinerary, so editors may curate any layer (and members their own).
+	if (req.Name != nil || req.Color != nil) && !layerManageable(role, layer, user.ID) {
+		apiError(w, http.StatusForbidden, "forbidden", "you cannot manage this layer")
+		return
+	}
+	if req.Visible != nil && !layerEditable(role, layer, user.ID) {
+		apiError(w, http.StatusForbidden, "forbidden", "you cannot change this layer's visibility")
+		return
+	}
+	updated, err := api.trips.UpdateLayer(r.Context(), trip.ID, layer.ID, name, color, visible)
 	if err != nil {
 		apiInternalError(w, "update layer", err)
 		return
@@ -164,7 +174,7 @@ func (api *tripsAPI) deleteLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if layer.OwnerID == nil {
-		apiError(w, http.StatusBadRequest, "invalid", "the Plan layer cannot be deleted")
+		apiError(w, http.StatusBadRequest, "invalid", "the Main layer cannot be deleted")
 		return
 	}
 	user, _ := auth.UserFrom(r.Context())
