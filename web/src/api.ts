@@ -206,6 +206,12 @@ export type ItemInput = Partial<{
   lat: number
   lon: number
   layerId: string
+  /** Clear flags for PATCH: unset the referenced field server-side. */
+  clearStop: boolean
+  clearDestination: boolean
+  clearOriginHome: boolean
+  clearDestinationHome: boolean
+  clearLatLon: boolean
 }>
 
 export function createItem(tripId: string, input: ItemInput): Promise<ItineraryItem> {

@@ -89,6 +89,29 @@ func TestItineraryLayers(t *testing.T) {
 		}
 	})
 
+	t.Run("editing keeps another member's home on a leg", func(t *testing.T) {
+		// Bob's flight departs from his home; alice may still edit other
+		// fields without owning (or resending) that home.
+		_, home := call(t, h, bob, "POST", "/api/v1/homes", `{"name":"Bob's place","lat":43.6,"lon":-79.4}`)
+		code, leg := call(t, h, bob, "POST", tripPath+"/items",
+			fmt.Sprintf(`{"title":"AC123","day":"2027-05-03","category":"flight","originHomeId":%q,"layerId":%q}`, home["id"], bobLayerID))
+		if code != 201 {
+			t.Fatalf("bob create leg: code = %d %v", code, leg)
+		}
+		code, updated := call(t, h, alice, "PATCH", tripPath+"/items/"+leg["id"].(string), `{"title":"AC124"}`)
+		if code != 200 || updated["originHomeId"] != home["id"] {
+			t.Fatalf("alice edit leg: code = %d originHomeId = %v", code, updated["originHomeId"])
+		}
+		// Setting a home you don't own still fails.
+		if code, _ := call(t, h, alice, "PATCH", tripPath+"/items/"+leg["id"].(string),
+			fmt.Sprintf(`{"destinationHomeId":%q}`, home["id"])); code != 400 {
+			t.Fatalf("alice sets bob's home: code = %d, want 400", code)
+		}
+		if code, _ := call(t, h, bob, "DELETE", tripPath+"/items/"+leg["id"].(string), ""); code != 204 {
+			t.Fatalf("cleanup leg: code = %d", code)
+		}
+	})
+
 	t.Run("shares expose only the Final layer", func(t *testing.T) {
 		_, share := call(t, h, alice, "POST", tripPath+"/shares", "")
 		_, pub := call(t, h, nil, "GET", "/api/v1/public/"+share["token"].(string), "")

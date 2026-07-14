@@ -11,9 +11,12 @@ import {
   geocode,
   getTrip,
   listHomes,
+  updateItem,
   updateStop,
   updateTrip,
+  type ItemInput,
   type ItineraryCategory,
+  type ItineraryItem,
   type Stop,
   type StopInput,
   type Trip,
@@ -611,23 +614,87 @@ function shortName(displayName: string): string {
 }
 
 
-export function NewItemForm({ trip, stops, layerId }: { trip: Trip; stops: Stop[]; layerId?: string }) {
+/** Select value encoding one leg endpoint: '' | stopId | 'home:<id>'. */
+function endpointValue(stopId: string | null, homeId: string | null): string {
+  return homeId ? `home:${homeId}` : (stopId ?? '')
+}
+
+/**
+ * Create/edit form for itinerary items. With `item` set it edits in place —
+ * every field is sent explicitly (empty = clear) so removals stick — and
+ * only changed leg endpoints are touched, keeping other members' homes.
+ */
+export function NewItemForm({
+  trip,
+  stops,
+  layerId,
+  item,
+  onDone,
+}: {
+  trip: Trip
+  stops: Stop[]
+  layerId?: string
+  item?: ItineraryItem
+  onDone?: () => void
+}) {
   const tripId = trip.id
   const queryClient = useQueryClient()
-  const [title, setTitle] = useState('')
-  const [day, setDay] = useState(() => defaultTripDay(trip.startDate, trip.endDate))
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
-  const [category, setCategory] = useState<ItineraryCategory>('activity')
-  const [stopId, setStopId] = useState('')
-  const [destinationStopId, setDestinationStopId] = useState('')
-  const [venue, setVenue] = useState<{ address: string; lat?: number; lon?: number } | null>(null)
+  const [title, setTitle] = useState(item?.title ?? '')
+  const [day, setDay] = useState(() => item?.day ?? defaultTripDay(trip.startDate, trip.endDate))
+  const [startTime, setStartTime] = useState(item?.startTime ?? '')
+  const [endTime, setEndTime] = useState(item?.endTime ?? '')
+  const [category, setCategory] = useState<ItineraryCategory>(item?.category ?? 'activity')
+  const [stopId, setStopId] = useState(item ? endpointValue(item.stopId, item.originHomeId) : '')
+  const [destinationStopId, setDestinationStopId] = useState(
+    item ? endpointValue(item.destinationStopId, item.destinationHomeId) : '',
+  )
+  const [venue, setVenue] = useState<{ address: string; lat?: number; lon?: number } | null>(
+    item?.address
+      ? { address: item.address, lat: item.lat ?? undefined, lon: item.lon ?? undefined }
+      : null,
+  )
   const isLeg = category === 'flight' || category === 'train'
   const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
   const add = useMutation({
-    mutationFn: () =>
-      createItem(tripId, {
+    mutationFn: () => {
+      const origin: ItemInput = stopId.startsWith('home:')
+        ? { originHomeId: stopId.slice(5), clearStop: true }
+        : stopId
+          ? { stopId, clearOriginHome: true }
+          : { clearStop: true, clearOriginHome: true }
+      const destination: ItemInput =
+        isLeg && destinationStopId.startsWith('home:')
+          ? { destinationHomeId: destinationStopId.slice(5), clearDestination: true }
+          : isLeg && destinationStopId
+            ? { destinationStopId, clearDestinationHome: true }
+            : { clearDestination: true, clearDestinationHome: true }
+      const venueFields: ItemInput = venue
+        ? {
+            address: venue.address,
+            ...(venue.lat !== undefined && venue.lon !== undefined
+              ? { lat: venue.lat, lon: venue.lon }
+              : { clearLatLon: true }),
+          }
+        : { address: '', clearLatLon: true }
+
+      if (item) {
+        return updateItem(tripId, item.id, {
+          title,
+          day,
+          category,
+          startTime,
+          endTime,
+          ...venueFields,
+          // Untouched endpoints stay as they are — they may reference
+          // another member's home, which we could not re-submit.
+          ...(stopId !== endpointValue(item.stopId, item.originHomeId) ? origin : {}),
+          ...(destinationStopId !== endpointValue(item.destinationStopId, item.destinationHomeId)
+            ? destination
+            : {}),
+        })
+      }
+      return createItem(tripId, {
         title,
         day,
         category,
@@ -652,11 +719,15 @@ export function NewItemForm({ trip, stops, layerId }: { trip: Trip; stops: Stop[
           : isLeg && destinationStopId
             ? { destinationStopId }
             : {}),
-      }),
+      })
+    },
     onSuccess: async () => {
-      setTitle('')
-      setVenue(null)
+      if (!item) {
+        setTitle('')
+        setVenue(null)
+      }
       await queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
+      onDone?.()
     },
   })
 
@@ -768,12 +839,21 @@ export function NewItemForm({ trip, stops, layerId }: { trip: Trip; stops: Stop[
           disabled={add.isPending || !title.trim() || !day}
           className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
         >
-          Add
+          {item ? 'Save' : 'Add'}
         </button>
+        {item && onDone && (
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+          >
+            Cancel
+          </button>
+        )}
       </div>
       {add.error && (
         <p className="text-sm text-red-600 dark:text-red-400">
-          {add.error instanceof ApiError ? add.error.message : 'Could not add item'}
+          {add.error instanceof ApiError ? add.error.message : item ? 'Could not save item' : 'Could not add item'}
         </p>
       )}
     </form>

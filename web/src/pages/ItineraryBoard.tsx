@@ -21,6 +21,7 @@ import {
   reorderItems,
   updateItem,
   type ItineraryItem,
+  type ItineraryLayer,
   type Stop,
   type Trip,
   type TripHome,
@@ -54,8 +55,11 @@ export function ItineraryBoard({
   readOnly = false,
   onHover = () => {},
   layerId,
-  promoteLabel,
-  onPromote,
+  layers,
+  combined = false,
+  canEditItem,
+  promoteFor,
+  onEdit,
 }: {
   trip: Trip
   items: ItineraryItem[]
@@ -63,11 +67,22 @@ export function ItineraryBoard({
   homes?: TripHome[]
   readOnly?: boolean
   onHover?: (key: `stop:${string}` | `item:${string}` | null) => void
-  /** Layer the board edits; reorders are scoped to it (#73). */
+  /** Layer the board edits; single-layer reorders are scoped to it (#73). */
   layerId?: string
-  /** When set, each item gets a promote/demote action (#73 slice 2). */
-  promoteLabel?: string
-  onPromote?: (itemId: string) => void
+  /** When given, rows show their layer's color dot. */
+  layers?: ItineraryLayer[]
+  /**
+   * Combined mode shows several layers at once: days sort by start time
+   * (untimed items last) and drags only move items between days — ordering
+   * within a day is the timestamps' job.
+   */
+  combined?: boolean
+  /** Per-item write access; defaults to !readOnly for the whole board. */
+  canEditItem?: (item: ItineraryItem) => boolean
+  /** Target layer for an item's promote/demote action, or null to hide it. */
+  promoteFor?: (item: ItineraryItem) => { layerId: string; label: string } | null
+  /** Opens the edit form for a row. */
+  onEdit?: (item: ItineraryItem) => void
 }) {
   const queryClient = useQueryClient()
   // Local copy so drags feel instant; server state re-syncs it on refetch.
@@ -81,12 +96,20 @@ export function ItineraryBoard({
     const m = new Map<string, ItineraryItem[]>()
     for (const day of days) m.set(day, [])
     for (const item of local) m.get(item.day)?.push(item)
+    if (combined) {
+      for (const dayItems of m.values()) dayItems.sort(byStartTime)
+    }
     return m
-  }, [days, local])
+  }, [days, local, combined])
 
   const reorder = useMutation({
     mutationFn: ({ day, ids }: { day: string; ids: string[] }) =>
       reorderItems(trip.id, day, ids, layerId),
+    onSettled: invalidate,
+  })
+  const moveDay = useMutation({
+    mutationFn: ({ itemId, day }: { itemId: string; day: string }) =>
+      updateItem(trip.id, itemId, { day }),
     onSettled: invalidate,
   })
   const move = useMutation({
@@ -101,6 +124,11 @@ export function ItineraryBoard({
   const remove = useMutation({
     mutationFn: (itemId: string) => deleteItem(trip.id, itemId),
     onSuccess: invalidate,
+  })
+  const promote = useMutation({
+    mutationFn: ({ itemId, layerId }: { itemId: string; layerId: string }) =>
+      updateItem(trip.id, itemId, { layerId }),
+    onSettled: invalidate,
   })
 
   // Collapsed days (#69) — long itineraries fold away; drops need the day open.
@@ -130,12 +158,17 @@ export function ItineraryBoard({
     const targetIds = (byDay.get(targetDay) ?? []).map((i) => i.id)
 
     if (item.day === targetDay) {
+      // Combined mode has no manual order — start times decide.
+      if (combined) return
       const from = sourceIds.indexOf(item.id)
       const to = overItem ? sourceIds.indexOf(overItem.id) : sourceIds.length - 1
       if (from === to || from < 0 || to < 0) return
       const ids = arrayMove(sourceIds, from, to)
       setLocal(applyOrder(local, item.day, ids))
       reorder.mutate({ day: item.day, ids })
+    } else if (combined) {
+      setLocal(local.map((i) => (i.id === item.id ? { ...i, day: targetDay } : i)))
+      moveDay.mutate({ itemId: item.id, day: targetDay })
     } else {
       const insertAt = overItem ? targetIds.indexOf(overItem.id) : targetIds.length
       const ids = [...targetIds]
@@ -189,8 +222,11 @@ export function ItineraryBoard({
             onToggle={() => toggleDay(day)}
             onDelete={(id) => remove.mutate(id)}
             onHover={onHover}
-            promoteLabel={promoteLabel}
-            onPromote={onPromote}
+            layers={layers}
+            canEditItem={canEditItem}
+            promoteFor={promoteFor}
+            onPromote={(itemId, layerId) => promote.mutate({ itemId, layerId })}
+            onEdit={onEdit}
           />
         ))}
       </div>
@@ -208,8 +244,11 @@ function DayColumn({
   onToggle,
   onDelete,
   onHover,
-  promoteLabel,
+  layers,
+  canEditItem,
+  promoteFor,
   onPromote,
+  onEdit,
 }: {
   day: string
   items: ItineraryItem[]
@@ -220,8 +259,11 @@ function DayColumn({
   onToggle: () => void
   onDelete: (id: string) => void
   onHover: (key: `item:${string}` | null) => void
-  promoteLabel?: string
-  onPromote?: (itemId: string) => void
+  layers?: ItineraryLayer[]
+  canEditItem?: (item: ItineraryItem) => boolean
+  promoteFor?: (item: ItineraryItem) => { layerId: string; label: string } | null
+  onPromote: (itemId: string, layerId: string) => void
+  onEdit?: (item: ItineraryItem) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${day}` })
 
@@ -254,7 +296,19 @@ function DayColumn({
               <p className="px-3 py-1.5 text-xs text-slate-300 dark:text-slate-600">drop items here</p>
             )}
             {items.map((item) => (
-              <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} onHover={onHover} promoteLabel={promoteLabel} onPromote={onPromote} />
+              <BoardItem
+                key={item.id}
+                item={item}
+                stops={stops}
+                homes={homes}
+                canEdit={canEditItem ? canEditItem(item) : !readOnly}
+                onDelete={onDelete}
+                onHover={onHover}
+                layerColor={layers?.find((l) => l.id === item.layerId)?.color}
+                promoteTarget={promoteFor?.(item) ?? null}
+                onPromote={onPromote}
+                onEdit={onEdit}
+              />
             ))}
           </div>
         </SortableContext>
@@ -267,23 +321,28 @@ function BoardItem({
   item,
   stops,
   homes,
-  readOnly,
+  canEdit,
   onDelete,
   onHover,
-  promoteLabel,
+  layerColor,
+  promoteTarget,
   onPromote,
+  onEdit,
 }: {
   item: ItineraryItem
   stops: Stop[]
   homes: TripHome[]
-  readOnly: boolean
+  canEdit: boolean
   onDelete: (id: string) => void
   onHover: (key: `item:${string}` | null) => void
-  promoteLabel?: string
-  onPromote?: (itemId: string) => void
+  layerColor?: string
+  promoteTarget: { layerId: string; label: string } | null
+  onPromote: (itemId: string, layerId: string) => void
+  onEdit?: (item: ItineraryItem) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
+    disabled: !canEdit,
   })
   return (
     <div
@@ -296,7 +355,7 @@ function BoardItem({
       }`}
     >
       <div className="flex min-w-0 items-center gap-2 text-sm">
-        {!readOnly && (
+        {canEdit && (
         <button
           type="button"
           {...attributes}
@@ -306,6 +365,13 @@ function BoardItem({
         >
           ⠿
         </button>
+        )}
+        {layerColor && (
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: layerColor }}
+            aria-hidden="true"
+          />
         )}
         <span>{categoryIcons[item.category]}</span>
         {item.startTime && (
@@ -320,17 +386,27 @@ function BoardItem({
         )}
       </div>
       <div className="flex shrink-0 items-center">
-      {onPromote && promoteLabel && (
+      {promoteTarget && (
         <button
           type="button"
-          onClick={() => onPromote(item.id)}
+          onClick={() => onPromote(item.id, promoteTarget.layerId)}
           className="rounded px-1.5 py-0.5 text-xs text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
-          title={promoteLabel}
+          title={promoteTarget.label}
         >
-          {promoteLabel}
+          {promoteTarget.label}
         </button>
       )}
-      {!readOnly && (
+      {canEdit && onEdit && (
+        <button
+          type="button"
+          onClick={() => onEdit(item)}
+          className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+          aria-label={`Edit ${item.title}`}
+        >
+          ✎
+        </button>
+      )}
+      {canEdit && (
       <button
         type="button"
         onClick={() => onDelete(item.id)}
@@ -362,6 +438,14 @@ function routeLabel(item: ItineraryItem, stops: Stop[], homes: TripHome[]): stri
   const to = homeName(item.destinationHomeId) ?? destName(stops, item.destinationStopId)
   if (from && to) return `${from} → ${to}`
   return from ?? (to && `→ ${to}`) ?? undefined
+}
+
+/** Start-time order for combined view: timed first, untimed by position. */
+function byStartTime(a: ItineraryItem, b: ItineraryItem): number {
+  if (a.startTime && b.startTime) return a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : a.position - b.position
+  if (a.startTime) return -1
+  if (b.startTime) return 1
+  return a.position - b.position
 }
 
 /** Returns items with the given day's rows resequenced to match ids. */

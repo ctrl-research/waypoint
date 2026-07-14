@@ -6,8 +6,8 @@ import {
   ensureMyLayer,
   fetchMe,
   getTrip,
-  updateItem,
   updateLayer,
+  type ItineraryItem,
   type ItineraryLayer,
 } from '../api'
 import { EyeIcon } from '../icons'
@@ -35,6 +35,7 @@ export function ItineraryEditorPage() {
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set())
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [layerName, setLayerName] = useState('')
+  const [editing, setEditing] = useState<ItineraryItem | null>(null)
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
   const propose = useMutation({
@@ -56,12 +57,6 @@ export function ItineraryEditorPage() {
       updateLayer(tripId, layerId, { ...(name ? { name } : {}), ...(color ? { color } : {}) }),
     onSettled: invalidate,
   })
-  const promote = useMutation({
-    mutationFn: ({ itemId, layerId }: { itemId: string; layerId: string }) =>
-      updateItem(tripId, itemId, { layerId }),
-    onSettled: invalidate,
-  })
-
   const layers = detail.data?.layers ?? []
   const layerColors = useMemo(
     () => Object.fromEntries(layers.map((l) => [l.id, l.color])),
@@ -94,11 +89,12 @@ export function ItineraryEditorPage() {
     layers.find((l) => l.id === activeLayerId) ?? finalLayer ?? null
   const activeIsFinal = !activeLayer || activeLayer.ownerId === null
   const canEditActive = activeIsFinal ? canEditFinal : activeLayer?.ownerId === me.id || canEditFinal
-  const boardItems = activeLayer ? items.filter((i) => i.layerId === activeLayer.id) : items
-  const mapItems = items.filter((i) => !hiddenLayers.has(i.layerId))
 
-  // Promotion targets: proposals send items to Final (editor+); Final sends
-  // them back to your own proposal layer.
+  // The list and map show every visible layer combined; the active chip
+  // only decides where new items land and which layer Customize targets.
+  const visibleItems = items.filter((i) => !hiddenLayers.has(i.layerId))
+  const activeCount = activeLayer ? items.filter((i) => i.layerId === activeLayer.id).length : 0
+
   // Mirrors the server's rules: Final needs editor+, a proposal belongs to
   // its owner (the trip owner can moderate).
   const canManageActive = activeLayer
@@ -107,12 +103,23 @@ export function ItineraryEditorPage() {
       : activeLayer.ownerId === me.id || trip.role === 'owner'
     : false
 
-  const promoteTarget =
-    !activeIsFinal && canEditFinal && finalLayer
-      ? { layerId: finalLayer.id, label: '→ Final' }
-      : activeIsFinal && myLayer
-        ? { layerId: myLayer.id, label: `→ ${myLayer.name}` }
-        : null
+  const canEditItem = (item: ItineraryItem) => {
+    const layer = layers.find((l) => l.id === item.layerId)
+    return canEditFinal || (layer?.ownerId === me.id)
+  }
+
+  // Per-row promotion: proposal items go to Final (needs editor+); Final
+  // items come back to your own proposal layer.
+  const promoteFor = (item: ItineraryItem) => {
+    const onFinal = finalLayer && item.layerId === finalLayer.id
+    if (!onFinal && finalLayer && canEditFinal && canEditItem(item)) {
+      return { layerId: finalLayer.id, label: '→ Final' }
+    }
+    if (onFinal && myLayer && canEditFinal) {
+      return { layerId: myLayer.id, label: `→ ${myLayer.name}` }
+    }
+    return null
+  }
 
   const toggleLayerVisibility = (layerId: string) =>
     setHiddenLayers((cur) => {
@@ -137,7 +144,7 @@ export function ItineraryEditorPage() {
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {canEditActive
-            ? 'Changes save as you go. Use the layer chips to switch between the final plan and proposals.'
+            ? 'Changes save as you go. All visible layers are listed together, ordered by start time; new items land on the selected layer.'
             : 'You have view-only access to this layer — propose changes on your own layer.'}
         </p>
       </div>
@@ -148,7 +155,7 @@ export function ItineraryEditorPage() {
         >
           <TripMap
             stops={stops}
-            items={mapItems}
+            items={visibleItems}
             layerColors={layerColors}
             highlightKey={highlightKey}
             picking={false}
@@ -157,8 +164,8 @@ export function ItineraryEditorPage() {
         </Suspense>
       </div>
 
-      {/* Layer switcher: click a chip to edit that layer; the eye keeps other
-          layers overlaid on the map for comparison. */}
+      {/* Layer switcher: the selected chip is where new items land; the eye
+          shows/hides that layer's items on the map and in the list. */}
       <div className="mt-6 flex flex-wrap items-center gap-2">
         {(layers.length > 0 ? layers : []).map((layer) => {
           const active = activeLayer?.id === layer.id
@@ -226,7 +233,7 @@ export function ItineraryEditorPage() {
           <button
             type="button"
             onClick={() => {
-              if (window.confirm(`Delete "${activeLayer.name}" and its ${boardItems.length} item(s)?`)) {
+              if (window.confirm(`Delete "${activeLayer.name}" and its ${activeCount} item(s)?`)) {
                 removeLayer.mutate(activeLayer.id)
               }
             }}
@@ -289,23 +296,35 @@ export function ItineraryEditorPage() {
       <div className="mt-2">
         <ItineraryBoard
           trip={trip}
-          items={boardItems}
+          items={visibleItems}
           stops={stops}
           homes={homes}
-          readOnly={!canEditActive}
+          combined
+          layers={layers}
+          canEditItem={canEditItem}
+          promoteFor={promoteFor}
+          onEdit={(item) => setEditing(item)}
           onHover={setHighlightKey}
-          layerId={activeLayer?.id}
-          promoteLabel={canEditActive && promoteTarget ? promoteTarget.label : undefined}
-          onPromote={
-            canEditActive && promoteTarget
-              ? (itemId) => promote.mutate({ itemId, layerId: promoteTarget.layerId })
-              : undefined
-          }
         />
-        {canEditActive && (
+        {editing ? (
           <div className="mt-4">
-            <NewItemForm trip={trip} stops={stops} layerId={activeLayer?.id} />
+            <h3 className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Editing “{editing.title}”
+            </h3>
+            <NewItemForm
+              key={editing.id}
+              trip={trip}
+              stops={stops}
+              item={editing}
+              onDone={() => setEditing(null)}
+            />
           </div>
+        ) : (
+          canEditActive && (
+            <div className="mt-4">
+              <NewItemForm trip={trip} stops={stops} layerId={activeLayer?.id} />
+            </div>
+          )
         )}
       </div>
     </div>

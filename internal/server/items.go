@@ -325,7 +325,9 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusBadRequest, "invalid", "destinationStopId does not belong to this trip")
 		return
 	}
-	if ok, err := api.homesBelongToUser(r, params.OriginHomeID, params.DestinationHomeID); err != nil {
+	// Only homes set by this request need to be the caller's own — an item
+	// may legitimately keep another member's home on its leg.
+	if ok, err := api.homesBelongToUser(r, req.OriginHomeID, req.DestinationHomeID); err != nil {
 		apiInternalError(w, "check homes", err)
 		return
 	} else if !ok {
