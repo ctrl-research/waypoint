@@ -16,22 +16,17 @@ export type MarkerKey = `stop:${string}` | `item:${string}`
  * TripMap renders the trip's stops as S-numbered markers connected by a
  * route line, plus category-icon pins for itinerary items at their venue
  * or stop (#72, #73).
- * `highlightKey` enlarges the hovered list row's marker (#71). When
- * `picking` is set, the next map click reports coordinates via onPick (#14).
+ * `highlightKey` enlarges the hovered list row's marker (#71).
  */
 export function TripMap({
   stops,
   items = [],
-  picking,
-  onPick,
   highlightKey = null,
   mapConfig,
   layerColors,
 }: {
   stops: Stop[]
   items?: ItineraryItem[]
-  picking: boolean
-  onPick: (lat: number, lon: number) => void
   highlightKey?: MarkerKey | null
   /** Item pin color per layerId (#73 slice 2); unlisted layers stay indigo. */
   layerColors?: Record<string, string>
@@ -41,11 +36,6 @@ export function TripMap({
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
-  // Refs so the single click handler always sees current props.
-  const pickingRef = useRef(picking)
-  const onPickRef = useRef(onPick)
-  pickingRef.current = picking
-  onPickRef.current = onPick
 
   const { data: fetched } = useQuery({
     queryKey: ['config'],
@@ -81,10 +71,6 @@ export function TripMap({
       })
       mapRef.current = map
       syncMap(map, stopsRef.current, itemsRef.current, markersRef, layerColorsRef.current)
-    })
-
-    map.on('click', (e) => {
-      if (pickingRef.current) onPickRef.current(e.lngLat.lat, e.lngLat.lng)
     })
 
     return () => {
@@ -134,20 +120,9 @@ export function TripMap({
     }
   }, [showStops, showItems, stops, items])
 
-  // Picking mode: crosshair cursor.
-  useEffect(() => {
-    const canvas = mapRef.current?.getCanvas()
-    if (canvas) canvas.style.cursor = picking ? 'crosshair' : ''
-  }, [picking])
-
   return (
     <div className="relative">
       <div ref={container} className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-700" />
-      {picking && (
-        <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-slate-900/90 px-4 py-1.5 text-sm text-white shadow">
-          Click the map to place the stop
-        </div>
-      )}
       <div className="absolute left-3 top-3 flex gap-1 rounded-lg bg-white/90 p-1 text-xs shadow">
         {(
           [

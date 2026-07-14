@@ -2,6 +2,16 @@ import { Suspense, lazy, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useParams } from '@tanstack/react-router'
 import {
+  DndContext,
+  PointerSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   ApiError,
   createItem,
   createStop,
@@ -12,8 +22,8 @@ import {
   geocode,
   getTrip,
   listHomes,
+  reorderStops,
   updateItem,
-  updateStop,
   updateTrip,
   type ItemInput,
   type ItineraryCategory,
@@ -37,25 +47,14 @@ type MarkerKey = `stop:${string}` | `item:${string}`
 export function TripDetailPage() {
   const { tripId } = useParams({ from: '/trips/$tripId' })
   const { data: me, isLoading: meLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
-  const queryClient = useQueryClient()
   const detail = useQuery({
     queryKey: ['trip', tripId],
     queryFn: () => getTrip(tripId),
     enabled: !!me,
   })
 
-  // Stop currently being placed via map click (#14).
-  const [pickingStop, setPickingStop] = useState<string | null>(null)
   // List row under the cursor, mirrored on the map (#71).
   const [highlightKey, setHighlightKey] = useState<MarkerKey | null>(null)
-  const placeStop = useMutation({
-    mutationFn: ({ stopId, lat, lon }: { stopId: string; lat: number; lon: number }) =>
-      updateStop(tripId, stopId, { lat, lon }),
-    onSuccess: async () => {
-      setPickingStop(null)
-      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
-    },
-  })
 
   if (meLoading) return null
   if (!me) return <Navigate to="/login" />
@@ -83,15 +82,7 @@ export function TripDetailPage() {
 
       <div className="mt-6">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
-          <TripMap
-            stops={stops}
-            items={planItems}
-            highlightKey={highlightKey}
-            picking={pickingStop !== null}
-            onPick={(lat, lon) => {
-              if (pickingStop) placeStop.mutate({ stopId: pickingStop, lat, lon })
-            }}
-          />
+          <TripMap stops={stops} items={planItems} highlightKey={highlightKey} />
         </Suspense>
       </div>
 
@@ -99,16 +90,9 @@ export function TripDetailPage() {
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Stops</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             The places this trip visits, in order.
-            {canEdit && ' Use 📍 to place a stop by clicking the map.'}
+            {canEdit && ' Drag to change the route.'}
           </p>
-        <StopsSection
-          tripId={trip.id}
-          stops={stops}
-          canEdit={canEdit}
-          pickingStop={pickingStop}
-          onTogglePick={(stopId) => setPickingStop((cur) => (cur === stopId ? null : stopId))}
-          onHover={setHighlightKey}
-        />
+        <StopsSection tripId={trip.id} stops={stops} canEdit={canEdit} onHover={setHighlightKey} />
       </section>
 
       <section className="mt-10">
@@ -371,19 +355,19 @@ function StopsSection({
   tripId,
   stops,
   canEdit,
-  pickingStop,
-  onTogglePick,
   onHover,
 }: {
   tripId: string
   stops: Stop[]
   canEdit: boolean
-  pickingStop: string | null
-  onTogglePick: (stopId: string) => void
   onHover: (key: MarkerKey | null) => void
 }) {
   const queryClient = useQueryClient()
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
+
+  // Local copy so drags feel instant; server state re-syncs on refetch.
+  const [local, setLocal] = useState(stops)
+  useEffect(() => setLocal(stops), [stops])
 
   const add = useMutation({
     mutationFn: (input: StopInput) => createStop(tripId, input),
@@ -393,68 +377,108 @@ function StopsSection({
     mutationFn: (stopId: string) => deleteStop(tripId, stopId),
     onSuccess: invalidate,
   })
+  const reorder = useMutation({
+    mutationFn: (ids: string[]) => reorderStops(tripId, ids),
+    onSettled: invalidate,
+  })
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return
+    const from = local.findIndex((s) => s.id === active.id)
+    const to = local.findIndex((s) => s.id === over.id)
+    if (from < 0 || to < 0) return
+    const next = arrayMove(local, from, to)
+    setLocal(next)
+    reorder.mutate(next.map((s) => s.id))
+  }
 
   return (
     <div className="mt-4 space-y-2">
-      {stops.map((stop, i) => (
-        <div
-          key={stop.id}
-          onMouseEnter={() => onHover(`stop:${stop.id}`)}
-          onMouseLeave={() => onHover(null)}
-          className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-400">
-              {i + 1}
-            </span>
-            <div>
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{stop.name}</p>
-              {(stop.arrivalDate || stop.departureDate) && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">{formatRange(stop.arrivalDate, stop.departureDate)}</p>
-              )}
-            </div>
-          </div>
-          {canEdit && (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onTogglePick(stop.id)}
-              className={`rounded px-1 text-sm ${
-                pickingStop === stop.id
-                  ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
-                  : stop.lat === null
-                    ? 'text-amber-500 dark:text-amber-400 hover:text-slate-900 dark:hover:text-slate-100'
-                    : 'text-slate-300 dark:text-slate-600 hover:text-slate-900 dark:hover:text-slate-100'
-              }`}
-              title={
-                pickingStop === stop.id
-                  ? 'Cancel placing'
-                  : stop.lat === null
-                    ? `Place ${stop.name} on the map (no location yet)`
-                    : `Move ${stop.name} on the map`
-              }
-              aria-label={`Place ${stop.name} on the map`}
-            >
-              📍
-            </button>
-            <button
-              type="button"
-              onClick={() => remove.mutate(stop.id)}
-              className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
-              aria-label={`Remove ${stop.name}`}
-            >
-              ✕
-            </button>
-          </div>
-          )}
-        </div>
-      ))}
+      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={onDragEnd}>
+        <SortableContext items={local.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+          {local.map((stop, i) => (
+            <StopRow
+              key={stop.id}
+              stop={stop}
+              index={i}
+              canEdit={canEdit}
+              onHover={onHover}
+              onDelete={(id) => remove.mutate(id)}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
 
       {canEdit && <StopSearch pending={add.isPending} onAdd={(input) => add.mutate(input)} />}
       {add.error && (
         <p className="text-sm text-red-600 dark:text-red-400">
           {add.error instanceof ApiError ? add.error.message : 'Could not add stop'}
         </p>
+      )}
+    </div>
+  )
+}
+
+function StopRow({
+  stop,
+  index,
+  canEdit,
+  onHover,
+  onDelete,
+}: {
+  stop: Stop
+  index: number
+  canEdit: boolean
+  onHover: (key: MarkerKey | null) => void
+  onDelete: (id: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: stop.id,
+    disabled: !canEdit,
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      onMouseEnter={() => onHover(`stop:${stop.id}`)}
+      onMouseLeave={() => onHover(null)}
+      className={`flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 ${
+        isDragging ? 'z-10 opacity-70 shadow-lg' : ''
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        {canEdit && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            className="cursor-grab touch-none px-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 active:cursor-grabbing"
+            aria-label={`Drag ${stop.name}`}
+          >
+            ⠿
+          </button>
+        )}
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-400">
+          {index + 1}
+        </span>
+        <div>
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{stop.name}</p>
+          {(stop.arrivalDate || stop.departureDate) && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">{formatRange(stop.arrivalDate, stop.departureDate)}</p>
+          )}
+        </div>
+      </div>
+      {canEdit && (
+        <button
+          type="button"
+          onClick={() => onDelete(stop.id)}
+          className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+          aria-label={`Remove ${stop.name}`}
+        >
+          ✕
+        </button>
       )}
     </div>
   )

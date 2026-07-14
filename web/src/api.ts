@@ -191,6 +191,14 @@ export function deleteStop(tripId: string, stopId: string): Promise<void> {
   return requestJSON(`/api/v1/trips/${tripId}/stops/${stopId}`, { method: 'DELETE' })
 }
 
+/** Replaces the route order; ids must be a permutation of the trip's stops. */
+export function reorderStops(tripId: string, ids: string[]): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/stops/order`, {
+    method: 'PUT',
+    body: JSON.stringify({ ids }),
+  })
+}
+
 export type ItemInput = Partial<{
   stopId: string
   destinationStopId: string
