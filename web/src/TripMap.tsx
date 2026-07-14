@@ -204,7 +204,8 @@ export function TripMap({
     const src = map.getSource(REPLAY_SOURCE) as maplibregl.GeoJSONSource
     const done: [number, number][] = [[pts[0].lon, pts[0].lat]]
     setCaption(pts[0])
-    map.easeTo({ center: [pts[0].lon, pts[0].lat], zoom: Math.max(map.getZoom(), 5), duration: 900 })
+    const firstKm = haversineKm(pts[0].lat, pts[0].lon, pts[1].lat, pts[1].lon)
+    map.easeTo({ center: [pts[0].lon, pts[0].lat], zoom: zoomForKm(firstKm), duration: 900 })
     await wait(1000)
 
     for (let i = 1; i < pts.length && !cancelRef.current; i++) {
@@ -213,7 +214,9 @@ export function TripMap({
       setCaption(to)
       const km = haversineKm(from.lat, from.lon, to.lat, to.lon)
       const duration = Math.min(2600, Math.max(700, km * 6))
-      map.easeTo({ center: [to.lon, to.lat], duration, easing: (t) => t })
+      // Zoom to the leg's scale: street level between venues in one city,
+      // wide view for a flight — nearby items stay distinguishable.
+      map.easeTo({ center: [to.lon, to.lat], zoom: zoomForKm(km), duration, easing: (t) => t })
       await animate(duration, (t) => {
         const lon = from.lon + (to.lon - from.lon) * t
         const lat = from.lat + (to.lat - from.lat) * t
@@ -398,6 +401,12 @@ function directedFeatures(points: LngLat[], curved: boolean): GeoJSON.Feature[] 
     })
   }
   return features
+}
+
+/** A zoom where a leg of this length reads well: ~street level for
+ * blocks-apart venues down to a wide view for long flights. */
+function zoomForKm(km: number): number {
+  return Math.min(14.5, Math.max(4, 14 - Math.log2(Math.max(km, 0.5))))
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
