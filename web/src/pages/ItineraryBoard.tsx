@@ -60,6 +60,9 @@ export function ItineraryBoard({
   homes = [],
   readOnly = false,
   onHover = () => {},
+  layerId,
+  promoteLabel,
+  onPromote,
 }: {
   trip: Trip
   items: ItineraryItem[]
@@ -67,6 +70,11 @@ export function ItineraryBoard({
   homes?: TripHome[]
   readOnly?: boolean
   onHover?: (key: `stop:${string}` | `item:${string}` | null) => void
+  /** Layer the board edits; reorders are scoped to it (#73). */
+  layerId?: string
+  /** When set, each item gets a promote/demote action (#73 slice 2). */
+  promoteLabel?: string
+  onPromote?: (itemId: string) => void
 }) {
   const queryClient = useQueryClient()
   // Local copy so drags feel instant; server state re-syncs it on refetch.
@@ -84,7 +92,8 @@ export function ItineraryBoard({
   }, [days, local])
 
   const reorder = useMutation({
-    mutationFn: ({ day, ids }: { day: string; ids: string[] }) => reorderItems(trip.id, day, ids),
+    mutationFn: ({ day, ids }: { day: string; ids: string[] }) =>
+      reorderItems(trip.id, day, ids, layerId),
     onSettled: invalidate,
   })
   const move = useMutation({
@@ -92,7 +101,7 @@ export function ItineraryBoard({
       // Server appends the item to the new day, then the permutation PUT
       // places it exactly where it was dropped.
       await updateItem(trip.id, itemId, { day })
-      await reorderItems(trip.id, day, ids)
+      await reorderItems(trip.id, day, ids, layerId)
     },
     onSettled: invalidate,
   })
@@ -187,6 +196,8 @@ export function ItineraryBoard({
             onToggle={() => toggleDay(day)}
             onDelete={(id) => remove.mutate(id)}
             onHover={onHover}
+            promoteLabel={promoteLabel}
+            onPromote={onPromote}
           />
         ))}
       </div>
@@ -204,6 +215,8 @@ function DayColumn({
   onToggle,
   onDelete,
   onHover,
+  promoteLabel,
+  onPromote,
 }: {
   day: string
   items: ItineraryItem[]
@@ -214,6 +227,8 @@ function DayColumn({
   onToggle: () => void
   onDelete: (id: string) => void
   onHover: (key: `item:${string}` | null) => void
+  promoteLabel?: string
+  onPromote?: (itemId: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${day}` })
 
@@ -246,7 +261,7 @@ function DayColumn({
               <p className="px-3 py-1.5 text-xs text-slate-300 dark:text-slate-600">drop items here</p>
             )}
             {items.map((item) => (
-              <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} onHover={onHover} />
+              <BoardItem key={item.id} item={item} stops={stops} homes={homes} readOnly={readOnly} onDelete={onDelete} onHover={onHover} promoteLabel={promoteLabel} onPromote={onPromote} />
             ))}
           </div>
         </SortableContext>
@@ -262,6 +277,8 @@ function BoardItem({
   readOnly,
   onDelete,
   onHover,
+  promoteLabel,
+  onPromote,
 }: {
   item: ItineraryItem
   stops: Stop[]
@@ -269,6 +286,8 @@ function BoardItem({
   readOnly: boolean
   onDelete: (id: string) => void
   onHover: (key: `item:${string}` | null) => void
+  promoteLabel?: string
+  onPromote?: (itemId: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -307,6 +326,17 @@ function BoardItem({
           <span className="truncate text-xs text-slate-400 dark:text-slate-500">{routeLabel(item, stops, homes)}</span>
         )}
       </div>
+      <div className="flex shrink-0 items-center">
+      {onPromote && promoteLabel && (
+        <button
+          type="button"
+          onClick={() => onPromote(item.id)}
+          className="rounded px-1.5 py-0.5 text-xs text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+          title={promoteLabel}
+        >
+          {promoteLabel}
+        </button>
+      )}
       {!readOnly && (
       <button
         type="button"
@@ -317,6 +347,7 @@ function BoardItem({
         ✕
       </button>
       )}
+      </div>
     </div>
   )
 }

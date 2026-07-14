@@ -88,12 +88,23 @@ func (s *Trips) UpdateItem(ctx context.Context, tripID, itemID uuid.UUID, p Itin
 		Day: p.Day, StartTime: p.StartTime, EndTime: p.EndTime,
 		Title: p.Title, Category: p.Category, Notes: p.Notes,
 		CostCents: p.CostCents, Currency: p.Currency,
-		Address: p.Address, Lat: p.Lat, Lon: p.Lon,
+		Address: p.Address, Lat: p.Lat, Lon: p.Lon, LayerID: p.LayerID,
 	})
 	if err == nil {
 		s.touch(ctx, tripID)
 	}
 	return ItineraryItem(row), translate(err)
+}
+
+// ListFinalItems returns only the published plan — the Final layer's items.
+// Shares, exports, and read-only views use this; the editor sees everything.
+func (s *Trips) ListFinalItems(ctx context.Context, tripID uuid.UUID) ([]ItineraryItem, error) {
+	rows, err := s.q.ListFinalItems(ctx, tripID)
+	items := make([]ItineraryItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, ItineraryItem(row))
+	}
+	return items, err
 }
 
 func (s *Trips) DeleteItem(ctx context.Context, tripID, itemID uuid.UUID) error {
@@ -108,9 +119,10 @@ func (s *Trips) DeleteItem(ctx context.Context, tripID, itemID uuid.UUID) error 
 	return nil
 }
 
-// ReorderItems sets the ordering of one day's items to exactly ids. It fails
-// with ErrNotFound unless ids is a permutation of that day's current items.
-func (s *Trips) ReorderItems(ctx context.Context, tripID uuid.UUID, day time.Time, ids []uuid.UUID) error {
+// ReorderItems sets the ordering of one day's items on one layer to exactly
+// ids. It fails with ErrNotFound unless ids is a permutation of that day's
+// current items on the layer.
+func (s *Trips) ReorderItems(ctx context.Context, tripID uuid.UUID, day time.Time, layerID uuid.UUID, ids []uuid.UUID) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -118,7 +130,7 @@ func (s *Trips) ReorderItems(ctx context.Context, tripID uuid.UUID, day time.Tim
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	count, err := q.CountItemsForDay(ctx, sqlcgen.CountItemsForDayParams{TripID: tripID, Day: day})
+	count, err := q.CountItemsForDay(ctx, sqlcgen.CountItemsForDayParams{TripID: tripID, Day: day, LayerID: layerID})
 	if err != nil {
 		return err
 	}
@@ -127,13 +139,13 @@ func (s *Trips) ReorderItems(ctx context.Context, tripID uuid.UUID, day time.Tim
 	}
 
 	if err := q.OffsetItemPositions(ctx, sqlcgen.OffsetItemPositionsParams{
-		TripID: tripID, Day: day, Position: int32(len(ids)),
+		TripID: tripID, Day: day, LayerID: layerID, Position: int32(len(ids)),
 	}); err != nil {
 		return err
 	}
 	for i, id := range ids {
 		n, err := q.SetItemPosition(ctx, sqlcgen.SetItemPositionParams{
-			TripID: tripID, Day: day, ID: id, Position: int32(i),
+			TripID: tripID, Day: day, LayerID: layerID, ID: id, Position: int32(i),
 		})
 		if err != nil {
 			return err

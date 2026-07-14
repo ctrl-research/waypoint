@@ -13,16 +13,20 @@ import (
 )
 
 const countItemsForDay = `-- name: CountItemsForDay :one
-SELECT count(*) FROM itinerary_items WHERE trip_id = $1 AND day = $2
+
+SELECT count(*) FROM itinerary_items WHERE trip_id = $1 AND day = $2 AND layer_id = $3
 `
 
 type CountItemsForDayParams struct {
-	TripID uuid.UUID
-	Day    time.Time
+	TripID  uuid.UUID
+	Day     time.Time
+	LayerID uuid.UUID
 }
 
+// Reordering is scoped to one layer (#73 slice 2): each layer's board
+// orders its own items, so positions may repeat across layers on a day.
 func (q *Queries) CountItemsForDay(ctx context.Context, arg CountItemsForDayParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countItemsForDay, arg.TripID, arg.Day)
+	row := q.db.QueryRow(ctx, countItemsForDay, arg.TripID, arg.Day, arg.LayerID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -214,13 +218,87 @@ func (q *Queries) ItemByID(ctx context.Context, arg ItemByIDParams) (ItemByIDRow
 	return i, err
 }
 
+const listFinalItems = `-- name: ListFinalItems :many
+SELECT i.id, i.trip_id, i.stop_id, i.day,
+       CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
+       i.title, i.category, i.notes, i.cost_cents, i.currency, i.position,
+       CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
+       i.destination_stop_id, i.origin_home_id, i.destination_home_id, i.address, i.lat, i.lon, i.layer_id
+FROM itinerary_items i
+JOIN itinerary_layers l ON l.id = i.layer_id AND l.owner_id IS NULL
+WHERE i.trip_id = $1 ORDER BY i.day, i.position, i.id
+`
+
+type ListFinalItemsRow struct {
+	ID                uuid.UUID
+	TripID            uuid.UUID
+	StopID            *uuid.UUID
+	Day               time.Time
+	StartTime         string
+	Title             string
+	Category          ItineraryCategory
+	Notes             string
+	CostCents         *int64
+	Currency          *string
+	Position          int32
+	EndTime           string
+	DestinationStopID *uuid.UUID
+	OriginHomeID      *uuid.UUID
+	DestinationHomeID *uuid.UUID
+	Address           string
+	Lat               *float64
+	Lon               *float64
+	LayerID           uuid.UUID
+}
+
+// Only the published plan — what shares, exports, and stats should see.
+func (q *Queries) ListFinalItems(ctx context.Context, tripID uuid.UUID) ([]ListFinalItemsRow, error) {
+	rows, err := q.db.Query(ctx, listFinalItems, tripID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFinalItemsRow
+	for rows.Next() {
+		var i ListFinalItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TripID,
+			&i.StopID,
+			&i.Day,
+			&i.StartTime,
+			&i.Title,
+			&i.Category,
+			&i.Notes,
+			&i.CostCents,
+			&i.Currency,
+			&i.Position,
+			&i.EndTime,
+			&i.DestinationStopID,
+			&i.OriginHomeID,
+			&i.DestinationHomeID,
+			&i.Address,
+			&i.Lat,
+			&i.Lon,
+			&i.LayerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listItems = `-- name: ListItems :many
 SELECT id, trip_id, stop_id, day,
        CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
        title, category, notes, cost_cents, currency, position,
        CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
        destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
-FROM itinerary_items WHERE trip_id = $1 ORDER BY day, position
+FROM itinerary_items WHERE trip_id = $1 ORDER BY day, position, id
 `
 
 type ListItemsRow struct {
@@ -286,27 +364,34 @@ func (q *Queries) ListItems(ctx context.Context, tripID uuid.UUID) ([]ListItemsR
 }
 
 const offsetItemPositions = `-- name: OffsetItemPositions :exec
-UPDATE itinerary_items SET position = position + $3 WHERE trip_id = $1 AND day = $2
+UPDATE itinerary_items SET position = position + $4 WHERE trip_id = $1 AND day = $2 AND layer_id = $3
 `
 
 type OffsetItemPositionsParams struct {
 	TripID   uuid.UUID
 	Day      time.Time
+	LayerID  uuid.UUID
 	Position int32
 }
 
 func (q *Queries) OffsetItemPositions(ctx context.Context, arg OffsetItemPositionsParams) error {
-	_, err := q.db.Exec(ctx, offsetItemPositions, arg.TripID, arg.Day, arg.Position)
+	_, err := q.db.Exec(ctx, offsetItemPositions,
+		arg.TripID,
+		arg.Day,
+		arg.LayerID,
+		arg.Position,
+	)
 	return err
 }
 
 const setItemPosition = `-- name: SetItemPosition :execrows
-UPDATE itinerary_items SET position = $4 WHERE id = $3 AND trip_id = $1 AND day = $2
+UPDATE itinerary_items SET position = $5 WHERE id = $4 AND trip_id = $1 AND day = $2 AND layer_id = $3
 `
 
 type SetItemPositionParams struct {
 	TripID   uuid.UUID
 	Day      time.Time
+	LayerID  uuid.UUID
 	ID       uuid.UUID
 	Position int32
 }
@@ -315,6 +400,7 @@ func (q *Queries) SetItemPosition(ctx context.Context, arg SetItemPositionParams
 	result, err := q.db.Exec(ctx, setItemPosition,
 		arg.TripID,
 		arg.Day,
+		arg.LayerID,
 		arg.ID,
 		arg.Position,
 	)
@@ -332,8 +418,9 @@ SET stop_id = $1, destination_stop_id = $2,
     end_time = NULLIF($7::text, '')::time,
     title = $8, category = $9, notes = $10,
     cost_cents = $11, currency = $12,
-    address = $13, lat = $14, lon = $15
-WHERE id = $16 AND trip_id = $17
+    address = $13, lat = $14, lon = $15,
+    layer_id = $16
+WHERE id = $17 AND trip_id = $18
 RETURNING id, trip_id, stop_id, day,
           CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
           title, category, notes, cost_cents, currency, position,
@@ -357,6 +444,7 @@ type UpdateItemParams struct {
 	Address           string
 	Lat               *float64
 	Lon               *float64
+	LayerID           uuid.UUID
 	ID                uuid.UUID
 	TripID            uuid.UUID
 }
@@ -400,6 +488,7 @@ func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (UpdateI
 		arg.Address,
 		arg.Lat,
 		arg.Lon,
+		arg.LayerID,
 		arg.ID,
 		arg.TripID,
 	)

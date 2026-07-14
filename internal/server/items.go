@@ -176,8 +176,18 @@ func (api *tripsAPI) stopBelongsToTrip(r *http.Request, tripID uuid.UUID, stopID
 	return err == nil, err
 }
 
+// itemEditable resolves the item's layer and applies layerEditable.
+func (api *tripsAPI) itemEditable(r *http.Request, role string, item store.ItineraryItem, userID uuid.UUID) (bool, error) {
+	layer, err := api.trips.LayerByID(r.Context(), item.TripID, item.LayerID)
+	if err != nil {
+		return false, err
+	}
+	return layerEditable(role, layer, userID), nil
+}
+
 func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.editableTrip(w, r)
+	// Viewers get in too: they may add items to their own proposal layer.
+	trip, role, ok := api.tripAccess(w, r, "viewer")
 	if !ok {
 		return
 	}
@@ -213,20 +223,26 @@ func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Items land on an explicit layer or the trip's Final layer (#73).
+	var layer store.ItineraryLayer
 	if req.LayerID != nil {
-		if _, err := api.trips.LayerByID(r.Context(), trip.ID, *req.LayerID); err != nil {
+		var err error
+		if layer, err = api.trips.LayerByID(r.Context(), trip.ID, *req.LayerID); err != nil {
 			apiError(w, http.StatusBadRequest, "invalid", "layerId does not belong to this trip")
 			return
 		}
-		params.LayerID = *req.LayerID
 	} else {
-		final, err := api.trips.EnsureFinalLayer(r.Context(), trip.ID)
-		if err != nil {
+		var err error
+		if layer, err = api.trips.EnsureFinalLayer(r.Context(), trip.ID); err != nil {
 			apiInternalError(w, "ensure final layer", err)
 			return
 		}
-		params.LayerID = final.ID
 	}
+	user, _ := auth.UserFrom(r.Context())
+	if !layerEditable(role, layer, user.ID) {
+		apiError(w, http.StatusForbidden, "forbidden", "you can only add items to your own layer")
+		return
+	}
+	params.LayerID = layer.ID
 	item, err := api.trips.CreateItem(r.Context(), trip.ID, params)
 	if err != nil {
 		apiInternalError(w, "create item", err)
@@ -236,7 +252,7 @@ func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.editableTrip(w, r)
+	trip, role, ok := api.tripAccess(w, r, "viewer")
 	if !ok {
 		return
 	}
@@ -254,6 +270,14 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		apiInternalError(w, "load item", err)
 		return
 	}
+	user, _ := auth.UserFrom(r.Context())
+	if ok, err := api.itemEditable(r, role, current, user.ID); err != nil {
+		apiInternalError(w, "load item layer", err)
+		return
+	} else if !ok {
+		apiError(w, http.StatusForbidden, "forbidden", "you can only edit items on your own layer")
+		return
+	}
 
 	var req itemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -267,10 +291,25 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		Title: current.Title, Category: current.Category, Notes: current.Notes,
 		CostCents: current.CostCents, Currency: current.Currency,
 		Address: current.Address, Lat: current.Lat, Lon: current.Lon,
+		LayerID: current.LayerID,
 	}
 	if err := req.merge(&params); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid", err.Error())
 		return
+	}
+	// Moving between layers is promotion/demotion (#73): the caller must be
+	// allowed to write the target layer too (Final needs editor+).
+	if req.LayerID != nil && *req.LayerID != current.LayerID {
+		target, err := api.trips.LayerByID(r.Context(), trip.ID, *req.LayerID)
+		if err != nil {
+			apiError(w, http.StatusBadRequest, "invalid", "layerId does not belong to this trip")
+			return
+		}
+		if !layerEditable(role, target, user.ID) {
+			apiError(w, http.StatusForbidden, "forbidden", "you cannot move items onto that layer")
+			return
+		}
+		params.LayerID = target.ID
 	}
 	if ok, err := api.stopBelongsToTrip(r, trip.ID, params.StopID); err != nil {
 		apiInternalError(w, "check stop", err)
@@ -301,15 +340,17 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toItemJSON(updated))
 }
 
-// reorderItems replaces one day's ordering (used by the board's drag-drop).
+// reorderItems replaces one day's ordering on one layer (the board's
+// drag-drop). A missing layerId means the Final layer.
 func (api *tripsAPI) reorderItems(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.editableTrip(w, r)
+	trip, role, ok := api.tripAccess(w, r, "viewer")
 	if !ok {
 		return
 	}
 	var req struct {
-		Day string      `json:"day"`
-		IDs []uuid.UUID `json:"ids"`
+		Day     string      `json:"day"`
+		LayerID *uuid.UUID  `json:"layerId"`
+		IDs     []uuid.UUID `json:"ids"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apiError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
@@ -320,7 +361,24 @@ func (api *tripsAPI) reorderItems(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusBadRequest, "invalid", "day must be YYYY-MM-DD")
 		return
 	}
-	switch err := api.trips.ReorderItems(r.Context(), trip.ID, day, req.IDs); {
+	var layer store.ItineraryLayer
+	if req.LayerID != nil {
+		if layer, err = api.trips.LayerByID(r.Context(), trip.ID, *req.LayerID); err != nil {
+			apiError(w, http.StatusBadRequest, "invalid", "layerId does not belong to this trip")
+			return
+		}
+	} else {
+		if layer, err = api.trips.EnsureFinalLayer(r.Context(), trip.ID); err != nil {
+			apiInternalError(w, "ensure final layer", err)
+			return
+		}
+	}
+	user, _ := auth.UserFrom(r.Context())
+	if !layerEditable(role, layer, user.ID) {
+		apiError(w, http.StatusForbidden, "forbidden", "you can only reorder your own layer")
+		return
+	}
+	switch err := api.trips.ReorderItems(r.Context(), trip.ID, day, layer.ID, req.IDs); {
 	case errors.Is(err, store.ErrNotFound):
 		apiError(w, http.StatusBadRequest, "invalid", "ids must be a permutation of that day's items")
 	case err != nil:
@@ -331,13 +389,30 @@ func (api *tripsAPI) reorderItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *tripsAPI) deleteItem(w http.ResponseWriter, r *http.Request) {
-	trip, ok := api.editableTrip(w, r)
+	trip, role, ok := api.tripAccess(w, r, "viewer")
 	if !ok {
 		return
 	}
 	itemID, err := uuid.Parse(r.PathValue("itemID"))
 	if err != nil {
 		apiError(w, http.StatusNotFound, "not_found", "item not found")
+		return
+	}
+	item, err := api.trips.ItemByID(r.Context(), trip.ID, itemID)
+	if errors.Is(err, store.ErrNotFound) {
+		apiError(w, http.StatusNotFound, "not_found", "item not found")
+		return
+	}
+	if err != nil {
+		apiInternalError(w, "load item", err)
+		return
+	}
+	user, _ := auth.UserFrom(r.Context())
+	if ok, err := api.itemEditable(r, role, item, user.ID); err != nil {
+		apiInternalError(w, "load item layer", err)
+		return
+	} else if !ok {
+		apiError(w, http.StatusForbidden, "forbidden", "you can only delete items on your own layer")
 		return
 	}
 	switch err := api.trips.DeleteItem(r.Context(), trip.ID, itemID); {

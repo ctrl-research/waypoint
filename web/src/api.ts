@@ -223,11 +223,38 @@ export function deleteItem(tripId: string, itemId: string): Promise<void> {
   return requestJSON(`/api/v1/trips/${tripId}/items/${itemId}`, { method: 'DELETE' })
 }
 
-export function reorderItems(tripId: string, day: string, ids: string[]): Promise<void> {
+export function reorderItems(
+  tripId: string,
+  day: string,
+  ids: string[],
+  layerId?: string,
+): Promise<void> {
   return requestJSON(`/api/v1/trips/${tripId}/items/order`, {
     method: 'PUT',
-    body: JSON.stringify({ day, ids }),
+    body: JSON.stringify({ day, ids, ...(layerId ? { layerId } : {}) }),
   })
+}
+
+// ---- itinerary layers (#73) ----------------------------------------------------
+
+/** The caller's proposal layer, created on first use. */
+export function ensureMyLayer(tripId: string): Promise<ItineraryLayer> {
+  return requestJSON(`/api/v1/trips/${tripId}/layers`, { method: 'POST' })
+}
+
+export function updateLayer(
+  tripId: string,
+  layerId: string,
+  input: Partial<{ name: string; color: string }>,
+): Promise<ItineraryLayer> {
+  return requestJSON(`/api/v1/trips/${tripId}/layers/${layerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteLayer(tripId: string, layerId: string): Promise<void> {
+  return requestJSON(`/api/v1/trips/${tripId}/layers/${layerId}`, { method: 'DELETE' })
 }
 
 // ---- geocoding ---------------------------------------------------------------
