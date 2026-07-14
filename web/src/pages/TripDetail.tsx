@@ -71,7 +71,7 @@ export function TripDetailPage() {
   }
   if (!detail.data) return null
 
-  const { trip, stops, items, homes, layers } = detail.data
+  const { trip, stops, items, layers } = detail.data
   const canEdit = trip.role !== 'viewer'
   // The itinerary is the merge of visible layers (#73).
   const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.id))
@@ -130,8 +130,6 @@ export function TripDetailPage() {
         <ItineraryBoard
           trip={trip}
           items={planItems}
-          stops={stops}
-          homes={homes}
           readOnly
           combined
           layers={layers}

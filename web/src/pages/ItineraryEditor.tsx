@@ -75,7 +75,7 @@ export function ItineraryEditorPage() {
   }
   if (!detail.data) return null
 
-  const { trip, stops, items, homes } = detail.data
+  const { trip, stops, items } = detail.data
   const canEditMain = trip.role !== 'viewer'
 
   // The itinerary is the merge of visible layers.
@@ -268,8 +268,6 @@ export function ItineraryEditorPage() {
         <ItineraryBoard
           trip={trip}
           items={visibleItems}
-          stops={stops}
-          homes={homes}
           combined
           layers={layers}
           canEditItem={canEditItem}

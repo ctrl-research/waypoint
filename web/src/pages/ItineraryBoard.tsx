@@ -21,9 +21,7 @@ import {
   updateItem,
   type ItineraryItem,
   type ItineraryLayer,
-  type Stop,
   type Trip,
-  type TripHome,
 } from '../api'
 
 import { PencilIcon, categoryIcons } from '../icons'
@@ -50,8 +48,6 @@ function boardDays(trip: Trip, items: ItineraryItem[]): string[] {
 export function ItineraryBoard({
   trip,
   items,
-  stops,
-  homes = [],
   readOnly = false,
   onHover = () => {},
   layerId,
@@ -62,8 +58,6 @@ export function ItineraryBoard({
 }: {
   trip: Trip
   items: ItineraryItem[]
-  stops: Stop[]
-  homes?: TripHome[]
   readOnly?: boolean
   onHover?: (key: `stop:${string}` | `item:${string}` | null) => void
   /** Layer the board edits; single-layer reorders are scoped to it (#73). */
@@ -203,8 +197,6 @@ export function ItineraryBoard({
             key={day}
             day={day}
             items={byDay.get(day) ?? []}
-            stops={stops}
-            homes={homes}
             readOnly={readOnly}
             collapsed={collapsed.has(day)}
             onToggle={() => toggleDay(day)}
@@ -222,8 +214,6 @@ export function ItineraryBoard({
 function DayColumn({
   day,
   items,
-  stops,
-  homes,
   readOnly,
   collapsed,
   onToggle,
@@ -234,8 +224,6 @@ function DayColumn({
 }: {
   day: string
   items: ItineraryItem[]
-  stops: Stop[]
-  homes: TripHome[]
   readOnly: boolean
   collapsed: boolean
   onToggle: () => void
@@ -278,8 +266,6 @@ function DayColumn({
               <BoardItem
                 key={item.id}
                 item={item}
-                stops={stops}
-                homes={homes}
                 canEdit={canEditItem ? canEditItem(item) : !readOnly}
                 onHover={onHover}
                 layerColor={layers?.find((l) => l.id === item.layerId)?.color}
@@ -295,16 +281,12 @@ function DayColumn({
 
 function BoardItem({
   item,
-  stops,
-  homes,
   canEdit,
   onHover,
   layerColor,
   onEdit,
 }: {
   item: ItineraryItem
-  stops: Stop[]
-  homes: TripHome[]
   canEdit: boolean
   onHover: (key: `item:${string}` | null) => void
   layerColor?: string
@@ -351,9 +333,6 @@ function BoardItem({
           </span>
         )}
         <span className="truncate font-medium text-slate-900 dark:text-slate-100">{item.title}</span>
-        {routeLabel(item, stops, homes) && (
-          <span className="truncate text-xs text-slate-400 dark:text-slate-500">{routeLabel(item, stops, homes)}</span>
-        )}
         {item.address && (
           <a
             href={mapsLink(item)!}
@@ -382,25 +361,6 @@ function BoardItem({
       </div>
     </div>
   )
-}
-
-function destName(stops: Stop[], id: string | null): string | undefined {
-  return stops.find((s) => s.id === id)?.name
-}
-
-/** "@ Stop" for plain items; "From → To" (home-aware) for flight/train legs. */
-function routeLabel(item: ItineraryItem, stops: Stop[], homes: TripHome[]): string | undefined {
-  const homeName = (id: string | null) => {
-    const h = id && homes.find((h) => h.id === id)
-    return h ? `(home) ${h.name}` : id ? '(home)' : undefined
-  }
-  const from = homeName(item.originHomeId) ?? destName(stops, item.stopId)
-  if (item.category !== 'flight' && item.category !== 'train') {
-    return from ? `@ ${from}` : undefined
-  }
-  const to = homeName(item.destinationHomeId) ?? destName(stops, item.destinationStopId)
-  if (from && to) return `${from} → ${to}`
-  return from ?? (to && `→ ${to}`) ?? undefined
 }
 
 /** Start-time order for combined view: timed first, untimed by position. */
