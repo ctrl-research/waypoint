@@ -11,6 +11,24 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteProposalLayer = `-- name: DeleteProposalLayer :execrows
+DELETE FROM itinerary_layers WHERE id = $2 AND trip_id = $1 AND owner_id IS NOT NULL
+`
+
+type DeleteProposalLayerParams struct {
+	TripID uuid.UUID
+	ID     uuid.UUID
+}
+
+// The Final layer (owner_id NULL) is never deletable; items cascade.
+func (q *Queries) DeleteProposalLayer(ctx context.Context, arg DeleteProposalLayerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteProposalLayer, arg.TripID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const ensureFinalLayer = `-- name: EnsureFinalLayer :one
 INSERT INTO itinerary_layers (trip_id, owner_id, name)
 VALUES ($1, NULL, 'Final')
@@ -22,6 +40,41 @@ RETURNING id, trip_id, owner_id, name, color, created_at
 // Creates the trip's Final layer on first use (new trips get one lazily).
 func (q *Queries) EnsureFinalLayer(ctx context.Context, tripID uuid.UUID) (ItineraryLayer, error) {
 	row := q.db.QueryRow(ctx, ensureFinalLayer, tripID)
+	var i ItineraryLayer
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Color,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const ensureMemberLayer = `-- name: EnsureMemberLayer :one
+INSERT INTO itinerary_layers (trip_id, owner_id, name, color)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (trip_id, owner_id) WHERE owner_id IS NOT NULL
+DO UPDATE SET name = itinerary_layers.name
+RETURNING id, trip_id, owner_id, name, color, created_at
+`
+
+type EnsureMemberLayerParams struct {
+	TripID  uuid.UUID
+	OwnerID *uuid.UUID
+	Name    string
+	Color   string
+}
+
+// A member's proposal layer, created on first use; name/color stick once set.
+func (q *Queries) EnsureMemberLayer(ctx context.Context, arg EnsureMemberLayerParams) (ItineraryLayer, error) {
+	row := q.db.QueryRow(ctx, ensureMemberLayer,
+		arg.TripID,
+		arg.OwnerID,
+		arg.Name,
+		arg.Color,
+	)
 	var i ItineraryLayer
 	err := row.Scan(
 		&i.ID,
@@ -86,4 +139,36 @@ func (q *Queries) ListLayers(ctx context.Context, tripID uuid.UUID) ([]Itinerary
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateLayer = `-- name: UpdateLayer :one
+UPDATE itinerary_layers SET name = $3, color = $4
+WHERE id = $2 AND trip_id = $1
+RETURNING id, trip_id, owner_id, name, color, created_at
+`
+
+type UpdateLayerParams struct {
+	TripID uuid.UUID
+	ID     uuid.UUID
+	Name   string
+	Color  string
+}
+
+func (q *Queries) UpdateLayer(ctx context.Context, arg UpdateLayerParams) (ItineraryLayer, error) {
+	row := q.db.QueryRow(ctx, updateLayer,
+		arg.TripID,
+		arg.ID,
+		arg.Name,
+		arg.Color,
+	)
+	var i ItineraryLayer
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Color,
+		&i.CreatedAt,
+	)
+	return i, err
 }

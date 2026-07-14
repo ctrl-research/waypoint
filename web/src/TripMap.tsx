@@ -23,12 +23,15 @@ export function TripMap({
   onPick,
   highlightKey = null,
   mapConfig,
+  layerColors,
 }: {
   stops: Stop[]
   items?: ItineraryItem[]
   picking: boolean
   onPick: (lat: number, lon: number) => void
   highlightKey?: MarkerKey | null
+  /** Item pin color per layerId (#73 slice 2); unlisted layers stay indigo. */
+  layerColors?: Record<string, string>
   /** Overrides the authed /api/v1/config lookup (used by the public page). */
   mapConfig?: MapSourceConfig
 }) {
@@ -74,7 +77,7 @@ export function TripMap({
         paint: { 'line-color': '#0f172a', 'line-width': 2, 'line-dasharray': [2, 1.5] },
       })
       mapRef.current = map
-      syncMap(map, stopsRef.current, itemsRef.current, markersRef)
+      syncMap(map, stopsRef.current, itemsRef.current, markersRef, layerColorsRef.current)
     })
 
     map.on('click', (e) => {
@@ -91,11 +94,13 @@ export function TripMap({
   // Keep markers and route in sync with the data.
   const stopsRef = useRef(stops)
   const itemsRef = useRef(items)
+  const layerColorsRef = useRef(layerColors)
   stopsRef.current = stops
   itemsRef.current = items
+  layerColorsRef.current = layerColors
   useEffect(() => {
-    if (mapRef.current) syncMap(mapRef.current, stops, items, markersRef)
-  }, [stops, items])
+    if (mapRef.current) syncMap(mapRef.current, stops, items, markersRef, layerColors)
+  }, [stops, items, layerColors])
 
   // Hover-highlight from the lists (#71).
   useEffect(() => {
@@ -159,7 +164,7 @@ export function TripMap({
   )
 }
 
-function makeMarkerEl(label: string, kind: 'stop' | 'item'): HTMLElement {
+function makeMarkerEl(label: string, kind: 'stop' | 'item', color?: string): HTMLElement {
   // Outer wrapper stays untransformed (MapLibre positions it); the inner
   // element carries styling so hover effects can scale it safely.
   const wrap = document.createElement('div')
@@ -168,6 +173,7 @@ function makeMarkerEl(label: string, kind: 'stop' | 'item'): HTMLElement {
     kind === 'stop'
       ? 'flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-900 px-1 text-xs font-semibold text-white shadow-md transition-transform'
       : 'flex h-5 items-center justify-center rounded bg-indigo-600 px-1 text-[10px] font-semibold text-white shadow transition-transform'
+  if (color) el.style.backgroundColor = color
   el.textContent = label
   wrap.appendChild(el)
   return wrap
@@ -178,6 +184,7 @@ function syncMap(
   stops: Stop[],
   items: ItineraryItem[],
   markersRef: React.MutableRefObject<Map<string, maplibregl.Marker>>,
+  layerColors?: Record<string, string>,
 ) {
   const located = stops.filter((s) => s.lat !== null && s.lon !== null)
 
@@ -217,7 +224,10 @@ function syncMap(
       where = stop.name
     }
     if (!lngLat) continue
-    const marker = new maplibregl.Marker({ element: makeMarkerEl(label, 'item'), offset })
+    const marker = new maplibregl.Marker({
+      element: makeMarkerEl(label, 'item', layerColors?.[item.layerId]),
+      offset,
+    })
       .setLngLat(lngLat)
       .setPopup(
         new maplibregl.Popup({ closeButton: false }).setText(

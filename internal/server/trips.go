@@ -43,6 +43,10 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("PATCH /api/v1/trips/{tripID}/items/{itemID}", protected(api.updateItem))
 	mux.Handle("DELETE /api/v1/trips/{tripID}/items/{itemID}", protected(api.deleteItem))
 
+	mux.Handle("POST /api/v1/trips/{tripID}/layers", protected(api.ensureMyLayer))
+	mux.Handle("PATCH /api/v1/trips/{tripID}/layers/{layerID}", protected(api.updateLayer))
+	mux.Handle("DELETE /api/v1/trips/{tripID}/layers/{layerID}", protected(api.deleteLayer))
+
 	mux.Handle("GET /api/v1/trips/{tripID}/journal", protected(api.listJournal))
 	mux.Handle("POST /api/v1/trips/{tripID}/journal", protected(api.createEntry))
 	mux.Handle("PATCH /api/v1/trips/{tripID}/journal/{entryID}", protected(api.updateEntry))
@@ -311,9 +315,7 @@ func (api *tripsAPI) get(w http.ResponseWriter, r *http.Request) {
 	}
 	layersOut := make([]map[string]any, 0, len(layers))
 	for _, l := range layers {
-		layersOut = append(layersOut, map[string]any{
-			"id": l.ID, "name": l.Name, "color": l.Color, "ownerId": l.OwnerID,
-		})
+		layersOut = append(layersOut, layerJSON(l))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"trip": toTripJSON(trip, role), "stops": stopsOut, "items": itemsOut,

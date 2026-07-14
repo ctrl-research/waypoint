@@ -20,6 +20,7 @@ SELECT i.category,
        h1.lat AS from_home_lat, h1.lon AS from_home_lon,
        h2.lat AS to_home_lat, h2.lon AS to_home_lon
 FROM itinerary_items i
+JOIN itinerary_layers l ON l.id = i.layer_id AND l.owner_id IS NULL
 JOIN trips t ON t.id = i.trip_id
 LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
 LEFT JOIN stops s1 ON s1.id = i.stop_id

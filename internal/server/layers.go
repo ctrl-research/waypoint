@@ -1,0 +1,169 @@
+package server
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"regexp"
+
+	"github.com/google/uuid"
+
+	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/store"
+)
+
+var hexColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// proposalPalette colors new proposal layers in fixed order (dataviz
+// categorical rules); the Final layer keeps the default #2a78d6 blue.
+var proposalPalette = []string{"#d97706", "#059669", "#7c3aed", "#db2777", "#0891b2", "#65a30d"}
+
+func layerJSON(l store.ItineraryLayer) map[string]any {
+	return map[string]any{"id": l.ID, "name": l.Name, "color": l.Color, "ownerId": l.OwnerID}
+}
+
+// layerEditable reports whether the user may change a layer's items:
+// editors and up touch any layer; every member may work their own proposal.
+func layerEditable(role string, layer store.ItineraryLayer, userID uuid.UUID) bool {
+	if roleRank(role) >= roleRank("editor") {
+		return true
+	}
+	return layer.OwnerID != nil && *layer.OwnerID == userID
+}
+
+// ensureMyLayer returns the caller's proposal layer, creating it on first
+// use — any member can propose, regardless of role.
+func (api *tripsAPI) ensureMyLayer(w http.ResponseWriter, r *http.Request) {
+	trip, _, ok := api.tripAccess(w, r, "viewer")
+	if !ok {
+		return
+	}
+	user, _ := auth.UserFrom(r.Context())
+
+	layers, err := api.trips.ListLayers(r.Context(), trip.ID)
+	if err != nil {
+		apiInternalError(w, "list layers", err)
+		return
+	}
+	proposals := 0
+	for _, l := range layers {
+		if l.OwnerID == nil {
+			continue
+		}
+		if *l.OwnerID == user.ID {
+			writeJSON(w, http.StatusOK, layerJSON(l))
+			return
+		}
+		proposals++
+	}
+
+	name := user.DisplayName
+	if name == "" {
+		name = "Proposal"
+	}
+	layer, err := api.trips.EnsureMemberLayer(r.Context(), trip.ID, user.ID, name, proposalPalette[proposals%len(proposalPalette)])
+	if err != nil {
+		apiInternalError(w, "ensure member layer", err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, layerJSON(layer))
+}
+
+// layerFromPath resolves {layerID} within the trip; missing → 404.
+func (api *tripsAPI) layerFromPath(w http.ResponseWriter, r *http.Request, tripID uuid.UUID) (store.ItineraryLayer, bool) {
+	layerID, err := uuid.Parse(r.PathValue("layerID"))
+	if err != nil {
+		apiError(w, http.StatusNotFound, "not_found", "layer not found")
+		return store.ItineraryLayer{}, false
+	}
+	layer, err := api.trips.LayerByID(r.Context(), tripID, layerID)
+	if errors.Is(err, store.ErrNotFound) {
+		apiError(w, http.StatusNotFound, "not_found", "layer not found")
+		return store.ItineraryLayer{}, false
+	}
+	if err != nil {
+		apiInternalError(w, "load layer", err)
+		return store.ItineraryLayer{}, false
+	}
+	return layer, true
+}
+
+// layerManageable guards layer metadata changes: the Final layer needs
+// editor+, a proposal belongs to its owner (the trip owner can moderate).
+func layerManageable(role string, layer store.ItineraryLayer, userID uuid.UUID) bool {
+	if layer.OwnerID == nil {
+		return roleRank(role) >= roleRank("editor")
+	}
+	return *layer.OwnerID == userID || role == "owner"
+}
+
+func (api *tripsAPI) updateLayer(w http.ResponseWriter, r *http.Request) {
+	trip, role, ok := api.tripAccess(w, r, "viewer")
+	if !ok {
+		return
+	}
+	layer, ok := api.layerFromPath(w, r, trip.ID)
+	if !ok {
+		return
+	}
+	user, _ := auth.UserFrom(r.Context())
+	if !layerManageable(role, layer, user.ID) {
+		apiError(w, http.StatusForbidden, "forbidden", "you cannot manage this layer")
+		return
+	}
+
+	var req struct {
+		Name  *string `json:"name"`
+		Color *string `json:"color"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		return
+	}
+	name, color := layer.Name, layer.Color
+	if req.Name != nil {
+		if *req.Name == "" {
+			apiError(w, http.StatusBadRequest, "invalid", "name cannot be empty")
+			return
+		}
+		name = *req.Name
+	}
+	if req.Color != nil {
+		if !hexColorRe.MatchString(*req.Color) {
+			apiError(w, http.StatusBadRequest, "invalid", "color must be #rrggbb")
+			return
+		}
+		color = *req.Color
+	}
+	updated, err := api.trips.UpdateLayer(r.Context(), trip.ID, layer.ID, name, color)
+	if err != nil {
+		apiInternalError(w, "update layer", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, layerJSON(updated))
+}
+
+func (api *tripsAPI) deleteLayer(w http.ResponseWriter, r *http.Request) {
+	trip, role, ok := api.tripAccess(w, r, "viewer")
+	if !ok {
+		return
+	}
+	layer, ok := api.layerFromPath(w, r, trip.ID)
+	if !ok {
+		return
+	}
+	if layer.OwnerID == nil {
+		apiError(w, http.StatusBadRequest, "invalid", "the Final layer cannot be deleted")
+		return
+	}
+	user, _ := auth.UserFrom(r.Context())
+	if !layerManageable(role, layer, user.ID) {
+		apiError(w, http.StatusForbidden, "forbidden", "you cannot manage this layer")
+		return
+	}
+	if err := api.trips.DeleteProposalLayer(r.Context(), trip.ID, layer.ID); err != nil {
+		apiInternalError(w, "delete layer", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

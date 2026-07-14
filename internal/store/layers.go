@@ -30,3 +30,33 @@ func (s *Trips) LayerByID(ctx context.Context, tripID, layerID uuid.UUID) (Itine
 	l, err := s.q.LayerByID(ctx, sqlcgen.LayerByIDParams{TripID: tripID, ID: layerID})
 	return l, translate(err)
 }
+
+// EnsureMemberLayer returns the member's proposal layer, creating it on
+// first use; an existing layer keeps its name and color.
+func (s *Trips) EnsureMemberLayer(ctx context.Context, tripID, ownerID uuid.UUID, name, color string) (ItineraryLayer, error) {
+	l, err := s.q.EnsureMemberLayer(ctx, sqlcgen.EnsureMemberLayerParams{
+		TripID: tripID, OwnerID: &ownerID, Name: name, Color: color,
+	})
+	return l, translate(err)
+}
+
+func (s *Trips) UpdateLayer(ctx context.Context, tripID, layerID uuid.UUID, name, color string) (ItineraryLayer, error) {
+	l, err := s.q.UpdateLayer(ctx, sqlcgen.UpdateLayerParams{
+		TripID: tripID, ID: layerID, Name: name, Color: color,
+	})
+	return l, translate(err)
+}
+
+// DeleteProposalLayer removes a member's layer and its items. The Final
+// layer is excluded in SQL, so targeting it reports ErrNotFound.
+func (s *Trips) DeleteProposalLayer(ctx context.Context, tripID, layerID uuid.UUID) error {
+	n, err := s.q.DeleteProposalLayer(ctx, sqlcgen.DeleteProposalLayerParams{TripID: tripID, ID: layerID})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	s.touch(ctx, tripID)
+	return nil
+}

@@ -611,7 +611,7 @@ function shortName(displayName: string): string {
 }
 
 
-export function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
+export function NewItemForm({ trip, stops, layerId }: { trip: Trip; stops: Stop[]; layerId?: string }) {
   const tripId = trip.id
   const queryClient = useQueryClient()
   const [title, setTitle] = useState('')
@@ -631,6 +631,7 @@ export function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
         title,
         day,
         category,
+        ...(layerId ? { layerId } : {}),
         ...(startTime ? { startTime } : {}),
         ...(endTime ? { endTime } : {}),
         ...(venue
