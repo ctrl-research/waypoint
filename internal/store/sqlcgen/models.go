@@ -172,6 +172,16 @@ type ItineraryItem struct {
 	Address           string
 	Lat               *float64
 	Lon               *float64
+	LayerID           uuid.UUID
+}
+
+type ItineraryLayer struct {
+	ID        uuid.UUID
+	TripID    uuid.UUID
+	OwnerID   *uuid.UUID
+	Name      string
+	Color     string
+	CreatedAt time.Time
 }
 
 type JournalEntry struct {

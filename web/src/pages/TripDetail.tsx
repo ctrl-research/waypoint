@@ -66,8 +66,11 @@ export function TripDetailPage() {
   }
   if (!detail.data) return null
 
-  const { trip, stops, items, homes } = detail.data
+  const { trip, stops, items, homes, layers } = detail.data
   const canEdit = trip.role !== 'viewer'
+  // The trip page shows the published plan: Final-layer items only (#73).
+  const finalLayerId = layers.find((l) => l.ownerId === null)?.id
+  const finalItems = finalLayerId ? items.filter((i) => i.layerId === finalLayerId) : items
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
@@ -77,7 +80,7 @@ export function TripDetailPage() {
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
           <TripMap
             stops={stops}
-            items={items}
+            items={finalItems}
             highlightKey={highlightKey}
             picking={pickingStop !== null}
             onPick={(lat, lon) => {
@@ -104,23 +107,29 @@ export function TripDetailPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {canEdit ? 'Day by day — drag items to reorder or move days.' : 'Day by day.'}
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">The final plan, day by day.</p>
+          </div>
+          {canEdit && (
+            <Link
+              to="/trips/$tripId/itinerary"
+              params={{ tripId: trip.id }}
+              className="rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              ✏️ Edit itinerary
+            </Link>
+          )}
+        </div>
         <ItineraryBoard
           trip={trip}
-          items={items}
+          items={finalItems}
           stops={stops}
           homes={homes}
-          readOnly={!canEdit}
+          readOnly
           onHover={setHighlightKey}
         />
-        {canEdit && (
-          <div className="mt-4">
-            <NewItemForm trip={trip} stops={stops} />
-          </div>
-        )}
       </section>
 
       <JournalTimeline trip={trip} items={items} stops={stops} canEdit={canEdit} />
@@ -602,7 +611,7 @@ function shortName(displayName: string): string {
 }
 
 
-function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
+export function NewItemForm({ trip, stops }: { trip: Trip; stops: Stop[] }) {
   const tripId = trip.id
   const queryClient = useQueryClient()
   const [title, setTitle] = useState('')

@@ -168,6 +168,7 @@ type itemJSON struct {
 	Address           string     `json:"address"`
 	Lat               *float64   `json:"lat"`
 	Lon               *float64   `json:"lon"`
+	LayerID           uuid.UUID  `json:"layerId"`
 	Position          int32      `json:"position"`
 }
 
@@ -178,7 +179,7 @@ func toItemJSON(it store.ItineraryItem) itemJSON {
 		Day: it.Day.Format(dateFormat), StartTime: nilIfEmpty(it.StartTime), EndTime: nilIfEmpty(it.EndTime),
 		Title: it.Title, Category: string(it.Category), Notes: it.Notes,
 		CostCents: it.CostCents, Currency: it.Currency, Position: it.Position,
-		Address: it.Address, Lat: it.Lat, Lon: it.Lon,
+		Address: it.Address, Lat: it.Lat, Lon: it.Lon, LayerID: it.LayerID,
 	}
 }
 
@@ -303,8 +304,20 @@ func (api *tripsAPI) get(w http.ResponseWriter, r *http.Request) {
 	for _, th := range tripHomes {
 		homesOut = append(homesOut, map[string]any{"id": th.ID, "name": th.Name})
 	}
+	layers, err := api.trips.ListLayers(r.Context(), trip.ID)
+	if err != nil {
+		apiInternalError(w, "list layers", err)
+		return
+	}
+	layersOut := make([]map[string]any, 0, len(layers))
+	for _, l := range layers {
+		layersOut = append(layersOut, map[string]any{
+			"id": l.ID, "name": l.Name, "color": l.Color, "ownerId": l.OwnerID,
+		})
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"trip": toTripJSON(trip, role), "stops": stopsOut, "items": itemsOut, "homes": homesOut,
+		"trip": toTripJSON(trip, role), "stops": stopsOut, "items": itemsOut,
+		"homes": homesOut, "layers": layersOut,
 	})
 }
 

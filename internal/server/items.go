@@ -40,6 +40,7 @@ type itemRequest struct {
 	Lat               *float64   `json:"lat"`
 	Lon               *float64   `json:"lon"`
 	ClearLatLon       bool       `json:"clearLatLon"`
+	LayerID           *uuid.UUID `json:"layerId"`
 }
 
 func (req itemRequest) merge(p *store.ItineraryItemParams) error {
@@ -210,6 +211,21 @@ func (api *tripsAPI) createItem(w http.ResponseWriter, r *http.Request) {
 	} else if !ok {
 		apiError(w, http.StatusBadRequest, "invalid", "home does not belong to you")
 		return
+	}
+	// Items land on an explicit layer or the trip's Final layer (#73).
+	if req.LayerID != nil {
+		if _, err := api.trips.LayerByID(r.Context(), trip.ID, *req.LayerID); err != nil {
+			apiError(w, http.StatusBadRequest, "invalid", "layerId does not belong to this trip")
+			return
+		}
+		params.LayerID = *req.LayerID
+	} else {
+		final, err := api.trips.EnsureFinalLayer(r.Context(), trip.ID)
+		if err != nil {
+			apiInternalError(w, "ensure final layer", err)
+			return
+		}
+		params.LayerID = final.ID
 	}
 	item, err := api.trips.CreateItem(r.Context(), trip.ID, params)
 	if err != nil {
