@@ -9,19 +9,30 @@ import worldCountriesUrl from 'world-countries/countries.json?url'
 import { fetchConfig, type StatsPayload } from './api'
 import { localizeMapLabels, mapStyle } from './mapstyle'
 
-// Validated data hue (dataviz palette slot 1, passes on the light surface).
-const VISITED = '#2a78d6'
+// Travelled/planned hues (#53) — validated as a pair on the light surface.
+const TRAVELLED = '#059669'
+const PLANNED = '#d97706'
 
 export type StatsMapMode = 'countries' | 'continents' | 'cities'
 export type StatsMapProjection = 'mercator' | 'globe'
 
-export type VisitedPlaces = { countries: string[]; continents: string[]; countryTotal: number }
+export type VisitedPlaces = {
+  countries: string[]
+  plannedCountries: string[]
+  continents: string[]
+  plannedContinents: string[]
+  countryTotal: number
+}
 
 type CountryProps = {
   name: string
   continent: string
+  /** Reached by a trip that has started. */
   visited: boolean
+  /** Only reached by future trips. */
+  planned: boolean
   continentVisited: boolean
+  continentPlanned: boolean
 }
 
 /**
@@ -79,19 +90,24 @@ export function StatsMap({
     staleTime: Infinity,
   })
 
-  // Mark visited countries (point-in-polygon) and their continents.
+  // Mark visited/planned countries (point-in-polygon) and their continents.
   const visitedGeo = useRef<FeatureCollection<Geometry, CountryProps> | null>(null)
   useEffect(() => {
     if (!countries.data) return
-    const withVisited = countries.data.features.map((f) => ({
-      ...f,
-      properties: {
-        ...f.properties,
-        visited: stops.some((s) => geometryContains(f.geometry, s.lon, s.lat)),
-      },
-    }))
+    const withVisited = countries.data.features.map((f) => {
+      const visited = stops.some((s) => s.travelled && geometryContains(f.geometry, s.lon, s.lat))
+      const planned =
+        !visited && stops.some((s) => !s.travelled && geometryContains(f.geometry, s.lon, s.lat))
+      return { ...f, properties: { ...f.properties, visited, planned } }
+    })
     const visitedContinents = new Set(
       withVisited.filter((f) => f.properties.visited).map((f) => f.properties.continent),
+    )
+    const plannedContinents = new Set(
+      withVisited
+        .filter((f) => f.properties.planned)
+        .map((f) => f.properties.continent)
+        .filter((c) => !visitedContinents.has(c)),
     )
     visitedGeo.current = {
       type: 'FeatureCollection',
@@ -100,12 +116,15 @@ export function StatsMap({
         properties: {
           ...f.properties,
           continentVisited: visitedContinents.has(f.properties.continent),
+          continentPlanned: plannedContinents.has(f.properties.continent),
         },
       })),
     }
     onVisited({
       countries: withVisited.filter((f) => f.properties.visited).map((f) => f.properties.name).sort(),
+      plannedCountries: withVisited.filter((f) => f.properties.planned).map((f) => f.properties.name).sort(),
       continents: [...visitedContinents].filter((c) => c !== 'Other').sort(),
+      plannedContinents: [...plannedContinents].filter((c) => c !== 'Other').sort(),
       countryTotal: withVisited.length,
     })
     syncSources()
@@ -123,7 +142,7 @@ export function StatsMap({
       features: stops.map((s) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-        properties: { name: s.name, trip: s.tripTitle },
+        properties: { name: s.name, trip: s.tripTitle, travelled: s.travelled },
       })),
     })
   }
@@ -142,27 +161,40 @@ export function StatsMap({
     map.on('load', () => {
       localizeMapLabels(map, config)
       map.addSource('countries', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      const reached: maplibregl.FilterSpecification = [
+        'any',
+        ['==', ['get', 'visited'], true],
+        ['==', ['get', 'planned'], true],
+      ]
+      const fillByVisited = ['case', ['get', 'visited'], TRAVELLED, PLANNED] as unknown as string
       map.addLayer({
         id: 'countries-fill',
         type: 'fill',
         source: 'countries',
-        filter: ['==', ['get', 'visited'], true],
-        paint: { 'fill-color': VISITED, 'fill-opacity': 0.45 },
+        filter: reached,
+        paint: { 'fill-color': fillByVisited, 'fill-opacity': 0.45 },
       })
       map.addLayer({
         id: 'countries-line',
         type: 'line',
         source: 'countries',
-        filter: ['==', ['get', 'visited'], true],
-        paint: { 'line-color': VISITED, 'line-width': 1 },
+        filter: reached,
+        paint: { 'line-color': fillByVisited, 'line-width': 1 },
       })
       // Continents reuse the country polygons, filtered by continent flag.
       map.addLayer({
         id: 'continents-fill',
         type: 'fill',
         source: 'countries',
-        filter: ['==', ['get', 'continentVisited'], true],
-        paint: { 'fill-color': VISITED, 'fill-opacity': 0.35 },
+        filter: [
+          'any',
+          ['==', ['get', 'continentVisited'], true],
+          ['==', ['get', 'continentPlanned'], true],
+        ],
+        paint: {
+          'fill-color': ['case', ['get', 'continentVisited'], TRAVELLED, PLANNED] as unknown as string,
+          'fill-opacity': 0.35,
+        },
       })
 
       map.addSource('cities', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -172,7 +204,7 @@ export function StatsMap({
         source: 'cities',
         paint: {
           'circle-radius': 5,
-          'circle-color': VISITED,
+          'circle-color': ['case', ['get', 'travelled'], TRAVELLED, PLANNED] as unknown as string,
           // 2px surface ring so overlapping dots stay separable (mark spec).
           'circle-stroke-width': 2,
           'circle-stroke-color': '#ffffff',

@@ -1,7 +1,7 @@
 -- name: ListLocatedStopsForUser :many
 -- Every located stop across trips the user can see, in route order —
 -- the raw material for the stats page and visited-places map.
-SELECT s.name, s.lat, s.lon, s.position, t.id AS trip_id, t.title AS trip_title
+SELECT s.id, s.name, s.lat, s.lon, s.position, t.id AS trip_id, t.title AS trip_title, t.start_date, t.end_date
 FROM stops s
 JOIN trips t ON t.id = s.trip_id
 LEFT JOIN trip_members m ON m.trip_id = t.id AND m.user_id = $1
@@ -12,7 +12,7 @@ ORDER BY t.id, s.position;
 -- name: ListTravelLegsForUser :many
 -- Flight and train items across accessible trips. Each endpoint is either a
 -- stop or a home; the joins surface whichever coordinates exist.
-SELECT i.category,
+SELECT i.category, i.trip_id, i.stop_id, i.destination_stop_id,
        CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
        CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
        s1.lat AS from_stop_lat, s1.lon AS from_stop_lon,
