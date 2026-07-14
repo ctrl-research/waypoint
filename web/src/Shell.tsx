@@ -1,17 +1,10 @@
-import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { fetchMe, logout } from './api'
 import { CompassLogo } from './CompassLogo'
-
-type Theme = 'light' | 'dark' | 'system'
-
-function applyTheme(theme: Theme) {
-  const dark =
-    theme === 'dark' ||
-    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.classList.toggle('dark', dark)
-}
+// Side effect: applies the stored theme and follows OS changes app-wide;
+// the picker itself lives on the Settings page.
+import './theme'
 
 export function Shell() {
   return (
@@ -28,7 +21,6 @@ export function Shell() {
             <NavLinks />
           </div>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <UserMenu />
           </div>
         </div>
@@ -57,37 +49,6 @@ function NavLinks() {
         Settings
       </Link>
     </>
-  )
-}
-
-const themeIcons: Record<Theme, string> = { light: '☀️', dark: '🌙', system: '💻' }
-
-function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem('waypoint-theme') as Theme) ?? 'system',
-  )
-
-  useEffect(() => {
-    applyTheme(theme)
-    localStorage.setItem('waypoint-theme', theme)
-    if (theme !== 'system') return
-    // Follow OS changes live while in system mode.
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyTheme('system')
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [theme])
-
-  const next: Record<Theme, Theme> = { light: 'dark', dark: 'system', system: 'light' }
-  return (
-    <button
-      type="button"
-      onClick={() => setTheme(next[theme])}
-      title={`Theme: ${theme} — click to switch`}
-      className="rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
-    >
-      {themeIcons[theme]}
-    </button>
   )
 }
 

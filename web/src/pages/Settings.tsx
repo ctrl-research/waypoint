@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from '@tanstack/react-router'
 import { ApiError, createHome, deleteHome, fetchMe, geocode, listHomes } from '../api'
+import { getTheme, setTheme, subscribeTheme, type Theme } from '../theme'
 
 const field =
   'rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
@@ -17,6 +18,14 @@ export function SettingsPage() {
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Settings</h1>
 
       <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+        <h2 className="font-medium text-slate-900 dark:text-slate-100">Appearance</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          System follows your device’s light/dark preference.
+        </p>
+        <ThemePicker />
+      </section>
+
+      <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
         <h2 className="font-medium text-slate-900 dark:text-slate-100">Home cities</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           The cities your travels start and end from — add more than one if life is split between
@@ -25,6 +34,35 @@ export function SettingsPage() {
         </p>
         <HomesEditor />
       </section>
+    </div>
+  )
+}
+
+const THEME_OPTIONS: [Theme, string, string][] = [
+  ['light', '☀️', 'Light'],
+  ['dark', '🌙', 'Dark'],
+  ['system', '💻', 'System'],
+]
+
+function ThemePicker() {
+  const theme = useSyncExternalStore(subscribeTheme, getTheme)
+  return (
+    <div className="mt-3 flex rounded-lg border border-slate-300 dark:border-slate-600 p-0.5 w-fit">
+      {THEME_OPTIONS.map(([value, icon, label]) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => setTheme(value)}
+          aria-pressed={theme === value}
+          className={`rounded-md px-3 py-1.5 text-sm ${
+            theme === value
+              ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          {icon} {label}
+        </button>
+      ))}
     </div>
   )
 }
