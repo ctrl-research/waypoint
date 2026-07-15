@@ -101,22 +101,6 @@ export function TripDetailPage() {
         </Suspense>
       </div>
 
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Areas</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            The countries, cities, or regions this trip visits, in order. Click one to focus the
-            map.{canEdit && ' Drag to change the route.'}
-          </p>
-        <StopsSection
-          tripId={trip.id}
-          stops={stops}
-          items={allItems}
-          canEdit={canEdit}
-          onHover={setHighlightKey}
-          onFocus={(id) => setFocusStop((cur) => ({ id, nonce: (cur?.nonce ?? 0) + 1 }))}
-        />
-      </section>
-
       <section className="mt-10">
         <div className="flex items-center justify-between">
           <div>
@@ -133,6 +117,21 @@ export function TripDetailPage() {
             </Link>
           )}
         </div>
+        <h3 className="mt-4 text-sm font-semibold text-slate-700 dark:text-slate-300">Areas</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          The countries, cities, or regions this trip visits, in order. Click one to focus the
+          map.{canEdit && ' Manage them in the itinerary editor.'}
+        </p>
+        <StopsSection
+          tripId={trip.id}
+          stops={stops}
+          items={allItems}
+          canEdit={false}
+          onHover={setHighlightKey}
+          onFocus={(id) => setFocusStop((cur) => ({ id, nonce: (cur?.nonce ?? 0) + 1 }))}
+        />
+
+        <h3 className="mt-6 text-sm font-semibold text-slate-700 dark:text-slate-300">Day by day</h3>
         <ItineraryBoard
           trip={trip}
           items={planItems}
@@ -374,7 +373,7 @@ function EditTripForm({
   )
 }
 
-function StopsSection({
+export function StopsSection({
   tripId,
   stops,
   items,

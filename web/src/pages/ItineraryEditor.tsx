@@ -12,7 +12,7 @@ import {
 } from '../api'
 import { EyeIcon, PencilIcon } from '../icons'
 import { ItineraryBoard } from './ItineraryBoard'
-import { NewItemForm } from './TripDetail'
+import { NewItemForm, StopsSection } from './TripDetail'
 
 const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMap })))
 type MarkerKey = `stop:${string}` | `item:${string}`
@@ -35,6 +35,7 @@ export function ItineraryEditorPage() {
   const [newLayerOpen, setNewLayerOpen] = useState(false)
   const [newLayerName, setNewLayerName] = useState('')
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null)
+  const [focusStop, setFocusStop] = useState<{ id: string; nonce: number } | null>(null)
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
   const addLayer = useMutation({
@@ -130,9 +131,25 @@ export function ItineraryEditorPage() {
             items={visibleItems}
             layerColors={layerColors}
             highlightKey={highlightKey}
+            focusStop={focusStop}
           />
         </Suspense>
       </div>
+
+      <section className="mt-6">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Areas</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          The route's countries, cities, or regions. Click to focus the map; drag to reorder.
+        </p>
+        <StopsSection
+          tripId={trip.id}
+          stops={stops}
+          items={items}
+          canEdit={canEditMain}
+          onHover={setHighlightKey}
+          onFocus={(id) => setFocusStop((cur) => ({ id, nonce: (cur?.nonce ?? 0) + 1 }))}
+        />
+      </section>
 
       <section className="mt-6">
         <div className="flex items-center justify-between">
