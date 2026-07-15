@@ -81,8 +81,10 @@ export function TripMap({
       zoom: 1,
       attributionControl: false,
     })
-    // Compact keeps the OSM/OpenFreeMap credit behind an ⓘ toggle.
+    // Compact keeps the OSM/OpenFreeMap credit behind an ⓘ toggle —
+    // starting collapsed too (MapLibre expands it on first render).
     map.addControl(new maplibregl.AttributionControl({ compact: true }))
+    map.once('idle', () => collapseAttribution(container.current))
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
 
     map.on('load', () => {
@@ -302,11 +304,7 @@ export function TripMap({
     if (!root) return
     const nav = root.querySelector<HTMLElement>('.maplibregl-ctrl-top-right')
     if (nav) nav.style.display = hidden ? 'none' : ''
-    if (hidden) {
-      const attrib = root.querySelector<HTMLElement>('.maplibregl-ctrl-attrib')
-      attrib?.classList.remove('maplibregl-compact-show')
-      attrib?.removeAttribute('open')
-    }
+    if (hidden) collapseAttribution(root)
   }
 
   const stopReplay = () => {
@@ -619,6 +617,12 @@ function directedFeatures(points: PathPoint[]): GeoJSON.Feature[] {
  * The camera rides the dot, so the whole leg never needs to fit on screen. */
 function zoomForKm(km: number): number {
   return Math.min(14.5, Math.max(6, 14 - 2 * Math.log10(Math.max(km, 1))))
+}
+
+function collapseAttribution(root: HTMLElement | null) {
+  const attrib = root?.querySelector<HTMLElement>('.maplibregl-ctrl-attrib')
+  attrib?.classList.remove('maplibregl-compact-show')
+  attrib?.removeAttribute('open')
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
