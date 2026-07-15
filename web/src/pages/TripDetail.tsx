@@ -486,6 +486,12 @@ function StopRow({
   )
 }
 
+function legVenueKind(category: ItineraryCategory, isLeg: boolean): '' | 'station' | 'airport' {
+  if (!isLeg) return ''
+  if (category === 'flight') return 'airport'
+  return 'station'
+}
+
 function legVenueNoun(category: ItineraryCategory): string {
   if (category === 'flight') return 'airport'
   if (category === 'train') return 'station'
@@ -501,7 +507,7 @@ function VenueField({
 }: {
   venue: { address: string; lat?: number; lon?: number } | null
   onChange: (v: { address: string; lat?: number; lon?: number } | null) => void
-  kind: '' | 'station'
+  kind: '' | 'station' | 'airport'
   placeholder: string
 }) {
   if (venue) {
@@ -532,8 +538,8 @@ function VenueSearch({
   placeholder = 'Address / venue (optional)',
 }: {
   onPick: (venue: { address: string; lat?: number; lon?: number }) => void
-  /** 'station' scopes results to rail/metro stations (OSM railway layer). */
-  kind?: '' | 'station'
+  /** Scopes results to stations or airports (OSM class filtering). */
+  kind?: '' | 'station' | 'airport'
   placeholder?: string
 }) {
   const [query, setQuery] = useState('')
@@ -886,14 +892,14 @@ export function NewItemForm({
       <VenueField
         venue={venue}
         onChange={setVenue}
-        kind={category === 'train' || category === 'transport' ? 'station' : ''}
+        kind={legVenueKind(category, isLeg)}
         placeholder={isLeg ? `Departure ${legVenueNoun(category)} (optional)` : 'Address / venue (optional)'}
       />
       {isLeg && (
         <VenueField
           venue={destVenue}
           onChange={setDestVenue}
-          kind={category === 'train' || category === 'transport' ? 'station' : ''}
+          kind={legVenueKind(category, isLeg)}
           placeholder={`Arrival ${legVenueNoun(category)} (optional)`}
         />
       )}

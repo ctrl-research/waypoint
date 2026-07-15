@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -42,22 +43,49 @@ func New(baseURL, language string) *Client {
 	}
 }
 
+// Station-/airport-shaped OSM classes. Nominatim has no server-side filter
+// for these (its poi layer buries stations under identically-named bars and
+// bus stops), so Search fetches deep and keeps only these category/type
+// pairs.
+var kindClasses = map[string]map[string]bool{
+	"station": {
+		"railway/station":          true,
+		"railway/halt":             true,
+		"building/train_station":   true,
+		"public_transport/station": true,
+		"amenity/bus_station":      true,
+	},
+	"airport": {
+		"aeroway/aerodrome": true,
+	},
+}
+
 // Search geocodes q, optionally scoped by kind: "city" restricts to
-// inhabited places (Nominatim featureType=settlement) and "station" to the
-// railway layer (train/metro stations, OSM-backed). It waits for the rate
-// limiter (bounded by ctx), so bursts of autocomplete traffic queue instead
-// of violating the OSM policy.
+// inhabited places (Nominatim featureType=settlement); "station" and
+// "airport" post-filter a deeper result set to matching OSM classes. It
+// waits for the rate limiter (bounded by ctx), so bursts of autocomplete
+// traffic queue instead of violating the OSM policy.
 func (c *Client) Search(ctx context.Context, q string, limit int, kind string) ([]Result, error) {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return nil, err
 	}
 
-	u := fmt.Sprintf("%s/search?format=jsonv2&limit=%d&q=%s", c.baseURL, limit, url.QueryEscape(q))
-	switch kind {
-	case "city":
+	classes := kindClasses[kind]
+	fetchLimit := limit
+	if classes != nil {
+		// The wanted classes often rank below footways and entrances that
+		// share the station's name; fetch deep and filter. A type hint in
+		// the query pulls the right objects into range ("haneda" alone
+		// ranks suburbs; "haneda airport" leads with the aerodrome).
+		fetchLimit = 30
+		hint := map[string]string{"station": "station", "airport": "airport"}[kind]
+		if !strings.Contains(strings.ToLower(q), hint) {
+			q += " " + hint
+		}
+	}
+	u := fmt.Sprintf("%s/search?format=jsonv2&limit=%d&q=%s", c.baseURL, fetchLimit, url.QueryEscape(q))
+	if kind == "city" {
 		u += "&featureType=settlement"
-	case "station":
-		u += "&layer=railway"
 	}
 	if c.language != "" {
 		u += "&accept-language=" + url.QueryEscape(c.language)
@@ -81,19 +109,37 @@ func (c *Client) Search(ctx context.Context, q string, limit int, kind string) (
 		DisplayName string `json:"display_name"`
 		Lat         string `json:"lat"`
 		Lon         string `json:"lon"`
+		Category    string `json:"category"`
+		Type        string `json:"type"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
 		return nil, fmt.Errorf("decode nominatim response: %w", err)
 	}
 
-	results := make([]Result, 0, len(raw))
-	for _, r := range raw {
-		lat, latErr := strconv.ParseFloat(r.Lat, 64)
-		lon, lonErr := strconv.ParseFloat(r.Lon, 64)
-		if latErr != nil || lonErr != nil {
-			continue
+	parse := func(matching bool) []Result {
+		out := make([]Result, 0, limit)
+		for _, r := range raw {
+			if matching && classes != nil && !classes[r.Category+"/"+r.Type] {
+				continue
+			}
+			lat, latErr := strconv.ParseFloat(r.Lat, 64)
+			lon, lonErr := strconv.ParseFloat(r.Lon, 64)
+			if latErr != nil || lonErr != nil {
+				continue
+			}
+			out = append(out, Result{Name: r.DisplayName, Lat: lat, Lon: lon})
+			if len(out) >= limit {
+				break
+			}
 		}
-		results = append(results, Result{Name: r.DisplayName, Lat: lat, Lon: lon})
+		return out
+	}
+	results := parse(true)
+	if len(results) == 0 && classes != nil {
+		// Nominatim sometimes ranks only entrances/footways for a station
+		// query (common for Japanese stations searched in English). Better
+		// to offer those — they carry the right coordinates — than nothing.
+		results = parse(false)
 	}
 	return results, nil
 }

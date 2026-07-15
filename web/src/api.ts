@@ -290,7 +290,7 @@ export function deleteLayer(tripId: string, layerId: string): Promise<void> {
 
 export type GeocodeResult = { name: string; lat: number; lon: number }
 
-export async function geocode(q: string, kind: '' | 'city' | 'station' = ''): Promise<GeocodeResult[]> {
+export async function geocode(q: string, kind: '' | 'city' | 'station' | 'airport' = ''): Promise<GeocodeResult[]> {
   const body = await requestJSON<{ results: GeocodeResult[] }>(
     `/api/v1/geocode?q=${encodeURIComponent(q)}${kind ? `&type=${kind}` : ''}`,
   )
