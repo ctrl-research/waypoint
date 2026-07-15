@@ -121,6 +121,13 @@ export function StatsMap({
       style: mapStyle(config),
       center: [10, 25],
       zoom: 1.2,
+      attributionControl: false,
+    })
+    map.addControl(new maplibregl.AttributionControl({ compact: true }))
+    map.once('idle', () => {
+      const attrib = container.current?.querySelector<HTMLElement>('.maplibregl-ctrl-attrib')
+      attrib?.classList.remove('maplibregl-compact-show')
+      attrib?.removeAttribute('open')
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
 

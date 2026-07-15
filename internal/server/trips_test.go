@@ -231,6 +231,7 @@ func TestTripsAPI(t *testing.T) {
 			"bad endTime":         `{"title":"x","day":"2027-03-24","endTime":"25:99"}`,
 			"foreign destination": `{"title":"x","day":"2027-03-24","category":"flight","destinationStopId":"00000000-0000-0000-0000-000000000001"}`,
 			"half venue coords":   `{"title":"x","day":"2027-03-24","lat":35.0}`,
+			"half dest coords":    `{"title":"x","day":"2027-03-24","category":"train","destinationLat":35.0}`,
 			"home and stop both":  fmt.Sprintf(`{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001","stopId":%q}`, stopIDs[0]),
 			"foreign home":        `{"title":"x","day":"2027-03-24","category":"flight","originHomeId":"00000000-0000-0000-0000-000000000001"}`,
 			"foreign layerId":     `{"title":"x","day":"2027-03-24","layerId":"00000000-0000-0000-0000-000000000001"}`,
@@ -238,6 +239,25 @@ func TestTripsAPI(t *testing.T) {
 			if code, _ := call(t, h, alice, "POST", tripPath+"/items", body); code != 400 {
 				t.Fatalf("%s: code = %d, want 400", name, code)
 			}
+		}
+	})
+
+	t.Run("transport items carry an arrival venue", func(t *testing.T) {
+		code, leg := call(t, h, alice, "POST", tripPath+"/items",
+			`{"title":"Shinkansen","day":"2027-03-25","category":"train","startTime":"09:00","endTime":"11:15","address":"Tokyo Station","lat":35.681,"lon":139.767,"destinationAddress":"Kyoto Station","destinationLat":34.9855,"destinationLon":135.7585}`)
+		if code != 201 {
+			t.Fatalf("create leg: code = %d %v", code, leg)
+		}
+		if leg["destinationAddress"] != "Kyoto Station" || leg["destinationLat"].(float64) != 34.9855 {
+			t.Fatalf("arrival venue = %v / %v", leg["destinationAddress"], leg["destinationLat"])
+		}
+		code, cleared := call(t, h, alice, "PATCH", tripPath+"/items/"+leg["id"].(string),
+			`{"destinationAddress":"","clearDestinationLatLon":true}`)
+		if code != 200 || cleared["destinationAddress"] != "" || cleared["destinationLat"] != nil {
+			t.Fatalf("clear arrival venue: code = %d %v", code, cleared)
+		}
+		if code, _ := call(t, h, alice, "DELETE", tripPath+"/items/"+leg["id"].(string), ""); code != 204 {
+			t.Fatalf("cleanup leg: code = %d", code)
 		}
 	})
 

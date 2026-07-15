@@ -154,25 +154,28 @@ type Home struct {
 }
 
 type ItineraryItem struct {
-	ID                uuid.UUID
-	TripID            uuid.UUID
-	StopID            *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Position          int32
-	EndTime           string
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
+	ID                 uuid.UUID
+	TripID             uuid.UUID
+	StopID             *uuid.UUID
+	Day                time.Time
+	StartTime          string
+	Title              string
+	Category           ItineraryCategory
+	Notes              string
+	CostCents          *int64
+	Currency           *string
+	Position           int32
+	EndTime            string
+	DestinationStopID  *uuid.UUID
+	OriginHomeID       *uuid.UUID
+	DestinationHomeID  *uuid.UUID
+	Address            string
+	Lat                *float64
+	Lon                *float64
+	LayerID            uuid.UUID
+	DestinationAddress string
+	DestinationLat     *float64
+	DestinationLon     *float64
 }
 
 type ItineraryLayer struct {

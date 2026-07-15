@@ -16,7 +16,7 @@ func handleGeocode(geo *geocode.Client) http.HandlerFunc {
 			apiError(w, http.StatusBadRequest, "invalid", "q must be at least 2 characters")
 			return
 		}
-		results, err := geo.Search(r.Context(), q, 5, r.URL.Query().Get("type") == "city")
+		results, err := geo.Search(r.Context(), q, 5, r.URL.Query().Get("type"))
 		if err != nil {
 			apiInternalError(w, "geocode", err)
 			return

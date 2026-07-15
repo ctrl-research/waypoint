@@ -44,6 +44,7 @@ const TripMap = lazy(() => import('../TripMap').then((m) => ({ default: m.TripMa
 type MarkerKey = `stop:${string}` | `item:${string}`
 
 
+
 export function TripDetailPage() {
   const { tripId } = useParams({ from: '/trips/$tripId' })
   const { data: me, isLoading: meLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
@@ -82,7 +83,7 @@ export function TripDetailPage() {
 
       <div className="mt-6">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
-          <TripMap stops={stops} items={planItems} highlightKey={highlightKey} />
+          <TripMap stops={stops} items={planItems} highlightKey={highlightKey} replayable />
         </Suspense>
       </div>
 
@@ -485,12 +486,61 @@ function StopRow({
   )
 }
 
+function legVenueKind(category: ItineraryCategory, isLeg: boolean): '' | 'station' | 'airport' {
+  if (!isLeg) return ''
+  if (category === 'flight') return 'airport'
+  return 'station'
+}
+
+function legVenueNoun(category: ItineraryCategory): string {
+  if (category === 'flight') return 'airport'
+  if (category === 'train') return 'station'
+  return 'stop / station'
+}
+
+/** A picked venue chip, or the scoped search when none is set. */
+function VenueField({
+  venue,
+  onChange,
+  kind,
+  placeholder,
+}: {
+  venue: { address: string; lat?: number; lon?: number } | null
+  onChange: (v: { address: string; lat?: number; lon?: number } | null) => void
+  kind: '' | 'station' | 'airport'
+  placeholder: string
+}) {
+  if (venue) {
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="truncate rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-slate-700 dark:text-slate-300">
+          📍 {venue.address}
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+          aria-label="Remove venue"
+        >
+          ✕
+        </button>
+      </div>
+    )
+  }
+  return <VenueSearch onPick={onChange} kind={kind} placeholder={placeholder} />
+}
+
 // VenueSearch attaches an address (and coordinates when picked from the
 // geocoder) to an itinerary item, so its map pin sits at the actual venue.
 function VenueSearch({
   onPick,
+  kind = '',
+  placeholder = 'Address / venue (optional)',
 }: {
   onPick: (venue: { address: string; lat?: number; lon?: number }) => void
+  /** Scopes results to stations or airports (OSM class filtering). */
+  kind?: '' | 'station' | 'airport'
+  placeholder?: string
 }) {
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
@@ -502,8 +552,8 @@ function VenueSearch({
   }, [query])
 
   const results = useQuery({
-    queryKey: ['geocode', debounced],
-    queryFn: () => geocode(debounced),
+    queryKey: ['geocode', kind, debounced],
+    queryFn: () => geocode(debounced, kind),
     enabled: debounced.length >= 2,
     staleTime: 5 * 60 * 1000,
   })
@@ -521,7 +571,7 @@ function VenueSearch({
           window.setTimeout(() => setOpen(false), 150)
           if (query.trim()) onPick({ address: query.trim() })
         }}
-        placeholder="Address / venue (optional)"
+        placeholder={placeholder}
         className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
       />
       {open && debounced.length >= 2 && (
@@ -683,8 +733,17 @@ export function NewItemForm({
       ? { address: item.address, lat: item.lat ?? undefined, lon: item.lon ?? undefined }
       : null,
   )
+  const [destVenue, setDestVenue] = useState<{ address: string; lat?: number; lon?: number } | null>(
+    item?.destinationAddress
+      ? {
+          address: item.destinationAddress,
+          lat: item.destinationLat ?? undefined,
+          lon: item.destinationLon ?? undefined,
+        }
+      : null,
+  )
   const [itemLayerId, setItemLayerId] = useState(item?.layerId ?? layers?.[0]?.id ?? '')
-  const isLeg = category === 'flight' || category === 'train'
+  const isLeg = category === 'flight' || category === 'train' || category === 'transport'
   const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
   const add = useMutation({
@@ -700,14 +759,24 @@ export function NewItemForm({
           : isLeg && destinationStopId
             ? { destinationStopId, clearDestinationHome: true }
             : { clearDestination: true, clearDestinationHome: true }
-      const venueFields: ItemInput = venue
-        ? {
-            address: venue.address,
-            ...(venue.lat !== undefined && venue.lon !== undefined
-              ? { lat: venue.lat, lon: venue.lon }
-              : { clearLatLon: true }),
-          }
-        : { address: '', clearLatLon: true }
+      const venueFields: ItemInput = {
+        ...(venue
+          ? {
+              address: venue.address,
+              ...(venue.lat !== undefined && venue.lon !== undefined
+                ? { lat: venue.lat, lon: venue.lon }
+                : { clearLatLon: true }),
+            }
+          : { address: '', clearLatLon: true }),
+        ...(destVenue
+          ? {
+              destinationAddress: destVenue.address,
+              ...(destVenue.lat !== undefined && destVenue.lon !== undefined
+                ? { destinationLat: destVenue.lat, destinationLon: destVenue.lon }
+                : { clearDestinationLatLon: true }),
+            }
+          : { destinationAddress: '', clearDestinationLatLon: true }),
+      }
 
       if (item) {
         return updateItem(tripId, item.id, {
@@ -741,6 +810,14 @@ export function NewItemForm({
                 : {}),
             }
           : {}),
+        ...(destVenue
+          ? {
+              destinationAddress: destVenue.address,
+              ...(destVenue.lat !== undefined && destVenue.lon !== undefined
+                ? { destinationLat: destVenue.lat, destinationLon: destVenue.lon }
+                : {}),
+            }
+          : {}),
         ...(stopId.startsWith('home:')
           ? { originHomeId: stopId.slice(5) }
           : stopId
@@ -757,6 +834,7 @@ export function NewItemForm({
       if (!item) {
         setTitle('')
         setVenue(null)
+        setDestVenue(null)
       }
       await queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
       onDone?.()
@@ -811,22 +889,19 @@ export function NewItemForm({
           className={field}
         />
       </div>
-      {venue ? (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="truncate rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-slate-700 dark:text-slate-300">
-            📍 {venue.address}
-          </span>
-          <button
-            type="button"
-            onClick={() => setVenue(null)}
-            className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
-            aria-label="Remove venue"
-          >
-            ✕
-          </button>
-        </div>
-      ) : (
-        <VenueSearch onPick={setVenue} />
+      <VenueField
+        venue={venue}
+        onChange={setVenue}
+        kind={legVenueKind(category, isLeg)}
+        placeholder={isLeg ? `Departure ${legVenueNoun(category)} (optional)` : 'Address / venue (optional)'}
+      />
+      {isLeg && (
+        <VenueField
+          venue={destVenue}
+          onChange={setDestVenue}
+          kind={legVenueKind(category, isLeg)}
+          placeholder={`Arrival ${legVenueNoun(category)} (optional)`}
+        />
       )}
       <div className="flex flex-wrap gap-2">
         <select

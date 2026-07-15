@@ -162,24 +162,27 @@ func toStopJSON(s store.Stop) stopJSON {
 }
 
 type itemJSON struct {
-	ID                uuid.UUID  `json:"id"`
-	StopID            *uuid.UUID `json:"stopId"`
-	DestinationStopID *uuid.UUID `json:"destinationStopId"`
-	OriginHomeID      *uuid.UUID `json:"originHomeId"`
-	DestinationHomeID *uuid.UUID `json:"destinationHomeId"`
-	Day               string     `json:"day"`
-	StartTime         *string    `json:"startTime"`
-	EndTime           *string    `json:"endTime"`
-	Title             string     `json:"title"`
-	Category          string     `json:"category"`
-	Notes             string     `json:"notes"`
-	CostCents         *int64     `json:"costCents"`
-	Currency          *string    `json:"currency"`
-	Address           string     `json:"address"`
-	Lat               *float64   `json:"lat"`
-	Lon               *float64   `json:"lon"`
-	LayerID           uuid.UUID  `json:"layerId"`
-	Position          int32      `json:"position"`
+	ID                 uuid.UUID  `json:"id"`
+	StopID             *uuid.UUID `json:"stopId"`
+	DestinationStopID  *uuid.UUID `json:"destinationStopId"`
+	OriginHomeID       *uuid.UUID `json:"originHomeId"`
+	DestinationHomeID  *uuid.UUID `json:"destinationHomeId"`
+	Day                string     `json:"day"`
+	StartTime          *string    `json:"startTime"`
+	EndTime            *string    `json:"endTime"`
+	Title              string     `json:"title"`
+	Category           string     `json:"category"`
+	Notes              string     `json:"notes"`
+	CostCents          *int64     `json:"costCents"`
+	Currency           *string    `json:"currency"`
+	Address            string     `json:"address"`
+	Lat                *float64   `json:"lat"`
+	Lon                *float64   `json:"lon"`
+	LayerID            uuid.UUID  `json:"layerId"`
+	DestinationAddress string     `json:"destinationAddress"`
+	DestinationLat     *float64   `json:"destinationLat"`
+	DestinationLon     *float64   `json:"destinationLon"`
+	Position           int32      `json:"position"`
 }
 
 func toItemJSON(it store.ItineraryItem) itemJSON {
@@ -190,6 +193,7 @@ func toItemJSON(it store.ItineraryItem) itemJSON {
 		Title: it.Title, Category: string(it.Category), Notes: it.Notes,
 		CostCents: it.CostCents, Currency: it.Currency, Position: it.Position,
 		Address: it.Address, Lat: it.Lat, Lon: it.Lon, LayerID: it.LayerID,
+		DestinationAddress: it.DestinationAddress, DestinationLat: it.DestinationLat, DestinationLon: it.DestinationLon,
 	}
 }
 
