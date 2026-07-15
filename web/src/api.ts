@@ -92,6 +92,8 @@ export type Stop = {
   departureDate: string | null
   position: number
   notes: string
+  /** Scale of the place (country, city, town… — Nominatim addresstype). */
+  kind: string
 }
 
 export type ItineraryCategory = 'activity' | 'food' | 'lodging' | 'transport' | 'flight' | 'train' | 'other'
@@ -187,6 +189,7 @@ export type StopInput = Partial<{
   arrivalDate: string
   departureDate: string
   notes: string
+  kind: string
 }>
 
 export function createStop(tripId: string, input: StopInput): Promise<Stop> {
@@ -288,7 +291,7 @@ export function deleteLayer(tripId: string, layerId: string): Promise<void> {
 
 // ---- geocoding ---------------------------------------------------------------
 
-export type GeocodeResult = { name: string; lat: number; lon: number }
+export type GeocodeResult = { name: string; lat: number; lon: number; type: string }
 
 export async function geocode(q: string, kind: '' | 'city' | 'station' | 'airport' = ''): Promise<GeocodeResult[]> {
   const body = await requestJSON<{ results: GeocodeResult[] }>(

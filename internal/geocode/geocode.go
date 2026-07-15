@@ -23,6 +23,8 @@ type Result struct {
 	Name string  `json:"name"`
 	Lat  float64 `json:"lat"`
 	Lon  float64 `json:"lon"`
+	// Type is Nominatim's addresstype (country, state, city, town…).
+	Type string `json:"type"`
 }
 
 type Client struct {
@@ -111,6 +113,7 @@ func (c *Client) Search(ctx context.Context, q string, limit int, kind string) (
 		Lon         string `json:"lon"`
 		Category    string `json:"category"`
 		Type        string `json:"type"`
+		AddressType string `json:"addresstype"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
 		return nil, fmt.Errorf("decode nominatim response: %w", err)
@@ -127,7 +130,7 @@ func (c *Client) Search(ctx context.Context, q string, limit int, kind string) (
 			if latErr != nil || lonErr != nil {
 				continue
 			}
-			out = append(out, Result{Name: r.DisplayName, Lat: lat, Lon: lon})
+			out = append(out, Result{Name: r.DisplayName, Lat: lat, Lon: lon, Type: r.AddressType})
 			if len(out) >= limit {
 				break
 			}

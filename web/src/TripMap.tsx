@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchConfig, type ItineraryCategory, type ItineraryItem, type Stop } from './api'
-import { EyeIcon, PauseIcon, PlayIcon, categoryIcons } from './icons'
+import { CrosshairIcon, EyeIcon, PauseIcon, PlayIcon, categoryIcons } from './icons'
 import { mapsLink } from './maps'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
@@ -47,6 +47,7 @@ export function TripMap({
   mapConfig,
   layerColors,
   replayable = false,
+  focusStop = null,
 }: {
   stops: Stop[]
   items?: ItineraryItem[]
@@ -57,6 +58,9 @@ export function TripMap({
   mapConfig?: MapSourceConfig
   /** Enables the ▶ Replay control (#62). */
   replayable?: boolean
+  /** Focus one area: bounds of it and its located items, or a zoom suited
+   * to its kind. The nonce retriggers focusing the same area (#93). */
+  focusStop?: { id: string; nonce: number } | null
 }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -117,6 +121,7 @@ export function TripMap({
       })
       mapRef.current = map
       syncMap(map, stopsRef.current, itemsRef.current, markersRef, layerColorsRef.current)
+      fitAllStops(map, stopsRef.current)
     })
 
     return () => {
@@ -136,6 +141,37 @@ export function TripMap({
   useEffect(() => {
     if (mapRef.current) syncMap(mapRef.current, stops, items, markersRef, layerColors)
   }, [stops, items, layerColors])
+
+  // Fit the camera around the areas only when the set of located areas
+  // actually changes — hovers and edits must never yank the view (#93).
+  const fitKeyRef = useRef('')
+  useEffect(() => {
+    const key = stops
+      .filter((s) => s.lat !== null)
+      .map((s) => s.id)
+      .join(',')
+    if (key === fitKeyRef.current) return
+    fitKeyRef.current = key
+    if (mapRef.current) fitAllStops(mapRef.current, stops)
+  }, [stops])
+
+  // Click-to-focus one area from the list (#93).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !focusStop) return
+    const stop = stops.find((s) => s.id === focusStop.id)
+    if (!stop || stop.lat === null || stop.lon === null) return
+    const tied = items.filter((i) => i.stopId === stop.id && i.lat !== null && i.lon !== null)
+    if (tied.length > 0) {
+      const bounds = new maplibregl.LngLatBounds()
+      bounds.extend([stop.lon, stop.lat])
+      for (const it of tied) bounds.extend([it.lon!, it.lat!])
+      map.fitBounds(bounds, { padding: 60, maxZoom: 15 })
+    } else {
+      map.easeTo({ center: [stop.lon, stop.lat], zoom: kindZoom(stop.kind), duration: 700 })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusStop])
 
   // Hover-highlight from the lists (#71): the hovered marker pops, every
   // other POI fades back so the emphasis is unmistakable.
@@ -432,7 +468,8 @@ export function TripMap({
             : caption.label}
         </div>
       )}
-      <div className="absolute left-3 top-3 rounded-lg bg-white/90 p-1 text-xs shadow">
+      <div className="absolute left-3 top-3 flex items-start gap-1.5">
+      <div className="rounded-lg bg-white/90 p-1 text-xs shadow">
         <button
           type="button"
           onClick={() => setLegendOpen((v) => !v)}
@@ -446,7 +483,7 @@ export function TripMap({
           <div className="mt-0.5 flex flex-col">
             {(
               [
-                ['Stops', showStops, setShowStops],
+                ['Areas', showStops, setShowStops],
                 ['Items', showItems, setShowItems],
                 ['Path', showPath, setShowPath],
               ] as const
@@ -465,6 +502,16 @@ export function TripMap({
             ))}
           </div>
         )}
+      </div>
+      <button
+        type="button"
+        onClick={() => mapRef.current && fitAllStops(mapRef.current, stops)}
+        className="rounded-lg bg-white/90 p-1.5 text-slate-900 shadow hover:bg-white"
+        title="Fit all areas in view"
+        aria-label="Fit all areas in view"
+      >
+        <CrosshairIcon className="h-4 w-4" />
+      </button>
       </div>
     </div>
   )
@@ -725,11 +772,39 @@ function syncMap(
     features: directedFeatures(itineraryPath(items, stops)),
   })
 
+}
+
+/** Frame every located area — initial view and the crosshair button. */
+function fitAllStops(map: maplibregl.Map, stops: Stop[]) {
+  const located = stops.filter((s) => s.lat !== null && s.lon !== null)
   if (located.length === 1) {
     map.easeTo({ center: [located[0].lon!, located[0].lat!], zoom: 9 })
   } else if (located.length > 1) {
     const bounds = new maplibregl.LngLatBounds()
     for (const s of located) bounds.extend([s.lon!, s.lat!])
     map.fitBounds(bounds, { padding: 48, maxZoom: 11 })
+  }
+}
+
+/** Focus zoom for an area without located items, by the place's scale. */
+function kindZoom(kind: string): number {
+  switch (kind) {
+    case 'country':
+      return 4.5
+    case 'state':
+    case 'region':
+    case 'province':
+      return 6.5
+    case 'county':
+      return 8
+    case 'town':
+      return 11.5
+    case 'village':
+    case 'suburb':
+    case 'neighbourhood':
+    case 'quarter':
+      return 12.5
+    default: // cities and unclassified legacy areas
+      return 10.5
   }
 }

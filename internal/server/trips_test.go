@@ -143,9 +143,12 @@ func TestTripsAPI(t *testing.T) {
 	var stopIDs []string
 	for _, name := range []string{"Tokyo", "Kyoto", "Osaka"} {
 		code, stop := call(t, h, alice, "POST", tripPath+"/stops",
-			fmt.Sprintf(`{"name":%q,"lat":35.0,"lon":135.0}`, name))
+			fmt.Sprintf(`{"name":%q,"lat":35.0,"lon":135.0,"kind":"city"}`, name))
 		if code != 201 {
 			t.Fatalf("create stop %s: code = %d %v", name, code, stop)
+		}
+		if stop["kind"] != "city" {
+			t.Fatalf("stop kind = %v, want city (#93 focus zoom)", stop["kind"])
 		}
 		stopIDs = append(stopIDs, stop["id"].(string))
 	}

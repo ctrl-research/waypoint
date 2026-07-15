@@ -18,13 +18,16 @@ type StopParams struct {
 	ArrivalDate   *time.Time
 	DepartureDate *time.Time
 	Notes         string
+	// Kind is the place's scale (country, city, town… — Nominatim's
+	// addresstype) so the map can pick a focus zoom (#93).
+	Kind string
 }
 
 // CreateStop appends the stop at the end of the trip's ordering.
 func (s *Trips) CreateStop(ctx context.Context, tripID uuid.UUID, p StopParams) (Stop, error) {
 	st, err := s.q.CreateStop(ctx, sqlcgen.CreateStopParams{
 		TripID: tripID, Name: p.Name, Lat: p.Lat, Lon: p.Lon,
-		ArrivalDate: p.ArrivalDate, DepartureDate: p.DepartureDate, Notes: p.Notes,
+		ArrivalDate: p.ArrivalDate, DepartureDate: p.DepartureDate, Notes: p.Notes, Kind: p.Kind,
 	})
 	if err == nil {
 		s.touch(ctx, tripID)
@@ -50,7 +53,7 @@ func (s *Trips) StopByID(ctx context.Context, tripID, stopID uuid.UUID) (Stop, e
 func (s *Trips) UpdateStop(ctx context.Context, tripID, stopID uuid.UUID, p StopParams) (Stop, error) {
 	st, err := s.q.UpdateStop(ctx, sqlcgen.UpdateStopParams{
 		TripID: tripID, ID: stopID, Name: p.Name, Lat: p.Lat, Lon: p.Lon,
-		ArrivalDate: p.ArrivalDate, DepartureDate: p.DepartureDate, Notes: p.Notes,
+		ArrivalDate: p.ArrivalDate, DepartureDate: p.DepartureDate, Notes: p.Notes, Kind: p.Kind,
 	})
 	if err == nil {
 		s.touch(ctx, tripID)

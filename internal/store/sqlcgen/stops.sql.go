@@ -24,10 +24,10 @@ func (q *Queries) CountStops(ctx context.Context, tripID uuid.UUID) (int64, erro
 }
 
 const createStop = `-- name: CreateStop :one
-INSERT INTO stops (trip_id, name, lat, lon, arrival_date, departure_date, notes, position)
-VALUES ($1, $2, $3, $4, $5, $6, $7,
+INSERT INTO stops (trip_id, name, lat, lon, arrival_date, departure_date, notes, kind, position)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
         (SELECT COALESCE(MAX(position) + 1, 0) FROM stops WHERE trip_id = $1))
-RETURNING id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes
+RETURNING id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes, kind
 `
 
 type CreateStopParams struct {
@@ -38,6 +38,7 @@ type CreateStopParams struct {
 	ArrivalDate   *time.Time
 	DepartureDate *time.Time
 	Notes         string
+	Kind          string
 }
 
 // Appends the stop at the end of the trip's ordering.
@@ -50,6 +51,7 @@ func (q *Queries) CreateStop(ctx context.Context, arg CreateStopParams) (Stop, e
 		arg.ArrivalDate,
 		arg.DepartureDate,
 		arg.Notes,
+		arg.Kind,
 	)
 	var i Stop
 	err := row.Scan(
@@ -62,6 +64,7 @@ func (q *Queries) CreateStop(ctx context.Context, arg CreateStopParams) (Stop, e
 		&i.DepartureDate,
 		&i.Position,
 		&i.Notes,
+		&i.Kind,
 	)
 	return i, err
 }
@@ -84,7 +87,7 @@ func (q *Queries) DeleteStop(ctx context.Context, arg DeleteStopParams) (int64, 
 }
 
 const listStops = `-- name: ListStops :many
-SELECT id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes FROM stops WHERE trip_id = $1 ORDER BY position
+SELECT id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes, kind FROM stops WHERE trip_id = $1 ORDER BY position
 `
 
 func (q *Queries) ListStops(ctx context.Context, tripID uuid.UUID) ([]Stop, error) {
@@ -106,6 +109,7 @@ func (q *Queries) ListStops(ctx context.Context, tripID uuid.UUID) ([]Stop, erro
 			&i.DepartureDate,
 			&i.Position,
 			&i.Notes,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -151,7 +155,7 @@ func (q *Queries) SetStopPosition(ctx context.Context, arg SetStopPositionParams
 }
 
 const stopByID = `-- name: StopByID :one
-SELECT id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes FROM stops WHERE id = $2 AND trip_id = $1
+SELECT id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes, kind FROM stops WHERE id = $2 AND trip_id = $1
 `
 
 type StopByIDParams struct {
@@ -172,15 +176,16 @@ func (q *Queries) StopByID(ctx context.Context, arg StopByIDParams) (Stop, error
 		&i.DepartureDate,
 		&i.Position,
 		&i.Notes,
+		&i.Kind,
 	)
 	return i, err
 }
 
 const updateStop = `-- name: UpdateStop :one
 UPDATE stops
-SET name = $3, lat = $4, lon = $5, arrival_date = $6, departure_date = $7, notes = $8
+SET name = $3, lat = $4, lon = $5, arrival_date = $6, departure_date = $7, notes = $8, kind = $9
 WHERE id = $2 AND trip_id = $1
-RETURNING id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes
+RETURNING id, trip_id, name, lat, lon, arrival_date, departure_date, position, notes, kind
 `
 
 type UpdateStopParams struct {
@@ -192,6 +197,7 @@ type UpdateStopParams struct {
 	ArrivalDate   *time.Time
 	DepartureDate *time.Time
 	Notes         string
+	Kind          string
 }
 
 func (q *Queries) UpdateStop(ctx context.Context, arg UpdateStopParams) (Stop, error) {
@@ -204,6 +210,7 @@ func (q *Queries) UpdateStop(ctx context.Context, arg UpdateStopParams) (Stop, e
 		arg.ArrivalDate,
 		arg.DepartureDate,
 		arg.Notes,
+		arg.Kind,
 	)
 	var i Stop
 	err := row.Scan(
@@ -216,6 +223,7 @@ func (q *Queries) UpdateStop(ctx context.Context, arg UpdateStopParams) (Stop, e
 		&i.DepartureDate,
 		&i.Position,
 		&i.Notes,
+		&i.Kind,
 	)
 	return i, err
 }

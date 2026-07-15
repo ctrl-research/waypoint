@@ -151,13 +151,14 @@ type stopJSON struct {
 	DepartureDate *string   `json:"departureDate"`
 	Position      int32     `json:"position"`
 	Notes         string    `json:"notes"`
+	Kind          string    `json:"kind"`
 }
 
 func toStopJSON(s store.Stop) stopJSON {
 	return stopJSON{
 		ID: s.ID, Name: s.Name, Lat: s.Lat, Lon: s.Lon,
 		ArrivalDate: formatDate(s.ArrivalDate), DepartureDate: formatDate(s.DepartureDate),
-		Position: s.Position, Notes: s.Notes,
+		Position: s.Position, Notes: s.Notes, Kind: s.Kind,
 	}
 }
 
