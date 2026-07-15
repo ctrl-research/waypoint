@@ -231,7 +231,7 @@ export function TripMap({
           ? Math.min(5200, Math.max(1400, from.minutes * 14))
           : Math.min(4200, Math.max(1400, km * 12))
         : isTransport
-          ? 3200
+          ? 2250
           : 1800
       // The dot follows the leg's actual geometry (flights arc), and the
       // camera rides the dot every frame while the zoom glides to the
