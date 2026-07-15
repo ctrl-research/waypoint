@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useParams } from '@tanstack/react-router'
 import {
@@ -56,6 +56,17 @@ export function TripDetailPage() {
 
   // List row under the cursor, mirrored on the map (#71).
   const [highlightKey, setHighlightKey] = useState<MarkerKey | null>(null)
+  // Clicking an area row focuses the map on it (#93).
+  const [focusStop, setFocusStop] = useState<{ id: string; nonce: number } | null>(null)
+
+  // The itinerary is the merge of visible layers; memoized so hover
+  // re-renders keep the same array identity and never disturb the map (#93).
+  const allItems = detail.data?.items ?? []
+  const allLayers = detail.data?.layers ?? []
+  const planItems = useMemo(() => {
+    const hiddenLayers = new Set(allLayers.filter((l) => !l.visible).map((l) => l.id))
+    return allItems.filter((i) => !hiddenLayers.has(i.layerId))
+  }, [allItems, allLayers])
 
   if (meLoading) return null
   if (!me) return <Navigate to="/login" />
@@ -71,11 +82,8 @@ export function TripDetailPage() {
   }
   if (!detail.data) return null
 
-  const { trip, stops, items, layers } = detail.data
+  const { trip, stops } = detail.data
   const canEdit = trip.role !== 'viewer'
-  // The itinerary is the merge of visible layers (#73).
-  const hiddenLayers = new Set(layers.filter((l) => !l.visible).map((l) => l.id))
-  const planItems = items.filter((i) => !hiddenLayers.has(i.layerId))
 
   return (
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
@@ -83,17 +91,30 @@ export function TripDetailPage() {
 
       <div className="mt-6">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
-          <TripMap stops={stops} items={planItems} highlightKey={highlightKey} replayable />
+          <TripMap
+            stops={stops}
+            items={planItems}
+            highlightKey={highlightKey}
+            replayable
+            focusStop={focusStop}
+          />
         </Suspense>
       </div>
 
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Stops</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Areas</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            The places this trip visits, in order.
-            {canEdit && ' Drag to change the route.'}
+            The countries, cities, or regions this trip visits, in order. Click one to focus the
+            map.{canEdit && ' Drag to change the route.'}
           </p>
-        <StopsSection tripId={trip.id} stops={stops} canEdit={canEdit} onHover={setHighlightKey} />
+        <StopsSection
+          tripId={trip.id}
+          stops={stops}
+          items={allItems}
+          canEdit={canEdit}
+          onHover={setHighlightKey}
+          onFocus={(id) => setFocusStop((cur) => ({ id, nonce: (cur?.nonce ?? 0) + 1 }))}
+        />
       </section>
 
       <section className="mt-10">
@@ -117,12 +138,12 @@ export function TripDetailPage() {
           items={planItems}
           readOnly
           combined
-          layers={layers}
+          layers={allLayers}
           onHover={setHighlightKey}
         />
       </section>
 
-      <JournalTimeline trip={trip} items={items} stops={stops} canEdit={canEdit} />
+      <JournalTimeline trip={trip} items={allItems} stops={stops} canEdit={canEdit} />
       <MembersSection tripId={trip.id} role={trip.role} />
       {trip.role === 'owner' && <ShareSection tripId={trip.id} />}
 
@@ -356,13 +377,17 @@ function EditTripForm({
 function StopsSection({
   tripId,
   stops,
+  items,
   canEdit,
   onHover,
+  onFocus,
 }: {
   tripId: string
   stops: Stop[]
+  items: ItineraryItem[]
   canEdit: boolean
   onHover: (key: MarkerKey | null) => void
+  onFocus: (stopId: string) => void
 }) {
   const queryClient = useQueryClient()
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['trip', tripId] })
@@ -407,6 +432,8 @@ function StopsSection({
               index={i}
               canEdit={canEdit}
               onHover={onHover}
+              onFocus={onFocus}
+              linkedItems={items.filter((it) => it.stopId === stop.id || it.destinationStopId === stop.id).length}
               onDelete={(id) => remove.mutate(id)}
             />
           ))}
@@ -428,12 +455,16 @@ function StopRow({
   index,
   canEdit,
   onHover,
+  onFocus,
+  linkedItems,
   onDelete,
 }: {
   stop: Stop
   index: number
   canEdit: boolean
   onHover: (key: MarkerKey | null) => void
+  onFocus: (stopId: string) => void
+  linkedItems: number
   onDelete: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -446,7 +477,8 @@ function StopRow({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       onMouseEnter={() => onHover(`stop:${stop.id}`)}
       onMouseLeave={() => onHover(null)}
-      className={`flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 ${
+      onClick={() => onFocus(stop.id)}
+      className={`flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 ${
         isDragging ? 'z-10 opacity-70 shadow-lg' : ''
       }`}
     >
@@ -456,6 +488,7 @@ function StopRow({
             type="button"
             {...attributes}
             {...listeners}
+            onClick={(e) => e.stopPropagation()}
             className="cursor-grab touch-none px-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 active:cursor-grabbing"
             aria-label={`Drag ${stop.name}`}
           >
@@ -475,7 +508,13 @@ function StopRow({
       {canEdit && (
         <button
           type="button"
-          onClick={() => onDelete(stop.id)}
+          onClick={(e) => {
+            e.stopPropagation()
+            const linked = linkedItems
+              ? ` ${linkedItems} itinerary item${linkedItems === 1 ? '' : 's'} will be unlinked.`
+              : ''
+            if (window.confirm(`Delete "${stop.name}"?${linked}`)) onDelete(stop.id)
+          }}
           className="px-1 text-sm text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
           aria-label={`Remove ${stop.name}`}
         >
@@ -646,7 +685,7 @@ function StopSearch({ pending, onAdd }: { pending: boolean; onAdd: (input: StopI
           }}
           onFocus={() => setOpen(true)}
           onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-          placeholder="Search for a place (e.g. Kyoto)"
+          placeholder="Add an area — country, city, region… (e.g. Kyoto)"
           className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
         />
         <button
@@ -666,7 +705,7 @@ function StopSearch({ pending, onAdd }: { pending: boolean; onAdd: (input: StopI
               key={`${r.lat},${r.lon}`}
               type="button"
               // onMouseDown so the click wins over the input's onBlur
-              onMouseDown={() => pick({ name: shortName(r.name), lat: r.lat, lon: r.lon })}
+              onMouseDown={() => pick({ name: shortName(r.name), lat: r.lat, lon: r.lon, kind: r.type })}
               className="block w-full truncate px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               📍 {r.name}

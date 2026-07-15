@@ -21,6 +21,7 @@ type stopRequest struct {
 	ArrivalDate   *string  `json:"arrivalDate"`
 	DepartureDate *string  `json:"departureDate"`
 	Notes         *string  `json:"notes"`
+	Kind          *string  `json:"kind"`
 }
 
 func (req stopRequest) merge(p *store.StopParams) error {
@@ -51,6 +52,12 @@ func (req stopRequest) merge(p *store.StopParams) error {
 	}
 	if req.Notes != nil {
 		p.Notes = *req.Notes
+	}
+	if req.Kind != nil {
+		if len(*req.Kind) > 40 {
+			return errors.New("kind is too long")
+		}
+		p.Kind = *req.Kind
 	}
 	return nil
 }

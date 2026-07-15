@@ -75,7 +75,7 @@ export function PrintTripPage() {
 
       {stops.length > 0 && (
         <section className="mt-8 break-inside-avoid">
-          <h2 className="border-b border-slate-300 pb-1 text-lg font-semibold">Stops</h2>
+          <h2 className="border-b border-slate-300 pb-1 text-lg font-semibold">Areas</h2>
           <ol className="mt-3 space-y-1">
             {stops.map((stop, i) => (
               <li key={stop.id} className="text-sm">

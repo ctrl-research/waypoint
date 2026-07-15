@@ -57,7 +57,7 @@ export function PublicTripPage() {
 
       {stops.length > 0 && (
         <section className="mt-8">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Stops</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Areas</h2>
           <ol className="mt-3 space-y-1">
             {stops.map((stop, i) => (
               <li key={stop.id} className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">

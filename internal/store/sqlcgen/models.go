@@ -239,6 +239,7 @@ type Stop struct {
 	DepartureDate *time.Time
 	Position      int32
 	Notes         string
+	Kind          string
 }
 
 type Trip struct {

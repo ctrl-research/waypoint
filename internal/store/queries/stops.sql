@@ -1,7 +1,7 @@
 -- name: CreateStop :one
 -- Appends the stop at the end of the trip's ordering.
-INSERT INTO stops (trip_id, name, lat, lon, arrival_date, departure_date, notes, position)
-VALUES ($1, $2, $3, $4, $5, $6, $7,
+INSERT INTO stops (trip_id, name, lat, lon, arrival_date, departure_date, notes, kind, position)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
         (SELECT COALESCE(MAX(position) + 1, 0) FROM stops WHERE trip_id = $1))
 RETURNING *;
 
@@ -13,7 +13,7 @@ SELECT * FROM stops WHERE id = $2 AND trip_id = $1;
 
 -- name: UpdateStop :one
 UPDATE stops
-SET name = $3, lat = $4, lon = $5, arrival_date = $6, departure_date = $7, notes = $8
+SET name = $3, lat = $4, lon = $5, arrival_date = $6, departure_date = $7, notes = $8, kind = $9
 WHERE id = $2 AND trip_id = $1
 RETURNING *;
 
