@@ -220,11 +220,19 @@ export function TripMap({
       const to = pts[i]
       setCaption(to)
       const km = haversineKm(from.lat, from.lon, to.lat, to.lon)
-      // Pace by the item's own start→end duration when it has one (a 5h
-      // flight plays longer than a 1h hop); distance decides otherwise.
-      const duration = from.minutes
-        ? Math.min(5200, Math.max(1400, from.minutes * 14))
-        : Math.min(4200, Math.max(1400, km * 12))
+      const isTransport = !!(from.category && TRANSPORT_EMOJI[from.category])
+      // Constant pacing by default: every leg plays the same, transport
+      // legs a bit longer. Proportional pacing (distance / timetable
+      // duration) is opt-in from Settings — it rewards fully-tracked
+      // itineraries but reads as erratic otherwise.
+      const proportional = localStorage.getItem('waypoint-replay-pacing') === 'proportional'
+      const duration = proportional
+        ? from.minutes
+          ? Math.min(5200, Math.max(1400, from.minutes * 14))
+          : Math.min(4200, Math.max(1400, km * 12))
+        : isTransport
+          ? 3200
+          : 1800
       // The dot follows the leg's actual geometry (flights arc), and the
       // camera rides the dot every frame while the zoom glides to the
       // leg's scale, so the dot never outruns the view.

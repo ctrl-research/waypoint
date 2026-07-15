@@ -36,6 +36,16 @@ export function SettingsPage() {
       </section>
 
       <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+        <h2 className="font-medium text-slate-900 dark:text-slate-100">Trip replay</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Constant plays every leg at the same pace (transport slightly longer). Proportional
+          scales each leg by its distance and departure/arrival times — best when your transport
+          items carry real timetables.
+        </p>
+        <ReplayPacingPicker />
+      </section>
+
+      <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
         <h2 className="font-medium text-slate-900 dark:text-slate-100">Home cities</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           The cities your travels start and end from — add more than one if life is split between
@@ -128,6 +138,40 @@ const THEME_OPTIONS: [Theme, string, string][] = [
   ['dark', '🌙', 'Dark'],
   ['system', '💻', 'System'],
 ]
+
+function ReplayPacingPicker() {
+  const [pacing, setPacing] = useState(
+    () => localStorage.getItem('waypoint-replay-pacing') ?? 'constant',
+  )
+  const choose = (value: string) => {
+    setPacing(value)
+    localStorage.setItem('waypoint-replay-pacing', value)
+  }
+  return (
+    <div className="mt-3 flex w-fit rounded-lg border border-slate-300 dark:border-slate-600 p-0.5">
+      {(
+        [
+          ['constant', 'Constant'],
+          ['proportional', 'Proportional'],
+        ] as const
+      ).map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => choose(value)}
+          aria-pressed={pacing === value}
+          className={`rounded-md px-3 py-1.5 text-sm ${
+            pacing === value
+              ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function ThemePicker() {
   const theme = useSyncExternalStore(subscribeTheme, getTheme)
