@@ -151,7 +151,7 @@ export function ItineraryEditorPage() {
         />
       </section>
 
-      <section className="mt-6">
+      <section className="mt-6" data-tour="layers-panel">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Layers</h2>
           {newLayerOpen ? (
@@ -305,7 +305,7 @@ export function ItineraryEditorPage() {
           </div>
         ) : (
           canAddItems && (
-            <div className="mt-4">
+            <div className="mt-4" data-tour="item-form">
               <NewItemForm trip={trip} stops={stops} layers={formLayers} />
             </div>
           )

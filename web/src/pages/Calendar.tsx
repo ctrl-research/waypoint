@@ -54,7 +54,10 @@ export function CalendarPage() {
         {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
       </p>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <div
+        className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+        data-tour="calendar-grid"
+      >
         <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 text-center text-xs font-medium text-slate-400 dark:text-slate-500">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
             <div key={d} className="py-1.5">

@@ -89,7 +89,7 @@ export function TripDetailPage() {
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
       <TripHeader tripId={tripId} />
 
-      <div className="mt-6">
+      <div className="mt-6" data-tour="trip-map">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
           <TripMap
             stops={stops}
@@ -101,7 +101,7 @@ export function TripDetailPage() {
         </Suspense>
       </div>
 
-      <section className="mt-10">
+      <section className="mt-10" data-tour="itinerary-overview">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
