@@ -114,6 +114,10 @@ export type ItineraryItem = {
   lat: number | null
   lon: number | null
   layerId: string
+  /** Arrival venue for transportation legs; `address` is the departure. */
+  destinationAddress: string
+  destinationLat: number | null
+  destinationLon: number | null
   position: number
 }
 
@@ -218,12 +222,16 @@ export type ItemInput = Partial<{
   lat: number
   lon: number
   layerId: string
+  destinationAddress: string
+  destinationLat: number
+  destinationLon: number
   /** Clear flags for PATCH: unset the referenced field server-side. */
   clearStop: boolean
   clearDestination: boolean
   clearOriginHome: boolean
   clearDestinationHome: boolean
   clearLatLon: boolean
+  clearDestinationLatLon: boolean
 }>
 
 export function createItem(tripId: string, input: ItemInput): Promise<ItineraryItem> {
@@ -282,9 +290,9 @@ export function deleteLayer(tripId: string, layerId: string): Promise<void> {
 
 export type GeocodeResult = { name: string; lat: number; lon: number }
 
-export async function geocode(q: string, cityLevel = false): Promise<GeocodeResult[]> {
+export async function geocode(q: string, kind: '' | 'city' | 'station' = ''): Promise<GeocodeResult[]> {
   const body = await requestJSON<{ results: GeocodeResult[] }>(
-    `/api/v1/geocode?q=${encodeURIComponent(q)}${cityLevel ? '&type=city' : ''}`,
+    `/api/v1/geocode?q=${encodeURIComponent(q)}${kind ? `&type=${kind}` : ''}`,
   )
   return body.results
 }

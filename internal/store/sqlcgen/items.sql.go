@@ -34,59 +34,67 @@ func (q *Queries) CountItemsForDay(ctx context.Context, arg CountItemsForDayPara
 
 const createItem = `-- name: CreateItem :one
 
-INSERT INTO itinerary_items (trip_id, stop_id, destination_stop_id, origin_home_id, destination_home_id, day, start_time, end_time, title, category, notes, cost_cents, currency, address, lat, lon, layer_id, position)
+INSERT INTO itinerary_items (trip_id, stop_id, destination_stop_id, origin_home_id, destination_home_id, day, start_time, end_time, title, category, notes, cost_cents, currency, address, lat, lon, layer_id, destination_address, destination_lat, destination_lon, position)
 VALUES ($1, $2, $3, $4, $5, $6,
         NULLIF($7::text, '')::time, NULLIF($8::text, '')::time,
         $9, $10, $11, $12, $13,
         $14, $15, $16, $17,
+        $18, $19, $20,
         (SELECT COALESCE(MAX(position) + 1, 0) FROM itinerary_items i WHERE i.trip_id = $1 AND i.day = $6))
 RETURNING id, trip_id, stop_id, day,
           CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
           title, category, notes, cost_cents, currency, position,
           CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
-          destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
+          destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id,
+          destination_address, destination_lat, destination_lon
 `
 
 type CreateItemParams struct {
-	TripID            uuid.UUID
-	StopID            *uuid.UUID
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	EndTime           string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
+	TripID             uuid.UUID
+	StopID             *uuid.UUID
+	DestinationStopID  *uuid.UUID
+	OriginHomeID       *uuid.UUID
+	DestinationHomeID  *uuid.UUID
+	Day                time.Time
+	StartTime          string
+	EndTime            string
+	Title              string
+	Category           ItineraryCategory
+	Notes              string
+	CostCents          *int64
+	Currency           *string
+	Address            string
+	Lat                *float64
+	Lon                *float64
+	LayerID            uuid.UUID
+	DestinationAddress string
+	DestinationLat     *float64
+	DestinationLon     *float64
 }
 
 type CreateItemRow struct {
-	ID                uuid.UUID
-	TripID            uuid.UUID
-	StopID            *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Position          int32
-	EndTime           string
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
+	ID                 uuid.UUID
+	TripID             uuid.UUID
+	StopID             *uuid.UUID
+	Day                time.Time
+	StartTime          string
+	Title              string
+	Category           ItineraryCategory
+	Notes              string
+	CostCents          *int64
+	Currency           *string
+	Position           int32
+	EndTime            string
+	DestinationStopID  *uuid.UUID
+	OriginHomeID       *uuid.UUID
+	DestinationHomeID  *uuid.UUID
+	Address            string
+	Lat                *float64
+	Lon                *float64
+	LayerID            uuid.UUID
+	DestinationAddress string
+	DestinationLat     *float64
+	DestinationLon     *float64
 }
 
 // start_time/end_time are `time` columns exposed as "HH:MM" strings; ”
@@ -112,6 +120,9 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (CreateI
 		arg.Lat,
 		arg.Lon,
 		arg.LayerID,
+		arg.DestinationAddress,
+		arg.DestinationLat,
+		arg.DestinationLon,
 	)
 	var i CreateItemRow
 	err := row.Scan(
@@ -134,6 +145,9 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (CreateI
 		&i.Lat,
 		&i.Lon,
 		&i.LayerID,
+		&i.DestinationAddress,
+		&i.DestinationLat,
+		&i.DestinationLon,
 	)
 	return i, err
 }
@@ -160,7 +174,8 @@ SELECT id, trip_id, stop_id, day,
        CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
        title, category, notes, cost_cents, currency, position,
        CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
-       destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
+       destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id,
+       destination_address, destination_lat, destination_lon
 FROM itinerary_items WHERE id = $2 AND trip_id = $1
 `
 
@@ -170,25 +185,28 @@ type ItemByIDParams struct {
 }
 
 type ItemByIDRow struct {
-	ID                uuid.UUID
-	TripID            uuid.UUID
-	StopID            *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Position          int32
-	EndTime           string
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
+	ID                 uuid.UUID
+	TripID             uuid.UUID
+	StopID             *uuid.UUID
+	Day                time.Time
+	StartTime          string
+	Title              string
+	Category           ItineraryCategory
+	Notes              string
+	CostCents          *int64
+	Currency           *string
+	Position           int32
+	EndTime            string
+	DestinationStopID  *uuid.UUID
+	OriginHomeID       *uuid.UUID
+	DestinationHomeID  *uuid.UUID
+	Address            string
+	Lat                *float64
+	Lon                *float64
+	LayerID            uuid.UUID
+	DestinationAddress string
+	DestinationLat     *float64
+	DestinationLon     *float64
 }
 
 func (q *Queries) ItemByID(ctx context.Context, arg ItemByIDParams) (ItemByIDRow, error) {
@@ -214,6 +232,9 @@ func (q *Queries) ItemByID(ctx context.Context, arg ItemByIDParams) (ItemByIDRow
 		&i.Lat,
 		&i.Lon,
 		&i.LayerID,
+		&i.DestinationAddress,
+		&i.DestinationLat,
+		&i.DestinationLon,
 	)
 	return i, err
 }
@@ -223,30 +244,34 @@ SELECT id, trip_id, stop_id, day,
        CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
        title, category, notes, cost_cents, currency, position,
        CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
-       destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
+       destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id,
+       destination_address, destination_lat, destination_lon
 FROM itinerary_items WHERE trip_id = $1 ORDER BY day, position, id
 `
 
 type ListItemsRow struct {
-	ID                uuid.UUID
-	TripID            uuid.UUID
-	StopID            *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Position          int32
-	EndTime           string
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
+	ID                 uuid.UUID
+	TripID             uuid.UUID
+	StopID             *uuid.UUID
+	Day                time.Time
+	StartTime          string
+	Title              string
+	Category           ItineraryCategory
+	Notes              string
+	CostCents          *int64
+	Currency           *string
+	Position           int32
+	EndTime            string
+	DestinationStopID  *uuid.UUID
+	OriginHomeID       *uuid.UUID
+	DestinationHomeID  *uuid.UUID
+	Address            string
+	Lat                *float64
+	Lon                *float64
+	LayerID            uuid.UUID
+	DestinationAddress string
+	DestinationLat     *float64
+	DestinationLon     *float64
 }
 
 func (q *Queries) ListItems(ctx context.Context, tripID uuid.UUID) ([]ListItemsRow, error) {
@@ -278,6 +303,9 @@ func (q *Queries) ListItems(ctx context.Context, tripID uuid.UUID) ([]ListItemsR
 			&i.Lat,
 			&i.Lon,
 			&i.LayerID,
+			&i.DestinationAddress,
+			&i.DestinationLat,
+			&i.DestinationLon,
 		); err != nil {
 			return nil, err
 		}
@@ -294,32 +322,36 @@ SELECT i.id, i.trip_id, i.stop_id, i.day,
        CAST(COALESCE(to_char(i.start_time, 'HH24:MI'), '') AS text) AS start_time,
        i.title, i.category, i.notes, i.cost_cents, i.currency, i.position,
        CAST(COALESCE(to_char(i.end_time, 'HH24:MI'), '') AS text) AS end_time,
-       i.destination_stop_id, i.origin_home_id, i.destination_home_id, i.address, i.lat, i.lon, i.layer_id
+       i.destination_stop_id, i.origin_home_id, i.destination_home_id, i.address, i.lat, i.lon, i.layer_id,
+       i.destination_address, i.destination_lat, i.destination_lon
 FROM itinerary_items i
 JOIN itinerary_layers l ON l.id = i.layer_id AND l.visible
 WHERE i.trip_id = $1 ORDER BY i.day, i.position, i.id
 `
 
 type ListVisibleItemsRow struct {
-	ID                uuid.UUID
-	TripID            uuid.UUID
-	StopID            *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Position          int32
-	EndTime           string
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
+	ID                 uuid.UUID
+	TripID             uuid.UUID
+	StopID             *uuid.UUID
+	Day                time.Time
+	StartTime          string
+	Title              string
+	Category           ItineraryCategory
+	Notes              string
+	CostCents          *int64
+	Currency           *string
+	Position           int32
+	EndTime            string
+	DestinationStopID  *uuid.UUID
+	OriginHomeID       *uuid.UUID
+	DestinationHomeID  *uuid.UUID
+	Address            string
+	Lat                *float64
+	Lon                *float64
+	LayerID            uuid.UUID
+	DestinationAddress string
+	DestinationLat     *float64
+	DestinationLon     *float64
 }
 
 // The itinerary is the merge of visible layers — what shares, exports,
@@ -353,6 +385,9 @@ func (q *Queries) ListVisibleItems(ctx context.Context, tripID uuid.UUID) ([]Lis
 			&i.Lat,
 			&i.Lon,
 			&i.LayerID,
+			&i.DestinationAddress,
+			&i.DestinationLat,
+			&i.DestinationLon,
 		); err != nil {
 			return nil, err
 		}
@@ -420,56 +455,64 @@ SET stop_id = $1, destination_stop_id = $2,
     title = $8, category = $9, notes = $10,
     cost_cents = $11, currency = $12,
     address = $13, lat = $14, lon = $15,
-    layer_id = $16
-WHERE id = $17 AND trip_id = $18
+    layer_id = $16,
+    destination_address = $17, destination_lat = $18, destination_lon = $19
+WHERE id = $20 AND trip_id = $21
 RETURNING id, trip_id, stop_id, day,
           CAST(COALESCE(to_char(start_time, 'HH24:MI'), '') AS text) AS start_time,
           title, category, notes, cost_cents, currency, position,
           CAST(COALESCE(to_char(end_time, 'HH24:MI'), '') AS text) AS end_time,
-          destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id
+          destination_stop_id, origin_home_id, destination_home_id, address, lat, lon, layer_id,
+          destination_address, destination_lat, destination_lon
 `
 
 type UpdateItemParams struct {
-	StopID            *uuid.UUID
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	EndTime           string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
-	ID                uuid.UUID
-	TripID            uuid.UUID
+	StopID             *uuid.UUID
+	DestinationStopID  *uuid.UUID
+	OriginHomeID       *uuid.UUID
+	DestinationHomeID  *uuid.UUID
+	Day                time.Time
+	StartTime          string
+	EndTime            string
+	Title              string
+	Category           ItineraryCategory
+	Notes              string
+	CostCents          *int64
+	Currency           *string
+	Address            string
+	Lat                *float64
+	Lon                *float64
+	LayerID            uuid.UUID
+	DestinationAddress string
+	DestinationLat     *float64
+	DestinationLon     *float64
+	ID                 uuid.UUID
+	TripID             uuid.UUID
 }
 
 type UpdateItemRow struct {
-	ID                uuid.UUID
-	TripID            uuid.UUID
-	StopID            *uuid.UUID
-	Day               time.Time
-	StartTime         string
-	Title             string
-	Category          ItineraryCategory
-	Notes             string
-	CostCents         *int64
-	Currency          *string
-	Position          int32
-	EndTime           string
-	DestinationStopID *uuid.UUID
-	OriginHomeID      *uuid.UUID
-	DestinationHomeID *uuid.UUID
-	Address           string
-	Lat               *float64
-	Lon               *float64
-	LayerID           uuid.UUID
+	ID                 uuid.UUID
+	TripID             uuid.UUID
+	StopID             *uuid.UUID
+	Day                time.Time
+	StartTime          string
+	Title              string
+	Category           ItineraryCategory
+	Notes              string
+	CostCents          *int64
+	Currency           *string
+	Position           int32
+	EndTime            string
+	DestinationStopID  *uuid.UUID
+	OriginHomeID       *uuid.UUID
+	DestinationHomeID  *uuid.UUID
+	Address            string
+	Lat                *float64
+	Lon                *float64
+	LayerID            uuid.UUID
+	DestinationAddress string
+	DestinationLat     *float64
+	DestinationLon     *float64
 }
 
 func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (UpdateItemRow, error) {
@@ -490,6 +533,9 @@ func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (UpdateI
 		arg.Lat,
 		arg.Lon,
 		arg.LayerID,
+		arg.DestinationAddress,
+		arg.DestinationLat,
+		arg.DestinationLon,
 		arg.ID,
 		arg.TripID,
 	)
@@ -514,6 +560,9 @@ func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (UpdateI
 		&i.Lat,
 		&i.Lon,
 		&i.LayerID,
+		&i.DestinationAddress,
+		&i.DestinationLat,
+		&i.DestinationLon,
 	)
 	return i, err
 }

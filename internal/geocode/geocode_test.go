@@ -20,7 +20,7 @@ func TestSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	results, err := New(srv.URL, "").Search(context.Background(), "kyoto japan", 5, false)
+	results, err := New(srv.URL, "").Search(context.Background(), "kyoto japan", 5, "")
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -46,14 +46,14 @@ func TestSearchLanguage(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := New(srv.URL, "fr").Search(context.Background(), "londres", 5, false); err != nil {
+	if _, err := New(srv.URL, "fr").Search(context.Background(), "londres", 5, ""); err != nil {
 		t.Fatalf("Search: %v", err)
 	}
 	if !strings.Contains(gotQuery, "accept-language=fr") {
 		t.Fatalf("query %q missing accept-language", gotQuery)
 	}
 
-	if _, err := New(srv.URL, "").Search(context.Background(), "londres", 5, false); err != nil {
+	if _, err := New(srv.URL, "").Search(context.Background(), "londres", 5, ""); err != nil {
 		t.Fatalf("Search: %v", err)
 	}
 	if strings.Contains(gotQuery, "accept-language") {
@@ -67,7 +67,7 @@ func TestSearchUpstreamError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := New(srv.URL, "en").Search(context.Background(), "kyoto", 5, true); err == nil {
+	if _, err := New(srv.URL, "en").Search(context.Background(), "kyoto", 5, "city"); err == nil {
 		t.Fatal("expected error on upstream 503")
 	}
 }

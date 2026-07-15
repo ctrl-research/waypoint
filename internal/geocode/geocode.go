@@ -42,18 +42,22 @@ func New(baseURL, language string) *Client {
 	}
 }
 
-// Search geocodes q. cityLevel restricts results to inhabited places
-// (Nominatim featureType=settlement: cities, towns, villages). It waits for
-// the rate limiter (bounded by ctx), so bursts of autocomplete traffic queue
-// instead of violating the OSM policy.
-func (c *Client) Search(ctx context.Context, q string, limit int, cityLevel bool) ([]Result, error) {
+// Search geocodes q, optionally scoped by kind: "city" restricts to
+// inhabited places (Nominatim featureType=settlement) and "station" to the
+// railway layer (train/metro stations, OSM-backed). It waits for the rate
+// limiter (bounded by ctx), so bursts of autocomplete traffic queue instead
+// of violating the OSM policy.
+func (c *Client) Search(ctx context.Context, q string, limit int, kind string) ([]Result, error) {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return nil, err
 	}
 
 	u := fmt.Sprintf("%s/search?format=jsonv2&limit=%d&q=%s", c.baseURL, limit, url.QueryEscape(q))
-	if cityLevel {
+	switch kind {
+	case "city":
 		u += "&featureType=settlement"
+	case "station":
+		u += "&layer=railway"
 	}
 	if c.language != "" {
 		u += "&accept-language=" + url.QueryEscape(c.language)

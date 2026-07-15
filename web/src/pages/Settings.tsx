@@ -167,7 +167,7 @@ function HomesEditor() {
 
   const results = useQuery({
     queryKey: ['geocode', 'city', debounced],
-    queryFn: () => geocode(debounced, true),
+    queryFn: () => geocode(debounced, 'city'),
     enabled: debounced.length >= 2,
     staleTime: 5 * 60 * 1000,
   })

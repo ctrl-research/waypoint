@@ -355,19 +355,25 @@ function itineraryPath(items: ItineraryItem[], stops: Stop[]): PathPoint[] {
     if (b.startTime) return 1
     return a.position - b.position
   })
-  const pts = ordered.flatMap((it) => {
+  const pts = ordered.flatMap((it): PathPoint[] => {
     const at = locate(it)
-    return at
-      ? [
-          {
-            ...at,
-            label: it.title,
-            day: it.day,
-            category: it.category,
-            minutes: legMinutes(it.startTime, it.endTime),
-          },
+    const base = { label: it.title, day: it.day }
+    const travel = { category: it.category, minutes: legMinutes(it.startTime, it.endTime) }
+    // A transportation item with an arrival venue is a real leg: the
+    // journey runs departure venue → arrival venue with the item's own
+    // category, arc, and pacing; the arrival point is plain so the hop
+    // after it is ordinary (#62 follow-up).
+    if (it.destinationLat !== null && it.destinationLon !== null) {
+      const dest = { lat: it.destinationLat, lon: it.destinationLon }
+      if (at && (at.lat !== dest.lat || at.lon !== dest.lon)) {
+        return [
+          { ...at, ...base, ...travel },
+          { ...dest, ...base },
         ]
-      : []
+      }
+      return [{ ...dest, ...base }]
+    }
+    return at ? [{ ...at, ...base, ...travel }] : []
   })
   // Collapse consecutive same-spot points, but let the survivor describe
   // the DEPARTURE: a flight sits at its origin stop — same coordinates as

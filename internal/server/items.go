@@ -40,7 +40,12 @@ type itemRequest struct {
 	Lat               *float64   `json:"lat"`
 	Lon               *float64   `json:"lon"`
 	ClearLatLon       bool       `json:"clearLatLon"`
-	LayerID           *uuid.UUID `json:"layerId"`
+	// Arrival venue for transportation legs (#62 follow-up).
+	DestinationAddress *string    `json:"destinationAddress"`
+	DestinationLat     *float64   `json:"destinationLat"`
+	DestinationLon     *float64   `json:"destinationLon"`
+	ClearDestLatLon    bool       `json:"clearDestinationLatLon"`
+	LayerID            *uuid.UUID `json:"layerId"`
 }
 
 func (req itemRequest) merge(p *store.ItineraryItemParams) error {
@@ -125,6 +130,21 @@ func (req itemRequest) merge(p *store.ItineraryItemParams) error {
 			return errors.New("lat/lon out of range")
 		}
 		p.Lat, p.Lon = req.Lat, req.Lon
+	}
+	if req.DestinationAddress != nil {
+		p.DestinationAddress = *req.DestinationAddress
+	}
+	switch {
+	case req.ClearDestLatLon:
+		p.DestinationLat, p.DestinationLon = nil, nil
+	case req.DestinationLat != nil || req.DestinationLon != nil:
+		if req.DestinationLat == nil || req.DestinationLon == nil {
+			return errors.New("destinationLat and destinationLon must be provided together")
+		}
+		if *req.DestinationLat < -90 || *req.DestinationLat > 90 || *req.DestinationLon < -180 || *req.DestinationLon > 180 {
+			return errors.New("destinationLat/destinationLon out of range")
+		}
+		p.DestinationLat, p.DestinationLon = req.DestinationLat, req.DestinationLon
 	}
 	if req.CostCents != nil && *req.CostCents == -1 {
 		p.CostCents, p.Currency = nil, nil
@@ -291,7 +311,10 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		Title: current.Title, Category: current.Category, Notes: current.Notes,
 		CostCents: current.CostCents, Currency: current.Currency,
 		Address: current.Address, Lat: current.Lat, Lon: current.Lon,
-		LayerID: current.LayerID,
+		LayerID:            current.LayerID,
+		DestinationAddress: current.DestinationAddress,
+		DestinationLat:     current.DestinationLat,
+		DestinationLon:     current.DestinationLon,
 	}
 	if err := req.merge(&params); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid", err.Error())
