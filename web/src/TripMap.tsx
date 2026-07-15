@@ -174,25 +174,133 @@ export function TripMap({
       }
     }
   }, [showStops, showItems, showPath, stops, items, replaying])
-  const cancelRef = useRef(false)
+  // ---- Replay engine: a precomputed timeline driven by one clock, so the
+  // scrubber, pause, and speed controls all just move `elapsed` (#62).
+  type ReplayLeg = {
+    from: PathPoint
+    to: PathPoint
+    line: LngLat[]
+    start: number
+    duration: number
+    zoom: number
+  }
+  const timeline = useRef<{ legs: ReplayLeg[]; total: number } | null>(null)
+  const elapsedRef = useRef(0)
+  const playingRef = useRef(true)
+  const speedRef = useRef(1)
+  const lastTsRef = useRef(0)
+  const rafRef = useRef(0)
+  const legIndexRef = useRef(-1)
+  const vehicleRef = useRef<HTMLDivElement | null>(null)
+  const scrubRef = useRef<HTMLInputElement>(null)
   const replayMarker = useRef<maplibregl.Marker | null>(null)
+  const [playing, setPlaying] = useState(true)
+  const [speed, setSpeed] = useState(1)
+
+  function buildTimeline(pts: PathPoint[]): { legs: ReplayLeg[]; total: number } {
+    const proportional = localStorage.getItem('waypoint-replay-pacing') === 'proportional'
+    const legs: ReplayLeg[] = []
+    let start = 0
+    for (let i = 1; i < pts.length; i++) {
+      const from = pts[i - 1]
+      const to = pts[i]
+      const km = haversineKm(from.lat, from.lon, to.lat, to.lon)
+      // Constant pacing by default: every leg plays the same, with only
+      // long-distance legs (flights and trains) slower — local transit
+      // keeps the normal pace. Proportional pacing (distance / timetable
+      // duration) is opt-in from Settings.
+      const longHaul = from.category === 'flight' || from.category === 'train'
+      const duration = proportional
+        ? from.minutes
+          ? Math.min(5200, Math.max(1400, from.minutes * 14))
+          : Math.min(4200, Math.max(1400, km * 12))
+        : longHaul
+          ? 6000
+          : 800
+      legs.push({ from, to, line: legLine(from, to), start, duration, zoom: zoomForKm(km) })
+      start += duration
+    }
+    return { legs, total: start }
+  }
+
+  /** Renders the replay at an absolute time — the single source of truth
+   * for the dot, camera, drawn path, caption, and scrubber. */
+  function renderAt(elapsed: number) {
+    const map = mapRef.current
+    const tl = timeline.current
+    if (!map || !tl || tl.legs.length === 0) return
+    const clamped = Math.min(tl.total, Math.max(0, elapsed))
+    let i = tl.legs.findIndex((l) => clamped < l.start + l.duration)
+    if (i === -1) i = tl.legs.length - 1
+    const leg = tl.legs[i]
+    const t = leg.duration ? Math.min(1, (clamped - leg.start) / leg.duration) : 1
+
+    if (i !== legIndexRef.current) {
+      legIndexRef.current = i
+      setCaption(leg.to)
+      if (vehicleRef.current) {
+        vehicleRef.current.textContent =
+          (leg.from.category && TRANSPORT_EMOJI[leg.from.category]) || ''
+      }
+    }
+
+    // Zoom glides from the previous leg's scale over the leg's first
+    // quarter; the camera rides the dot the whole way.
+    const zoomFrom = i === 0 ? leg.zoom : tl.legs[i - 1].zoom
+    const zoom = zoomFrom + (leg.zoom - zoomFrom) * Math.min(1, t / 0.25)
+    const [lon, lat] = pointAlong(leg.line, t)
+    replayMarker.current?.setLngLat([lon, lat])
+    map.jumpTo({ center: [lon, lat], zoom })
+
+    const coords: LngLat[] = [[tl.legs[0].from.lon, tl.legs[0].from.lat]]
+    for (let k = 0; k < i; k++) coords.push(...tl.legs[k].line.slice(1))
+    coords.push(...leg.line.slice(1, Math.floor(t * (leg.line.length - 1)) + 1), [lon, lat])
+    const src = map.getSource(REPLAY_SOURCE) as maplibregl.GeoJSONSource | undefined
+    src?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } })
+
+    if (scrubRef.current) scrubRef.current.value = String((clamped / tl.total) * 1000)
+  }
+
+  function tick(ts: number) {
+    const tl = timeline.current
+    if (!tl) return
+    if (playingRef.current) {
+      elapsedRef.current += (ts - lastTsRef.current) * speedRef.current
+      if (elapsedRef.current >= tl.total) {
+        elapsedRef.current = tl.total
+        playingRef.current = false
+        setPlaying(false)
+      }
+      renderAt(elapsedRef.current)
+    }
+    lastTsRef.current = ts
+    rafRef.current = requestAnimationFrame(tick)
+  }
 
   const stopReplay = () => {
-    cancelRef.current = true
+    cancelAnimationFrame(rafRef.current)
+    timeline.current = null
+    legIndexRef.current = -1
     setReplaying(false)
     setCaption(null)
     replayMarker.current?.remove()
     replayMarker.current = null
+    vehicleRef.current = null
     const src = mapRef.current?.getSource(REPLAY_SOURCE) as maplibregl.GeoJSONSource | undefined
     src?.setData({ type: 'FeatureCollection', features: [] })
   }
   useEffect(() => () => stopReplay(), []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function startReplay() {
+  function startReplay() {
     const map = mapRef.current
     const pts = replayPath(items, stops)
     if (!map || pts.length < 2 || replaying) return
-    cancelRef.current = false
+    timeline.current = buildTimeline(pts)
+    elapsedRef.current = 0
+    legIndexRef.current = -1
+    playingRef.current = true
+    speedRef.current = speed
+    setPlaying(true)
     setReplaying(true)
 
     const el = document.createElement('div')
@@ -204,105 +312,84 @@ export function TripMap({
       'position:absolute;right:100%;top:50%;transform:translateY(-50%);margin-right:3px;' +
       'font-size:18px;line-height:1;pointer-events:none;filter:drop-shadow(0 1px 1px rgb(0 0 0 / .4));'
     el.appendChild(vehicle)
+    vehicleRef.current = vehicle
     replayMarker.current = new maplibregl.Marker({ element: el })
       .setLngLat([pts[0].lon, pts[0].lat])
       .addTo(map)
 
-    const src = map.getSource(REPLAY_SOURCE) as maplibregl.GeoJSONSource
-    const done: [number, number][] = [[pts[0].lon, pts[0].lat]]
-    setCaption(pts[0])
-    const firstKm = haversineKm(pts[0].lat, pts[0].lon, pts[1].lat, pts[1].lon)
-    map.easeTo({ center: [pts[0].lon, pts[0].lat], zoom: zoomForKm(firstKm), duration: 900 })
-    await wait(1000)
-
-    for (let i = 1; i < pts.length && !cancelRef.current; i++) {
-      const from = pts[i - 1]
-      const to = pts[i]
-      setCaption(to)
-      const km = haversineKm(from.lat, from.lon, to.lat, to.lon)
-      // Constant pacing by default: every leg plays the same, with only
-      // long-distance legs (flights and trains) slower — local transit
-      // keeps the normal pace. Proportional pacing (distance / timetable
-      // duration) is opt-in from Settings — it rewards fully-tracked
-      // itineraries but reads as erratic otherwise.
-      const longHaul = from.category === 'flight' || from.category === 'train'
-      const proportional = localStorage.getItem('waypoint-replay-pacing') === 'proportional'
-      const duration = proportional
-        ? from.minutes
-          ? Math.min(5200, Math.max(1400, from.minutes * 14))
-          : Math.min(4200, Math.max(1400, km * 12))
-        : longHaul
-          ? 6000
-          : 800
-      // The dot follows the leg's actual geometry (flights arc), and the
-      // camera rides the dot every frame while the zoom glides to the
-      // leg's scale, so the dot never outruns the view.
-      const line = legLine(from, to)
-      vehicle.textContent = (from.category && TRANSPORT_EMOJI[from.category]) || ''
-      // Settle the zoom at the departure point BEFORE the dot moves — mixing
-      // the two made the dot race across the screen while still zoomed in.
-      const zoomTo = zoomForKm(km)
-      const zoomDelta = Math.abs(zoomTo - map.getZoom())
-      if (zoomDelta > 0.3) {
-        const zoomDur = Math.min(1300, 250 + zoomDelta * 160)
-        map.easeTo({ center: [from.lon, from.lat], zoom: zoomTo, duration: zoomDur })
-        await wait(zoomDur + 80)
-      }
-      await animate(duration, (t) => {
-        const [lon, lat] = pointAlong(line, t)
-        replayMarker.current?.setLngLat([lon, lat])
-        map.jumpTo({ center: [lon, lat], zoom: zoomTo })
-        src.setData({
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: [...done, ...line.slice(1, Math.floor(t * (line.length - 1)) + 1), [lon, lat]],
-          },
-        })
-      })
-      done.push(...line.slice(1))
-      await wait(450)
-    }
-    if (!cancelRef.current) {
-      await wait(1600)
-      stopReplay()
-    }
+    renderAt(0)
+    lastTsRef.current = performance.now()
+    rafRef.current = requestAnimationFrame(tick)
   }
 
-  function animate(duration: number, frame: (t: number) => void): Promise<void> {
-    return new Promise((resolve) => {
-      const start = performance.now()
-      const tick = (now: number) => {
-        if (cancelRef.current) return resolve()
-        const t = Math.min(1, (now - start) / duration)
-        frame(t)
-        if (t < 1) requestAnimationFrame(tick)
-        else resolve()
-      }
-      requestAnimationFrame(tick)
-    })
+  const togglePlay = () => {
+    // Replaying from the end restarts.
+    if (!playingRef.current && timeline.current && elapsedRef.current >= timeline.current.total) {
+      elapsedRef.current = 0
+    }
+    playingRef.current = !playingRef.current
+    setPlaying(playingRef.current)
   }
-  const wait = (ms: number) =>
-    new Promise<void>((resolve) => {
-      if (cancelRef.current) return resolve()
-      window.setTimeout(resolve, ms)
-    })
+  const cycleSpeed = () => {
+    const next = { 1: 2, 2: 4, 4: 0.5, 0.5: 1 }[speedRef.current] ?? 1
+    speedRef.current = next
+    setSpeed(next)
+  }
+  const scrubTo = (fraction: number) => {
+    const tl = timeline.current
+    if (!tl) return
+    elapsedRef.current = fraction * tl.total
+    renderAt(elapsedRef.current)
+  }
 
   return (
     <div className="relative">
       <div ref={container} className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-700" />
-      {replayable && replayPath(items, stops).length >= 2 && (
+      {replayable && !replaying && replayPath(items, stops).length >= 2 && (
         <button
           type="button"
-          onClick={() => (replaying ? stopReplay() : startReplay())}
+          onClick={startReplay}
           className="absolute bottom-3 left-3 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-900 shadow hover:bg-white"
         >
-          {replaying ? '⏹ Stop' : '▶ Replay'}
+          ▶ Replay
         </button>
       )}
+      {replaying && (
+        <div className="absolute bottom-3 left-1/2 flex w-[min(92%,26rem)] -translate-x-1/2 items-center gap-2 rounded-full bg-slate-900/90 px-3 py-1.5 text-white shadow">
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="w-6 text-sm"
+            aria-label={playing ? 'Pause replay' : 'Play replay'}
+          >
+            {playing ? '⏸' : '▶'}
+          </button>
+          <input
+            ref={scrubRef}
+            type="range"
+            min={0}
+            max={1000}
+            defaultValue={0}
+            onInput={(e) => scrubTo(Number(e.currentTarget.value) / 1000)}
+            aria-label="Replay position"
+            className="h-1 flex-1 cursor-pointer accent-sky-400"
+          />
+          <button
+            type="button"
+            onClick={cycleSpeed}
+            className="w-9 text-xs tabular-nums"
+            aria-label="Replay speed"
+            title="Cycle speed"
+          >
+            {speed}×
+          </button>
+          <button type="button" onClick={stopReplay} className="w-5 text-sm" aria-label="Close replay">
+            ✕
+          </button>
+        </div>
+      )}
       {caption && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/90 px-4 py-1.5 text-sm text-white shadow">
+        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/90 px-4 py-1.5 text-sm text-white shadow">
           {caption.day
             ? `${new Date(caption.day + 'T00:00:00').toLocaleDateString(undefined, {
                 month: 'short',
