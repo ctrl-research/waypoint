@@ -65,6 +65,7 @@ func (s *Trips) CreateItem(ctx context.Context, tripID uuid.UUID, p ItineraryIte
 		Title: p.Title, Category: p.Category, Notes: p.Notes,
 		CostCents: p.CostCents, Currency: p.Currency,
 		Address: p.Address, Lat: p.Lat, Lon: p.Lon, LayerID: p.LayerID,
+		DestinationAddress: p.DestinationAddress, DestinationLat: p.DestinationLat, DestinationLon: p.DestinationLon,
 	})
 	if err == nil {
 		s.touch(ctx, tripID)
