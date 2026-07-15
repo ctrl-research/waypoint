@@ -181,6 +181,11 @@ export function TripMap({
     to: PathPoint
     line: LngLat[]
     start: number
+    /** Camera-only prelude: the dot waits at the departure point while the
+     * zoom settles, so movement never plays at the wrong scale. */
+    zoomLead: number
+    /** Time the dot spends moving; start + zoomLead + move = next start. */
+    move: number
     duration: number
     zoom: number
   }
@@ -209,19 +214,24 @@ export function TripMap({
       // long-distance legs (flights and trains) slower — local transit
       // keeps the normal pace. Proportional pacing (distance / timetable
       // duration) is opt-in from Settings.
-      const longHaul = from.category === 'flight' || from.category === 'train'
-      const duration = proportional
+      const move = proportional
         ? from.minutes
           ? Math.min(5200, Math.max(1400, from.minutes * 14))
           : Math.min(4200, Math.max(1400, km * 12))
-        : longHaul
-          ? 6000
-          : 800
+        : from.category === 'flight'
+          ? 4000
+          : from.category === 'train'
+            ? 6000
+            : 800
       // Flights pull the camera out well past the shared curve — a wide
       // frame reads as flying; trains and activities keep their scale.
       const zoom =
         from.category === 'flight' ? Math.max(3, zoomForKm(km) - 2.5) : zoomForKm(km)
-      legs.push({ from, to, line: legLine(from, to), start, duration, zoom })
+      const prevZoom = legs.length ? legs[legs.length - 1].zoom : zoom
+      const zoomDelta = Math.abs(zoom - prevZoom)
+      const zoomLead = zoomDelta > 0.3 ? Math.min(1300, 250 + zoomDelta * 160) : 0
+      const duration = zoomLead + move
+      legs.push({ from, to, line: legLine(from, to), start, zoomLead, move, duration, zoom })
       start += duration
     }
     return { legs, total: start }
@@ -237,7 +247,9 @@ export function TripMap({
     let i = tl.legs.findIndex((l) => clamped < l.start + l.duration)
     if (i === -1) i = tl.legs.length - 1
     const leg = tl.legs[i]
-    const t = leg.duration ? Math.min(1, (clamped - leg.start) / leg.duration) : 1
+    const local = clamped - leg.start
+    // Prelude: hold the dot at the departure point while zoom settles.
+    const t = local <= leg.zoomLead ? 0 : leg.move ? Math.min(1, (local - leg.zoomLead) / leg.move) : 1
 
     if (i !== legIndexRef.current) {
       legIndexRef.current = i
@@ -248,10 +260,11 @@ export function TripMap({
       }
     }
 
-    // Zoom glides from the previous leg's scale over the leg's first
-    // quarter; the camera rides the dot the whole way.
+    // Zoom transitions entirely inside the prelude; movement then plays at
+    // the leg's own scale from its first frame.
     const zoomFrom = i === 0 ? leg.zoom : tl.legs[i - 1].zoom
-    const zoom = zoomFrom + (leg.zoom - zoomFrom) * Math.min(1, t / 0.25)
+    const zt = leg.zoomLead ? Math.min(1, local / leg.zoomLead) : 1
+    const zoom = zoomFrom + (leg.zoom - zoomFrom) * zt
     const [lon, lat] = pointAlong(leg.line, t)
     replayMarker.current?.setLngLat([lon, lat])
     map.jumpTo({ center: [lon, lat], zoom })
