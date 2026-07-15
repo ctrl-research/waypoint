@@ -79,9 +79,10 @@ export function TripMap({
       style: mapStyle(cfg),
       center: [0, 20],
       zoom: 1,
-      // Compact keeps the OSM/OpenFreeMap credit behind an ⓘ toggle.
-      attributionControl: { compact: true },
+      attributionControl: false,
     })
+    // Compact keeps the OSM/OpenFreeMap credit behind an ⓘ toggle.
+    map.addControl(new maplibregl.AttributionControl({ compact: true }))
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
 
     map.on('load', () => {
@@ -302,7 +303,8 @@ export function TripMap({
     const nav = root.querySelector<HTMLElement>('.maplibregl-ctrl-top-right')
     if (nav) nav.style.display = hidden ? 'none' : ''
     if (hidden) {
-      const attrib = root.querySelector<HTMLElement>('details.maplibregl-ctrl-attrib')
+      const attrib = root.querySelector<HTMLElement>('.maplibregl-ctrl-attrib')
+      attrib?.classList.remove('maplibregl-compact-show')
       attrib?.removeAttribute('open')
     }
   }

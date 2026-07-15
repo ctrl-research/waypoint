@@ -121,8 +121,9 @@ export function StatsMap({
       style: mapStyle(config),
       center: [10, 25],
       zoom: 1.2,
-      attributionControl: { compact: true },
+      attributionControl: false,
     })
+    map.addControl(new maplibregl.AttributionControl({ compact: true }))
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
 
     map.on('load', () => {
