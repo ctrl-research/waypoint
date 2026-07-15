@@ -117,18 +117,7 @@ export function TripDetailPage() {
             </Link>
           )}
         </div>
-        <ItineraryBoard
-          trip={trip}
-          items={planItems}
-          readOnly
-          combined
-          layers={allLayers}
-          onHover={setHighlightKey}
-        />
-      </section>
-
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Areas</h2>
+        <h3 className="mt-4 text-sm font-semibold text-slate-700 dark:text-slate-300">Areas</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           The countries, cities, or regions this trip visits, in order. Click one to focus the
           map.{canEdit && ' Manage them in the itinerary editor.'}
@@ -140,6 +129,16 @@ export function TripDetailPage() {
           canEdit={false}
           onHover={setHighlightKey}
           onFocus={(id) => setFocusStop((cur) => ({ id, nonce: (cur?.nonce ?? 0) + 1 }))}
+        />
+
+        <h3 className="mt-6 text-sm font-semibold text-slate-700 dark:text-slate-300">Day by day</h3>
+        <ItineraryBoard
+          trip={trip}
+          items={planItems}
+          readOnly
+          combined
+          layers={allLayers}
+          onHover={setHighlightKey}
         />
       </section>
 
