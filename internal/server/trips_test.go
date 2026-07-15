@@ -45,7 +45,7 @@ func setup(t *testing.T) (http.Handler, *http.Cookie, *http.Cookie) {
 	}
 
 	return New(pool, authSvc, geocode.New("http://unused.invalid", ""),
-			Options{TileURL: "https://tiles.test/{z}/{x}/{y}.png", MapStyleURL: "https://style.test/style.json", Language: "en", DataDir: t.TempDir()}),
+			Options{TileURL: "https://tiles.test/{z}/{x}/{y}.png", MapStyleURL: "https://style.test/style.json", Language: "en", DataDir: t.TempDir(), EnableMCP: true}),
 		cookieFor("alice@example.com", "tok-alice"), cookieFor("bob@example.com", "tok-bob")
 }
 

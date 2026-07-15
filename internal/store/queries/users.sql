@@ -35,3 +35,11 @@ RETURNING *;
 
 -- name: UserByCalendarToken :one
 SELECT * FROM users WHERE calendar_token = $1;
+
+-- name: SetMCPToken :one
+-- NULL clears the token, disabling the user's MCP access.
+UPDATE users SET mcp_token = $2 WHERE id = $1
+RETURNING *;
+
+-- name: UserByMCPToken :one
+SELECT * FROM users WHERE mcp_token = $1;

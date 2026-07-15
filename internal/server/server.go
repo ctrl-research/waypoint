@@ -27,6 +27,8 @@ type Options struct {
 	Language string
 	// DataDir is where uploaded files are stored.
 	DataDir string
+	// EnableMCP serves the /mcp endpoint and its token management (#92).
+	EnableMCP bool
 }
 
 func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Options) http.Handler {
@@ -42,7 +44,7 @@ func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Op
 		users:  store.NewUsers(pool),
 		photos: photos.NewStore(opts.DataDir),
 		opts:   opts,
-	}).routes(mux)
+	}).routes(mux, geo)
 	authSvc.Routes(mux)
 	mux.Handle("/", webui.Handler())
 
@@ -53,10 +55,11 @@ func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Op
 // tile template).
 func handleConfig(opts Options) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{
+		writeJSON(w, http.StatusOK, map[string]any{
 			"tileUrl":     opts.TileURL,
 			"mapStyleUrl": opts.MapStyleURL,
 			"language":    opts.Language,
+			"mcpEnabled":  opts.EnableMCP,
 		})
 	}
 }

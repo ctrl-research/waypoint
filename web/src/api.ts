@@ -302,7 +302,7 @@ export async function geocode(q: string, kind: '' | 'city' | 'station' | 'airpor
 
 // ---- instance config -----------------------------------------------------------
 
-export type InstanceConfig = { tileUrl: string; mapStyleUrl: string; language: string }
+export type InstanceConfig = { tileUrl: string; mapStyleUrl: string; language: string; mcpEnabled: boolean }
 
 export function fetchConfig(): Promise<InstanceConfig> {
   return requestJSON('/api/v1/config')
@@ -477,6 +477,22 @@ export async function createCalendarToken(): Promise<string> {
 
 export function deleteCalendarToken(): Promise<void> {
   return requestJSON('/api/v1/calendar/token', { method: 'DELETE' })
+}
+
+// ---- MCP access (#92) -----------------------------------------------------------
+
+export async function getMCPToken(): Promise<string | null> {
+  const body = await requestJSON<{ token: string | null }>('/api/v1/mcp/token')
+  return body.token
+}
+
+export async function createMCPToken(): Promise<string> {
+  const body = await requestJSON<{ token: string }>('/api/v1/mcp/token', { method: 'POST' })
+  return body.token
+}
+
+export function deleteMCPToken(): Promise<void> {
+  return requestJSON('/api/v1/mcp/token', { method: 'DELETE' })
 }
 
 // ---- stats ---------------------------------------------------------------------
