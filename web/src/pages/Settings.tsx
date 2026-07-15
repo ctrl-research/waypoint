@@ -5,11 +5,15 @@ import {
   ApiError,
   createCalendarToken,
   createHome,
+  createMCPToken,
   deleteCalendarToken,
   deleteHome,
+  deleteMCPToken,
+  fetchConfig,
   fetchMe,
   geocode,
   getCalendarToken,
+  getMCPToken,
   listHomes,
 } from '../api'
 import { getTheme, setTheme, subscribeTheme, type Theme } from '../theme'
@@ -64,7 +68,87 @@ export function SettingsPage() {
         </p>
         <CalendarSync />
       </section>
+
+      <MCPSection />
     </div>
+  )
+}
+
+/** LLM access via MCP (#92) — only when WAYPOINT_MCP is on. */
+function MCPSection() {
+  const { data: config } = useQuery({ queryKey: ['config'], queryFn: fetchConfig, staleTime: Infinity })
+  const queryClient = useQueryClient()
+  const token = useQuery({
+    queryKey: ['mcp-token'],
+    queryFn: getMCPToken,
+    enabled: !!config?.mcpEnabled,
+  })
+  const [copied, setCopied] = useState(false)
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['mcp-token'] })
+  const create = useMutation({ mutationFn: createMCPToken, onSuccess: invalidate })
+  const remove = useMutation({ mutationFn: deleteMCPToken, onSuccess: invalidate })
+
+  if (!config?.mcpEnabled || token.data === undefined) return null
+  const url = `${window.location.origin}/mcp`
+
+  return (
+    <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+      <h2 className="font-medium text-slate-900 dark:text-slate-100">AI access (MCP)</h2>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Let an AI assistant backfill and manage your trips over MCP. Point a client at{' '}
+        <code className="rounded bg-slate-100 dark:bg-slate-800 px-1">{url}</code> with the token
+        below as a bearer Authorization header — e.g.{' '}
+        <code className="rounded bg-slate-100 dark:bg-slate-800 px-1 text-xs">
+          claude mcp add --transport http waypoint {url} --header "Authorization: Bearer …"
+        </code>
+      </p>
+      {token.data === null ? (
+        <button
+          type="button"
+          onClick={() => create.mutate()}
+          disabled={create.isPending}
+          className="mt-3 rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-50"
+        >
+          Create access token
+        </button>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300">
+              {token.data}
+            </code>
+            <button
+              type="button"
+              onClick={async () => {
+                await navigator.clipboard.writeText(token.data!)
+                setCopied(true)
+                window.setTimeout(() => setCopied(false), 1500)
+              }}
+              className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              {copied ? 'Copied ✓' : 'Copy'}
+            </button>
+          </div>
+          <div className="flex gap-3 text-xs">
+            <button
+              type="button"
+              onClick={() => create.mutate()}
+              className="text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+              title="Generates a new token; the old one stops working"
+            >
+              Reset token
+            </button>
+            <button
+              type="button"
+              onClick={() => remove.mutate()}
+              className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400"
+            >
+              Disable
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 

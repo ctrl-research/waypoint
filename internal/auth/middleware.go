@@ -47,6 +47,12 @@ func RequireUser(next http.Handler) http.Handler {
 	})
 }
 
+// WithUserContext attaches a user resolved outside the session flow —
+// bearer-token surfaces like the MCP endpoint (#92).
+func WithUserContext(ctx context.Context, user store.User) context.Context {
+	return context.WithValue(ctx, ctxKey{}, user)
+}
+
 // UserFrom returns the signed-in user attached by WithUser, if any.
 func UserFrom(ctx context.Context) (store.User, bool) {
 	user, ok := ctx.Value(ctxKey{}).(store.User)

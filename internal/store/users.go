@@ -80,3 +80,15 @@ func (s *Users) ByCalendarToken(ctx context.Context, token string) (User, error)
 	u, err := s.q.UserByCalendarToken(ctx, &token)
 	return u, translate(err)
 }
+
+// SetMCPToken stores (or, with nil, revokes) the user's MCP bearer token —
+// the sole credential for the /mcp endpoint (#92).
+func (s *Users) SetMCPToken(ctx context.Context, id uuid.UUID, token *string) (User, error) {
+	u, err := s.q.SetMCPToken(ctx, sqlcgen.SetMCPTokenParams{ID: id, McpToken: token})
+	return u, translate(err)
+}
+
+func (s *Users) ByMCPToken(ctx context.Context, token string) (User, error) {
+	u, err := s.q.UserByMCPToken(ctx, &token)
+	return u, translate(err)
+}

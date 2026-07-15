@@ -41,6 +41,9 @@ type Config struct {
 	// self-hosted Protomaps, …). When set it takes precedence over TileURL
 	// and map labels localize to Language.
 	MapStyleURL string
+	// EnableMCP serves the /mcp endpoint (token-authenticated LLM access,
+	// #92). Off by default; opt in with WAYPOINT_MCP=true.
+	EnableMCP bool
 	// DataDir is where uploaded files (journal photos) are stored. The
 	// docker image mounts a volume at /data.
 	DataDir string
@@ -65,6 +68,7 @@ func Load() (Config, error) {
 		TileURL:            getenv("WAYPOINT_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
 		MapStyleURL:        os.Getenv("WAYPOINT_MAP_STYLE_URL"),
 		DataDir:            getenv("WAYPOINT_DATA_DIR", "data"),
+		EnableMCP:          os.Getenv("WAYPOINT_MCP") == "true",
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("WAYPOINT_DATABASE_URL is required")

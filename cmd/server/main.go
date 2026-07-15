@@ -72,7 +72,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(pool, authSvc, geocode.New(cfg.NominatimURL, cfg.Language), server.Options{TileURL: cfg.TileURL, MapStyleURL: cfg.MapStyleURL, Language: cfg.Language, DataDir: cfg.DataDir}),
+		Handler:           server.New(pool, authSvc, geocode.New(cfg.NominatimURL, cfg.Language), server.Options{TileURL: cfg.TileURL, MapStyleURL: cfg.MapStyleURL, Language: cfg.Language, DataDir: cfg.DataDir, EnableMCP: cfg.EnableMCP}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/geocode"
 	"github.com/ctrl-research/waypoint/internal/photos"
 	"github.com/ctrl-research/waypoint/internal/store"
 )
@@ -24,7 +25,7 @@ type tripsAPI struct {
 	opts   Options
 }
 
-func (api *tripsAPI) routes(mux *http.ServeMux) {
+func (api *tripsAPI) routes(mux *http.ServeMux, geo *geocode.Client) {
 	protected := func(h http.HandlerFunc) http.Handler { return auth.RequireUser(h) }
 
 	mux.Handle("GET /api/v1/trips", protected(api.list))
@@ -73,6 +74,14 @@ func (api *tripsAPI) routes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/calendar/token", protected(api.getCalendarToken))
 	mux.Handle("POST /api/v1/calendar/token", protected(api.createCalendarToken))
 	mux.Handle("DELETE /api/v1/calendar/token", protected(api.deleteCalendarToken))
+
+	if api.opts.EnableMCP {
+		mux.Handle("GET /api/v1/mcp/token", protected(api.getMCPToken))
+		mux.Handle("POST /api/v1/mcp/token", protected(api.createMCPToken))
+		mux.Handle("DELETE /api/v1/mcp/token", protected(api.deleteMCPToken))
+		// Bearer-token scoped, deliberately NOT session-guarded (#92).
+		mux.Handle("/mcp", api.mcpHandler(geo))
+	}
 
 	mux.Handle("GET /api/v1/trips/{tripID}/shares", protected(api.listShares))
 	mux.Handle("POST /api/v1/trips/{tripID}/shares", protected(api.createShare))

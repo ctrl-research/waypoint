@@ -272,4 +272,5 @@ type User struct {
 	IsAdmin       bool
 	CreatedAt     time.Time
 	CalendarToken *string
+	McpToken      *string
 }
