@@ -79,6 +79,8 @@ export function TripMap({
       style: mapStyle(cfg),
       center: [0, 20],
       zoom: 1,
+      // Compact keeps the OSM/OpenFreeMap credit behind an ⓘ toggle.
+      attributionControl: { compact: true },
     })
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
 
@@ -294,7 +296,19 @@ export function TripMap({
     rafRef.current = requestAnimationFrame(tick)
   }
 
+  const setReplayChrome = (hidden: boolean) => {
+    const root = container.current
+    if (!root) return
+    const nav = root.querySelector<HTMLElement>('.maplibregl-ctrl-top-right')
+    if (nav) nav.style.display = hidden ? 'none' : ''
+    if (hidden) {
+      const attrib = root.querySelector<HTMLElement>('details.maplibregl-ctrl-attrib')
+      attrib?.removeAttribute('open')
+    }
+  }
+
   const stopReplay = () => {
+    setReplayChrome(false)
     cancelAnimationFrame(rafRef.current)
     timeline.current = null
     legIndexRef.current = -1
@@ -334,6 +348,7 @@ export function TripMap({
       .setLngLat([pts[0].lon, pts[0].lat])
       .addTo(map)
 
+    setReplayChrome(true)
     renderAt(0)
     lastTsRef.current = performance.now()
     rafRef.current = requestAnimationFrame(tick)
