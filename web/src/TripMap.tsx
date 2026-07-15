@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchConfig, type ItineraryCategory, type ItineraryItem, type Stop } from './api'
-import { EyeIcon, categoryIcons } from './icons'
+import { EyeIcon, PauseIcon, PlayIcon, categoryIcons } from './icons'
 import { mapsLink } from './maps'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
@@ -217,7 +217,11 @@ export function TripMap({
         : longHaul
           ? 6000
           : 800
-      legs.push({ from, to, line: legLine(from, to), start, duration, zoom: zoomForKm(km) })
+      // Flights pull the camera out well past the shared curve — a wide
+      // frame reads as flying; trains and activities keep their scale.
+      const zoom =
+        from.category === 'flight' ? Math.max(3, zoomForKm(km) - 2.5) : zoomForKm(km)
+      legs.push({ from, to, line: legLine(from, to), start, duration, zoom })
       start += duration
     }
     return { legs, total: start }
@@ -351,7 +355,9 @@ export function TripMap({
           onClick={startReplay}
           className="absolute bottom-3 left-3 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-900 shadow hover:bg-white"
         >
-          ▶ Replay
+          <span className="flex items-center gap-1.5">
+            <PlayIcon /> Replay
+          </span>
         </button>
       )}
       {replaying && (
@@ -359,10 +365,10 @@ export function TripMap({
           <button
             type="button"
             onClick={togglePlay}
-            className="w-6 text-sm"
+            className="flex w-6 justify-center"
             aria-label={playing ? 'Pause replay' : 'Play replay'}
           >
-            {playing ? '⏸' : '▶'}
+            {playing ? <PauseIcon className="h-4 w-4" /> : <PlayIcon className="h-4 w-4" />}
           </button>
           <input
             ref={scrubRef}
