@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Docs — Waypoint</title>
+  <meta name="description" content="Waypoint documentation: quick start, configuration reference, Google sign-in, calendar sync, MCP setup, and releases." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="compass.gif" alt="" /> Waypoint</a>
+      <nav class="top">
+        <a href="./#features">Features</a>
+        <a href="docs.html">Docs</a>
+        <a href="https://github.com/ctrl-research/waypoint">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="wrap docs">
+    <aside>
+      <h4>Setup</h4>
+      <a href="#quick-start">Quick start</a>
+      <a href="#configuration">Configuration</a>
+      <a href="#google-sign-in">Google sign-in</a>
+      <a href="#maps">Maps &amp; geocoding</a>
+      <h4>Using Waypoint</h4>
+      <a href="#concepts">Trips, areas &amp; layers</a>
+      <a href="#replay">Trip replay</a>
+      <a href="#calendar-sync">Calendar sync</a>
+      <a href="#sharing-export">Sharing &amp; export</a>
+      <h4>Integrations</h4>
+      <a href="#mcp">AI access (MCP)</a>
+      <h4>Operations</h4>
+      <a href="#releases">Releases &amp; images</a>
+      <a href="#backups">Data &amp; backups</a>
+    </aside>
+
+    <main>
+      <h1>Documentation</h1>
+      <p>Everything you need to run and use Waypoint. For the code, issues, and releases, see
+        <a href="https://github.com/ctrl-research/waypoint">GitHub</a>.</p>
+
+      <h2 id="quick-start">Quick start</h2>
+      <p>The repo ships a compose file with the app and Postgres:</p>
+      <pre><code>git clone https://github.com/ctrl-research/waypoint
+cd waypoint
+cp .env.example .env      # set POSTGRES_PASSWORD at minimum
+docker compose up -d</code></pre>
+      <p>The app listens on <code>:8080</code>. Prebuilt multi-arch images (amd64/arm64) are on
+        GHCR if you'd rather point your own deployment at them:</p>
+      <pre><code>docker pull ghcr.io/ctrl-research/waypoint:latest   # or a specific X.Y.Z</code></pre>
+      <p>Database migrations run automatically at startup. The <strong>first account to sign in
+        becomes admin</strong>, and a guided tour with demo data offers itself on first login
+        (replayable later from Settings).</p>
+      <p>For development without Docker, see the repo README — <code>make dev</code> runs the Go
+        server and Vite with hot reload.</p>
+
+      <h2 id="configuration">Configuration</h2>
+      <p>Everything is configured with <code>WAYPOINT_*</code> environment variables:</p>
+      <table>
+        <tr><th>Variable</th><th>Default</th><th>What it does</th></tr>
+        <tr><td><code>WAYPOINT_DATABASE_URL</code></td><td>—</td><td><strong>Required.</strong> Postgres connection string.</td></tr>
+        <tr><td><code>WAYPOINT_ADDR</code></td><td><code>:8080</code></td><td>Listen address.</td></tr>
+        <tr><td><code>WAYPOINT_BASE_URL</code></td><td><code>http://localhost:8080</code></td><td>Public URL of the instance. OAuth redirect URIs derive from it; cookies are Secure when it's https.</td></tr>
+        <tr><td><code>WAYPOINT_GOOGLE_CLIENT_ID</code> / <code>WAYPOINT_GOOGLE_CLIENT_SECRET</code></td><td>—</td><td>Enable Sign in with Google (both together). See <a href="#google-sign-in">Google sign-in</a>.</td></tr>
+        <tr><td><code>WAYPOINT_LOCAL_AUTH</code></td><td><code>false</code></td><td>Email/password accounts, intended for dev/testing.</td></tr>
+        <tr><td><code>WAYPOINT_ALLOWED_EMAILS</code></td><td>—</td><td>Comma-separated emails allowed to sign up after the first user. Empty = closed instance.</td></tr>
+        <tr><td><code>WAYPOINT_DATA_DIR</code></td><td><code>data</code></td><td>Where journal photo uploads are stored (<code>/data</code> in the image).</td></tr>
+        <tr><td><code>WAYPOINT_TILE_URL</code></td><td>OSM tiles</td><td>Raster tile URL template (<code>{z}/{x}/{y}</code>).</td></tr>
+        <tr><td><code>WAYPOINT_MAP_STYLE_URL</code></td><td>—</td><td>MapLibre vector style URL; takes precedence over raster tiles. <code>https://tiles.openfreemap.org/styles/liberty</code> is a good free option.</td></tr>
+        <tr><td><code>WAYPOINT_NOMINATIM_URL</code></td><td>public OSM</td><td>Geocoding endpoint for place/station/airport search.</td></tr>
+        <tr><td><code>WAYPOINT_LANGUAGE</code></td><td>—</td><td>BCP 47 language for place names and map labels; unset keeps native names.</td></tr>
+        <tr><td><code>WAYPOINT_MCP</code></td><td><code>false</code></td><td>Serve the <a href="#mcp">MCP endpoint</a> at <code>/mcp</code>.</td></tr>
+      </table>
+
+      <h2 id="google-sign-in">Google sign-in</h2>
+      <ol>
+        <li>In the <a href="https://console.cloud.google.com/apis/credentials">Google Cloud Console</a>,
+          create a project and configure the OAuth consent screen (External; Testing mode is fine —
+          add the accounts that will sign in as test users).</li>
+        <li>Create an <strong>OAuth client ID</strong> of type <em>Web application</em> with the
+          authorized redirect URI <code>$WAYPOINT_BASE_URL/auth/google/callback</code>.</li>
+        <li>Set <code>WAYPOINT_GOOGLE_CLIENT_ID</code> and <code>WAYPOINT_GOOGLE_CLIENT_SECRET</code>
+          and restart. The login page shows the Google button automatically.</li>
+      </ol>
+      <p>Notes: the redirect URI must match <code>WAYPOINT_BASE_URL</code> exactly (a mismatch shows
+        <code>redirect_uri_mismatch</code>); Google requires HTTPS except on localhost; sign in
+        yourself first — the first account becomes admin and bypasses the allowlist. After that,
+        only <code>WAYPOINT_ALLOWED_EMAILS</code> addresses can register; existing accounts always
+        keep signing in.</p>
+
+      <h2 id="maps">Maps &amp; geocoding</h2>
+      <p>Maps default to OpenStreetMap raster tiles. For crisp vector maps with localized labels,
+        set <code>WAYPOINT_MAP_STYLE_URL</code> — <a href="https://openfreemap.org">OpenFreeMap</a>'s
+        <code>liberty</code> style is free with no key. Place search (areas, venues, stations,
+        airports) proxies a Nominatim instance, rate-limited to respect the public server's usage
+        policy; heavy users should self-host Nominatim and point
+        <code>WAYPOINT_NOMINATIM_URL</code> at it.</p>
+
+      <h2 id="concepts">Trips, areas &amp; layers</h2>
+      <p><strong>Trips</strong> hold everything: a date range, a route, the day-by-day itinerary,
+        journal entries, and members (owner / editor / viewer roles, added by email).</p>
+      <p><strong>Areas</strong> are the places of the route — countries, cities, or regions,
+        whatever scale fits the trip. They group itinerary items, order the route line on the map,
+        and clicking one focuses the map at a zoom suited to its size.</p>
+      <p><strong>Layers</strong> make planning collaborative. Every member can create named idea
+        layers ("Food ideas", "Rainy day") beside the shared <em>Main</em> layer, each with its own
+        color. The itinerary — on the map, the trip page, exports, even the stats — is simply the
+        merge of all <em>visible</em> layers; the eye toggle includes or hides a layer everywhere.
+        Even viewers can add items to their own layers.</p>
+      <p><strong>Itinerary items</strong> carry a day, optional times, a category (activity, food,
+        lodging, transport, flight, train…), and venues. Flights, trains, and transit are proper
+        legs with departure and arrival stations — searched against real station/airport data —
+        which the map draws as directed paths, arcing for flights.</p>
+
+      <h2 id="replay">Trip replay</h2>
+      <p>Hit <strong>▶ Replay</strong> on a trip map to watch the journey: the camera follows a dot
+        through every point in chronological order, zooming to each leg's scale, with the vehicle
+        emoji riding along on transport legs. A control bar offers pause, a scrubber, and speed
+        (up to 4×). Settings can switch pacing from constant to proportional — legs then play
+        relative to their real distance and timetable duration.</p>
+
+      <h2 id="calendar-sync">Calendar sync</h2>
+      <p>The <strong>Calendar</strong> page shows every dated trip on a month grid. To get trips
+        into your personal calendar:</p>
+      <ul>
+        <li><strong>One-off:</strong> each trip's Export section has a <code>.ics</code> download
+          with the trip span and its itinerary items.</li>
+        <li><strong>Live sync:</strong> Settings → Calendar sync mints a private feed URL covering
+          all your trips. Add it to Google Calendar ("From URL") or Apple Calendar ("New Calendar
+          Subscription") and it stays updated. The link is the only credential — reset it there if
+          it ever leaks.</li>
+      </ul>
+
+      <h2 id="sharing-export">Sharing &amp; export</h2>
+      <p>Trip owners can mint <strong>read-only share links</strong> for people without accounts —
+        they see the map, itinerary, and journal, nothing else. Every trip also exports as
+        <strong>GPX</strong> (stops + route), <strong>GeoJSON</strong> (with journal points),
+        <strong>Markdown</strong> (a zip with photos), <strong>ICS</strong>, and a print-friendly
+        page for PDF.</p>
+
+      <h2 id="mcp">AI access (MCP)</h2>
+      <p>Set <code>WAYPOINT_MCP=true</code> and Waypoint serves a
+        <a href="https://modelcontextprotocol.io">Model Context Protocol</a> endpoint at
+        <code>/mcp</code>, letting any MCP client — Claude, for instance — list, create, and
+        manage your trips. The killer use case is <strong>backfilling</strong>: paste years of old
+        travel notes into your AI of choice and let it populate Waypoint via tools like
+        <code>create_trip</code>, <code>add_area</code> (auto-geocoded), and <code>add_item</code>.</p>
+      <p>Create your personal bearer token in Settings → AI access, then connect:</p>
+      <pre><code>claude mcp add --transport http waypoint \
+  https://your-host/mcp \
+  --header "Authorization: Bearer YOUR_TOKEN"</code></pre>
+      <p>Tools run with exactly your account's access — trip roles apply. The token can be rotated
+        or disabled in Settings at any time; the endpoint is off entirely unless the server flag
+        is set.</p>
+
+      <h2 id="releases">Releases &amp; images</h2>
+      <p>Every merge to <code>main</code> bumps the patch version, tags the repo, and publishes a
+        multi-arch image to <code>ghcr.io/ctrl-research/waypoint</code> as <code>X.Y.Z</code> and
+        <code>latest</code> (<code>[minor]</code>/<code>[major]</code> in the PR title bump higher).
+        Curated GitHub Releases with notes — optionally with an extra image tag like
+        <code>stable</code> — are cut from the Release workflow in the Actions tab. The running
+        version is logged at startup.</p>
+
+      <h2 id="backups">Data &amp; backups</h2>
+      <p>All state lives in two places: the <strong>Postgres database</strong> (trips, itineraries,
+        journal text, users, sessions) and the <strong>data directory</strong> (journal photo
+        uploads; <code>/data</code> in the container). Back up both — a <code>pg_dump</code> plus a
+        copy of the volume is a complete backup. Migrations run automatically on upgrade, so
+        restoring into a newer version just works.</p>
+    </main>
+  </div>
+
+  <footer class="site">
+    <div class="wrap">
+      Waypoint · MIT licensed ·
+      <a href="https://github.com/ctrl-research/waypoint">github.com/ctrl-research/waypoint</a>
+    </div>
+  </footer>
+</body>
+</html>
