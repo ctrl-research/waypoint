@@ -9,7 +9,7 @@ Self-hosted travel planner, logger, and tracker.
 Waypoint ships as a single Docker image (Go binary with the web UI embedded)
 plus PostgreSQL. Sign in with Google, or local accounts for development.
 
-> **Status:** early development — M0 skeleton. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Site & docs:** https://ctrl-research.github.io/waypoint/
 
 ## Stack
 

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Waypoint — self-hosted travel planner, logger &amp; tracker</title>
+  <meta name="description" content="Waypoint is a self-hosted travel planner, logger, and tracker: collaborative itineraries on layers, trip maps with replay, journals, calendar sync, travel stats, and AI access over MCP." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="compass.gif" alt="" /> Waypoint</a>
+      <nav class="top">
+        <a href="#features">Features</a>
+        <a href="#quickstart">Quick start</a>
+        <a href="docs.html">Docs</a>
+        <a href="https://github.com/ctrl-research/waypoint">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero wrap">
+      <img class="compass" src="compass.gif" alt="Pixel compass" />
+      <h1>Plan it. Live it. <em>Relive it.</em></h1>
+      <p class="tag">
+        Waypoint is a <strong>self-hosted</strong> travel planner, logger, and tracker.
+        Your trips, your itineraries, your memories — on your own server.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="docs.html#quick-start">Get started</a>
+        <a class="btn ghost" href="https://github.com/ctrl-research/waypoint">View on GitHub</a>
+      </div>
+      <pre class="pull"><code>docker pull ghcr.io/ctrl-research/waypoint:latest</code></pre>
+    </div>
+
+    <section class="block" id="features">
+      <div class="wrap">
+        <h2>Everything a trip needs</h2>
+        <p class="lead">
+          One app for the whole arc of travel — dreaming, planning together, being there,
+          and looking back.
+        </p>
+        <div class="grid">
+          <div class="card">
+            <div class="icon">🗺️</div>
+            <h3>Trips on a real map</h3>
+            <p>Areas — countries, cities, or regions, whatever fits the trip — and every itinerary
+              item pinned at its actual venue. Raster or vector tiles, your choice of provider.</p>
+          </div>
+          <div class="card">
+            <div class="icon">🧑‍🤝‍🧑</div>
+            <h3>Plan together on layers</h3>
+            <p>Everyone keeps their own idea layers next to the shared Main layer. The itinerary is
+              simply the merge of what's visible — toggle a layer's eye and the whole plan updates.</p>
+          </div>
+          <div class="card">
+            <div class="icon">▶️</div>
+            <h3>Trip replay</h3>
+            <p>Watch the journey play out: the camera rides a dot through every stop, flights arc
+              across the map with a ✈️ in tow, and a scrubber lets you seek, pause, and change speed.</p>
+          </div>
+          <div class="card">
+            <div class="icon">📖</div>
+            <h3>Journal the days</h3>
+            <p>Day-by-day notes in markdown with photo uploads, woven into the trip timeline
+              alongside the itinerary.</p>
+          </div>
+          <div class="card">
+            <div class="icon">📅</div>
+            <h3>Calendar &amp; ICS sync</h3>
+            <p>All trips on a month grid, per-trip .ics export, and a private subscription feed that
+              keeps Google or Apple Calendar up to date as plans change.</p>
+          </div>
+          <div class="card">
+            <div class="icon">📊</div>
+            <h3>Travel stats</h3>
+            <p>Countries, cities, and continents — travelled in green, still-planned as an amber +N —
+              with a visited-world map, flight and train tallies, and trips per year.</p>
+          </div>
+          <div class="card">
+            <div class="icon">🤖</div>
+            <h3>Bring your own AI</h3>
+            <p>An optional MCP endpoint lets any LLM client manage trips with a personal token —
+              paste old travel notes into Claude and let it backfill years of history.</p>
+          </div>
+          <div class="card">
+            <div class="icon">🔗</div>
+            <h3>Share &amp; export</h3>
+            <p>Read-only share links for friends, plus GPX, GeoJSON, Markdown, ICS, and
+              print-to-PDF exports. Your data is never locked in.</p>
+          </div>
+          <div class="card">
+            <div class="icon">🔐</div>
+            <h3>Self-hosted &amp; private</h3>
+            <p>A single Go binary with the UI embedded, Postgres behind it, Google sign-in with an
+              email allowlist, and multi-arch images published on every release.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="quickstart">
+      <div class="wrap">
+        <h2>Up and running in a minute</h2>
+        <p class="lead">Grab the compose file, set a password, and go. A guided tour with demo data
+          greets the first sign-in.</p>
+        <pre><code>git clone https://github.com/ctrl-research/waypoint
+cd waypoint
+cp .env.example .env
+docker compose up -d        # app on :8080</code></pre>
+        <p style="margin-top:1rem"><a href="docs.html">Read the docs →</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site">
+    <div class="wrap">
+      Waypoint · MIT licensed ·
+      <a href="https://github.com/ctrl-research/waypoint">github.com/ctrl-research/waypoint</a>
+    </div>
+  </footer>
+</body>
+</html>
