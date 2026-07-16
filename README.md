@@ -55,6 +55,21 @@ Google sign-in requires an OAuth client (redirect URI:
 `https://your-host/auth/google/callback`); local accounts can be enabled with
 `WAYPOINT_LOCAL_AUTH=true` instead.
 
+Prebuilt multi-arch images (amd64/arm64) are on GHCR:
+
+```sh
+docker pull ghcr.io/ctrl-research/waypoint:latest   # or a specific vX.Y.Z
+```
+
+## Releases
+
+Every merge to `main` bumps the patch version, tags the repo, and pushes
+`ghcr.io/ctrl-research/waypoint:vX.Y.Z` (+ `latest`). Put `[minor]` or
+`[major]` in the PR title to bump higher. To cut a curated release — a
+GitHub Release with notes, optionally an extra image tag like `stable` —
+run the **Release** workflow manually from the Actions tab and pick the
+bump and tag.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). All changes go through PRs against

@@ -21,6 +21,9 @@ import (
 	"github.com/ctrl-research/waypoint/migrations"
 )
 
+// version is stamped by the release build (-ldflags "-X main.version=vX.Y.Z").
+var version = "dev"
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("fatal", "err", err)
@@ -35,6 +38,8 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "seed" {
 		return runSeed(ctx, os.Args[2:])
 	}
+
+	slog.Info("waypoint", "version", version)
 
 	cfg, err := config.Load()
 	if err != nil {
