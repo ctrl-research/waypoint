@@ -50,7 +50,9 @@ cp .env.example .env      # set WAYPOINT_SESSION_SECRET, Google OAuth creds, etc
 docker compose up -d
 ```
 
-The app listens on `:8080`. Put it behind your reverse proxy with TLS.
+The app listens on `:8080`. Put it behind your reverse proxy with TLS. See
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for compose and Kubernetes examples
+and [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for every setting.
 Google sign-in requires an OAuth client (redirect URI:
 `https://your-host/auth/google/callback`); local accounts can be enabled with
 `WAYPOINT_LOCAL_AUTH=true` instead.

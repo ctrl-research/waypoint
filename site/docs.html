@@ -11,7 +11,7 @@
 <body>
   <header class="site">
     <div class="wrap">
-      <a class="brand" href="./"><img src="compass.gif" alt="" /> Waypoint</a>
+      <a class="brand" href="./"><span data-compass="28" role="img" aria-label="Waypoint compass"></span> Waypoint</a>
       <nav class="top">
         <a href="./#features">Features</a>
         <a href="docs.html">Docs</a>
@@ -42,7 +42,10 @@
     <main>
       <h1>Documentation</h1>
       <p>Everything you need to run and use Waypoint. For the code, issues, and releases, see
-        <a href="https://github.com/ctrl-research/waypoint">GitHub</a>.</p>
+        <a href="https://github.com/ctrl-research/waypoint">GitHub</a> — deployment and
+        configuration guides also live in the repo as markdown under
+        <a href="https://github.com/ctrl-research/waypoint/tree/main/docs">docs/</a>
+        (including a full Kubernetes example).</p>
 
       <h2 id="quick-start">Quick start</h2>
       <p>The repo ships a compose file with the app and Postgres:</p>
@@ -181,5 +184,6 @@ docker compose up -d</code></pre>
       <a href="https://github.com/ctrl-research/waypoint">github.com/ctrl-research/waypoint</a>
     </div>
   </footer>
+  <script src="compass.js"></script>
 </body>
 </html>
