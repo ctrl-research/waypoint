@@ -58,13 +58,13 @@ Google sign-in requires an OAuth client (redirect URI:
 Prebuilt multi-arch images (amd64/arm64) are on GHCR:
 
 ```sh
-docker pull ghcr.io/ctrl-research/waypoint:latest   # or a specific vX.Y.Z
+docker pull ghcr.io/ctrl-research/waypoint:latest   # or a specific X.Y.Z
 ```
 
 ## Releases
 
 Every merge to `main` bumps the patch version, tags the repo, and pushes
-`ghcr.io/ctrl-research/waypoint:vX.Y.Z` (+ `latest`). Put `[minor]` or
+`ghcr.io/ctrl-research/waypoint:X.Y.Z` (+ `latest`). Put `[minor]` or
 `[major]` in the PR title to bump higher. To cut a curated release — a
 GitHub Release with notes, optionally an extra image tag like `stable` —
 run the **Release** workflow manually from the Actions tab and pick the

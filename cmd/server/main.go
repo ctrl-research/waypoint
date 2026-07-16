@@ -21,7 +21,7 @@ import (
 	"github.com/ctrl-research/waypoint/migrations"
 )
 
-// version is stamped by the release build (-ldflags "-X main.version=vX.Y.Z").
+// version is stamped by the release build (-ldflags "-X main.version=X.Y.Z").
 var version = "dev"
 
 func main() {

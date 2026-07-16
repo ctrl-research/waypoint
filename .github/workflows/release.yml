@@ -45,9 +45,9 @@ jobs:
         env:
           INPUT_BUMP: ${{ inputs.bump }}
         run: |
-          latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
-          latest=${latest:-v0.0.0}
-          IFS=. read -r major minor patch <<< "${latest#v}"
+          latest=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          latest=${latest:-0.0.0}
+          IFS=. read -r major minor patch <<< "$latest"
           bump="$INPUT_BUMP"
           if [ -z "$bump" ]; then
             # Merge commits carry the PR title in the body, so scan the
@@ -63,7 +63,7 @@ jobs:
             minor) minor=$((minor + 1)); patch=0 ;;
             *) patch=$((patch + 1)) ;;
           esac
-          version="v$major.$minor.$patch"
+          version="$major.$minor.$patch"
           echo "previous: $latest → $version ($bump)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -118,7 +118,7 @@ jobs:
           CUSTOM: ${{ inputs.custom_tag }}
         run: |
           args=(--generate-notes)
-          prev=$(git tag -l 'v*' --sort=-v:refname | sed -n 2p)
+          prev=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed -n 2p)
           if [ -n "$prev" ]; then
             args+=(--notes-start-tag "$prev")
           fi
