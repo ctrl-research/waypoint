@@ -94,12 +94,14 @@ export function Tour() {
   const [rect, setRect] = useState<DOMRect | null>(null)
   const prevActive = useRef(false)
 
-  // Entering/leaving the tour swaps the whole data layer, so drop caches.
+  // Entering/leaving the tour swaps the whole data layer. resetQueries
+  // (not clear) forces mounted queries to refetch immediately, so real
+  // data replaces the demo the moment the tour ends.
   useEffect(() => {
     if (active !== prevActive.current) {
       prevActive.current = active
-      queryClient.clear()
       if (!active) navigate({ to: '/' })
+      queryClient.resetQueries()
     }
   }, [active, navigate, queryClient])
 
@@ -116,7 +118,10 @@ export function Tour() {
     const find = () => {
       const el = document.querySelector(`[data-tour="${current.target}"]`)
       if (el) {
-        el.scrollIntoView({ block: 'center', behavior: tries === 0 ? 'auto' : 'smooth' })
+        // Tall targets scroll to their top — centering a section bigger
+        // than the screen would land the user in its middle.
+        const tall = el.getBoundingClientRect().height > window.innerHeight * 0.7
+        el.scrollIntoView({ block: tall ? 'start' : 'center', behavior: tries === 0 ? 'auto' : 'smooth' })
         setRect(el.getBoundingClientRect())
       } else if (tries === 40) {
         setRect(null) // give up: show the popup centered
@@ -194,7 +199,9 @@ export function Tour() {
   )
 }
 
-/** Below the target when there's room, above otherwise, else centered. */
+/** Below the target when there's room, above otherwise; targets taller
+ * than the viewport pin the popup to the bottom so it always stays
+ * readable on screen. */
 function popoverPosition(rect: DOMRect | null): React.CSSProperties {
   if (!rect) {
     return { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
@@ -202,6 +209,10 @@ function popoverPosition(rect: DOMRect | null): React.CSSProperties {
   const width = Math.min(window.innerWidth * 0.92, 352)
   const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))
   const below = rect.bottom + 16
-  if (below + 200 < window.innerHeight) return { left, top: below }
-  return { left, bottom: window.innerHeight - rect.top + 16 }
+  if (below + 220 < window.innerHeight) return { left, top: below }
+  if (rect.top - 236 > 0 && rect.top < window.innerHeight) {
+    return { left, bottom: window.innerHeight - rect.top + 16 }
+  }
+  // The target dominates (or overflows) the viewport.
+  return { left: '50%', transform: 'translateX(-50%)', bottom: 24 }
 }
