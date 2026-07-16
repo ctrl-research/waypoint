@@ -1,0 +1,128 @@
+name: Release
+
+# Every merge to main bumps the patch version, tags the repo, and pushes a
+# multi-arch image to GHCR ([minor] or [major] in the merge commit title
+# bumps higher). Run the workflow manually to cut a curated release: pick
+# the bump, optionally add a custom image tag (e.g. "stable"), and get a
+# GitHub Release with generated notes.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      custom_tag:
+        description: Extra image tag (optional, e.g. stable or homelab)
+        type: string
+        default: ""
+
+# One release at a time — concurrent merges must not race the tag bump.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: ver
+        env:
+          INPUT_BUMP: ${{ inputs.bump }}
+        run: |
+          latest=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          latest=${latest:-0.0.0}
+          IFS=. read -r major minor patch <<< "$latest"
+          bump="$INPUT_BUMP"
+          if [ -z "$bump" ]; then
+            # Merge commits carry the PR title in the body, so scan the
+            # whole message for the bump markers.
+            case "$(git log -1 --pretty=%B)" in
+              *"[major]"*) bump=major ;;
+              *"[minor]"*) bump=minor ;;
+              *) bump=patch ;;
+            esac
+          fi
+          case "$bump" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            *) patch=$((patch + 1)) ;;
+          esac
+          version="$major.$minor.$patch"
+          echo "previous: $latest → $version ($bump)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Push version tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.ver.outputs.version }}"
+          git push origin "${{ steps.ver.outputs.version }}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: tags
+        env:
+          CUSTOM: ${{ inputs.custom_tag }}
+        run: |
+          image="ghcr.io/${{ github.repository }}"
+          tags="$image:${{ steps.ver.outputs.version }},$image:latest"
+          if [ -n "$CUSTOM" ]; then
+            tags="$tags,$image:$CUSTOM"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.ver.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: GitHub release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CUSTOM: ${{ inputs.custom_tag }}
+        run: |
+          args=(--generate-notes)
+          prev=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed -n 2p)
+          if [ -n "$prev" ]; then
+            args+=(--notes-start-tag "$prev")
+          fi
+          if [ -n "$CUSTOM" ]; then
+            args+=(--notes "Also tagged \`ghcr.io/${{ github.repository }}:$CUSTOM\`.")
+          fi
+          gh release create "${{ steps.ver.outputs.version }}" "${args[@]}"

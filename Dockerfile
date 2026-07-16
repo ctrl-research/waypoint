@@ -8,12 +8,13 @@ RUN npm run build
 
 # Stage 2: build the Go server with the UI embedded
 FROM golang:1.26-alpine AS server
+ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist internal/webui/dist
-RUN CGO_ENABLED=0 go build -tags embedwebui -o /waypoint ./cmd/server
+RUN CGO_ENABLED=0 go build -tags embedwebui -ldflags "-X main.version=${VERSION}" -o /waypoint ./cmd/server
 
 # Stage 3: runtime
 FROM alpine:3.21
