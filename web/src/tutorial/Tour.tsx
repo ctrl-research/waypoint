@@ -45,15 +45,15 @@ const STEPS: TourStep[] = [
   },
   {
     route: `/trips/${DEMO_TRIP_ID}`,
-    target: 'itinerary-overview',
-    title: 'Areas and the day-by-day plan',
-    body: 'Areas are the countries, cities, or regions of the route — click one to focus the map. Below them, the itinerary shows every visible layer merged, ordered by time.',
+    target: 'areas-list',
+    title: 'Areas group the trip',
+    body: 'Define them at whatever scale fits the trip — countries, cities, or regions. Areas group your itinerary items, and clicking one focuses the map on it.',
   },
   {
     route: `/trips/${DEMO_TRIP_ID}/itinerary`,
     target: 'layers-panel',
     title: 'Layers for planning together',
-    body: 'Everyone can keep their own idea layers ("Food ideas") next to the shared Main layer. The eye includes or hides a layer everywhere — the itinerary is whatever is visible.',
+    body: 'Everyone can keep their own idea layers ("Food ideas") next to the shared Main layer — the itinerary is whatever is visible, and the eye toggles work from the trip page too. Here in the editor you can also add, rename, recolor, and delete layers.',
   },
   {
     route: `/trips/${DEMO_TRIP_ID}/itinerary`,
