@@ -38,7 +38,7 @@ export function StatsPage() {
         planned.
       </p>
 
-      <section className="mt-6">
+      <section className="mt-6" data-tour="stat-tiles">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Trips</h2>
         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <StatTile label="Trips" value={totals.completed} plus={totals.planning + totals.active} />

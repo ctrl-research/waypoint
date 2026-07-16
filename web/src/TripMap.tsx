@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchConfig, type ItineraryCategory, type ItineraryItem, type Stop } from './api'
-import { CrosshairIcon, EyeIcon, PauseIcon, PlayIcon, categoryIcons } from './icons'
+import { CrosshairIcon, EyeIcon, LayersIcon, PauseIcon, PlayIcon, categoryIcons } from './icons'
 import { mapsLink } from './maps'
 import { localizeMapLabels, mapStyle, type MapSourceConfig } from './mapstyle'
 
@@ -473,11 +473,12 @@ export function TripMap({
         <button
           type="button"
           onClick={() => setLegendOpen((v) => !v)}
-          className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-slate-900 hover:bg-slate-100"
+          className="flex w-full items-center justify-center rounded-md p-1 text-slate-900 hover:bg-slate-100"
           aria-expanded={legendOpen}
+          title="Map layers"
+          aria-label="Map layers"
         >
-          <span className={`text-[9px] transition-transform ${legendOpen ? 'rotate-90' : ''}`}>▶</span>
-          Layers
+          <LayersIcon />
         </button>
         {legendOpen && (
           <div className="mt-0.5 flex flex-col">

@@ -17,6 +17,7 @@ import {
   listHomes,
 } from '../api'
 import { getTheme, setTheme, subscribeTheme, type Theme } from '../theme'
+import { startTutorial } from '../tutorial/state'
 
 const field =
   'rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none'
@@ -70,6 +71,20 @@ export function SettingsPage() {
       </section>
 
       <MCPSection />
+
+      <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+        <h2 className="font-medium text-slate-900 dark:text-slate-100">Tour</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Walk through the app again with demo data — nothing in the tour touches your trips.
+        </p>
+        <button
+          type="button"
+          onClick={() => startTutorial()}
+          className="mt-3 rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          Replay the tour
+        </button>
+      </section>
     </div>
   )
 }

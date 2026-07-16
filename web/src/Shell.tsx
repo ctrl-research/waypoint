@@ -1,12 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { fetchMe, logout } from './api'
 import { CompassLogo } from './CompassLogo'
+import { Tour } from './tutorial/Tour'
+import { startTutorial, tutorialSeen } from './tutorial/state'
 // Side effect: applies the stored theme and follows OS changes app-wide;
 // the picker itself lives on the Settings page.
 import './theme'
 
 export function Shell() {
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
+
+  // First sign-in launches the tour; it re-launches until finished or
+  // skipped, and can always be replayed from Settings (#96).
+  useEffect(() => {
+    if (me && !tutorialSeen()) startTutorial()
+  }, [me])
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 print:hidden">
@@ -28,6 +39,7 @@ export function Shell() {
       <main>
         <Outlet />
       </main>
+      <Tour />
     </div>
   )
 }

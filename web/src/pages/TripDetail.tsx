@@ -36,6 +36,7 @@ import {
 } from '../api'
 import { defaultTripDay, formatRange, statusStyles } from './Home'
 import { ItineraryBoard, categoryIcons } from './ItineraryBoard'
+import { LayersPanel } from './LayersPanel'
 import { JournalTimeline } from './Journal'
 import { MembersSection, ShareSection } from './Members'
 
@@ -89,7 +90,7 @@ export function TripDetailPage() {
     <div className="mx-auto mt-8 w-full max-w-5xl px-4 pb-24">
       <TripHeader tripId={tripId} />
 
-      <div className="mt-6">
+      <div className="mt-6" data-tour="trip-map">
         <Suspense fallback={<div className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950" />}>
           <TripMap
             stops={stops}
@@ -117,19 +118,32 @@ export function TripDetailPage() {
             </Link>
           )}
         </div>
-        <h3 className="mt-4 text-sm font-semibold text-slate-700 dark:text-slate-300">Areas</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          The countries, cities, or regions this trip visits, in order. Click one to focus the
-          map.{canEdit && ' Manage them in the itinerary editor.'}
-        </p>
-        <StopsSection
-          tripId={trip.id}
-          stops={stops}
-          items={allItems}
-          canEdit={false}
-          onHover={setHighlightKey}
-          onFocus={(id) => setFocusStop((cur) => ({ id, nonce: (cur?.nonce ?? 0) + 1 }))}
-        />
+        <div className="mt-4" data-tour="areas-list">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Areas</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            The countries, cities, or regions this trip visits, in order. Click one to focus the
+            map.{canEdit && ' Manage them in the itinerary editor.'}
+          </p>
+          <StopsSection
+            tripId={trip.id}
+            stops={stops}
+            items={allItems}
+            canEdit={false}
+            onHover={setHighlightKey}
+            onFocus={(id) => setFocusStop((cur) => ({ id, nonce: (cur?.nonce ?? 0) + 1 }))}
+          />
+        </div>
+
+        <div className="mt-6">
+          <LayersPanel
+            tripId={trip.id}
+            role={trip.role}
+            meId={me.id}
+            layers={allLayers}
+            items={allItems}
+            hint="Idea layers from everyone on the trip — the eye includes a layer in the itinerary below."
+          />
+        </div>
 
         <h3 className="mt-6 text-sm font-semibold text-slate-700 dark:text-slate-300">Day by day</h3>
         <ItineraryBoard

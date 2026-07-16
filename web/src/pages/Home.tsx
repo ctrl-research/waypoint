@@ -70,6 +70,7 @@ export function HomePage() {
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Your trips</h1>
         <button
           type="button"
+          data-tour="new-trip"
           onClick={() => setCreating((v) => !v)}
           className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300"
         >
@@ -80,7 +81,7 @@ export function HomePage() {
       {creating && <NewTripForm onDone={() => setCreating(false)} />}
 
       {trips.data && trips.data.length > 0 && (
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap gap-2" data-tour="trip-search">
           <input
             type="search"
             value={query}

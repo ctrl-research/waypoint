@@ -1,3 +1,6 @@
+import { tutorialActive } from './tutorial/state'
+import { tutorialResponse } from './tutorial/fixtures'
+
 export type Me = {
   id: string
   email: string
@@ -153,6 +156,12 @@ export type TripInput = Partial<{
 }>
 
 async function requestJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  // While the tour runs, reads come from demo fixtures and writes are
+  // refused — the tutorial never touches live data (#96).
+  if (tutorialActive()) {
+    const demo = tutorialResponse(path.split('?')[0], init?.method ?? 'GET')
+    if (demo !== undefined) return demo as T
+  }
   const res = await fetch(path, {
     headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
     ...init,
