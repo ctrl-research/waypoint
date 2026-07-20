@@ -9,6 +9,9 @@
   --accent: #2a78d6;
   --accent-ink: #1d5fb0;
   --code-bg: #f1f5f9;
+  --gold: #d97706;
+  --green: #059669;
+  --purple: #7c3aed;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -21,6 +24,9 @@
     --accent: #5b9be6;
     --accent-ink: #8ab8ee;
     --code-bg: #1e293b;
+    --gold: #fbbf24;
+    --green: #34d399;
+    --purple: #a78bfa;
   }
 }
 
@@ -89,6 +95,9 @@ nav.top a:hover { color: var(--ink); text-decoration: none; }
   line-height: 1.15;
 }
 .hero h1 em { font-style: normal; color: var(--accent-ink); }
+.hero h1 .w-plan { color: var(--gold); }
+.hero h1 .w-experience { color: var(--green); }
+.hero h1 .w-reminisce { color: var(--purple); }
 .hero p.tag {
   margin: 1rem auto 0;
   max-width: 38rem;
