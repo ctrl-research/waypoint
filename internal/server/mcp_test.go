@@ -119,6 +119,52 @@ func TestMCPServer(t *testing.T) {
 		t.Fatalf("after deletes: %v", detail)
 	}
 
+	// ---- update_trip --------------------------------------------------------
+
+	updatedTrip := callTool("update_trip", map[string]any{
+		"tripId": tripID, "title": "Japan 2024", "status": "active",
+	})
+	if updatedTrip["title"] != "Japan 2024" {
+		t.Fatalf("update_trip title = %v, want Japan 2024", updatedTrip["title"])
+	}
+	if updatedTrip["status"] != "active" {
+		t.Fatalf("update_trip status = %v, want active", updatedTrip["status"])
+	}
+	if updatedTrip["startDate"] != "2024-04-01" {
+		t.Fatalf("update_trip startDate changed unexpectedly: %v", updatedTrip["startDate"])
+	}
+
+	// ---- update_area --------------------------------------------------------
+
+	area2 := callTool("add_area", map[string]any{
+		"tripId": tripID, "name": "Osaka", "lat": 34.6937, "lon": 135.5023,
+	})
+	updatedArea := callTool("update_area", map[string]any{
+		"tripId": tripID, "areaId": area2["id"], "name": "Osaka City",
+	})
+	if updatedArea["name"] != "Osaka City" {
+		t.Fatalf("update_area name = %v, want Osaka City", updatedArea["name"])
+	}
+	if lat, ok := updatedArea["lat"].(float64); !ok || lat != 34.6937 {
+		t.Fatalf("update_area lat changed unexpectedly: %v", updatedArea["lat"])
+	}
+
+	// ---- update_item --------------------------------------------------------
+
+	item2 := callTool("add_item", map[string]any{
+		"tripId": tripID, "title": "Fushimi Inari", "day": "2024-04-03",
+		"category": "activity", "areaId": area2["id"],
+	})
+	updatedItem := callTool("update_item", map[string]any{
+		"tripId": tripID, "itemId": item2["id"], "title": "Fushimi Inari Shrine", "category": "food",
+	})
+	if updatedItem["title"] != "Fushimi Inari Shrine" {
+		t.Fatalf("update_item title = %v, want Fushimi Inari Shrine", updatedItem["title"])
+	}
+	if updatedItem["category"] != "food" {
+		t.Fatalf("update_item category = %v, want food", updatedItem["category"])
+	}
+
 	t.Run("rotating the token cuts access", func(t *testing.T) {
 		call(t, h, alice, "POST", "/api/v1/mcp/token", "")
 		res, err := (&http.Client{Transport: &bearerTransport{token}}).Post(
