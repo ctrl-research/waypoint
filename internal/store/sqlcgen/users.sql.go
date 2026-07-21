@@ -23,9 +23,9 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, display_name, avatar_url, google_sub, password_hash, is_admin)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token
+INSERT INTO users (email, display_name, avatar_url, google_sub, oidc_sub, password_hash, is_admin)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub
 `
 
 type CreateUserParams struct {
@@ -33,6 +33,7 @@ type CreateUserParams struct {
 	DisplayName  string
 	AvatarURL    *string
 	GoogleSub    *string
+	OidcSub      *string
 	PasswordHash *string
 	IsAdmin      bool
 }
@@ -43,6 +44,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.DisplayName,
 		arg.AvatarURL,
 		arg.GoogleSub,
+		arg.OidcSub,
 		arg.PasswordHash,
 		arg.IsAdmin,
 	)
@@ -58,6 +60,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
@@ -65,7 +68,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 const linkGoogle = `-- name: LinkGoogle :one
 UPDATE users SET google_sub = $2, display_name = $3, avatar_url = $4
 WHERE id = $1
-RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token
+RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub
 `
 
 type LinkGoogleParams struct {
@@ -94,13 +97,51 @@ func (q *Queries) LinkGoogle(ctx context.Context, arg LinkGoogleParams) (User, e
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
+	)
+	return i, err
+}
+
+const linkOIDC = `-- name: LinkOIDC :one
+UPDATE users SET oidc_sub = $2, display_name = $3, avatar_url = $4
+WHERE id = $1
+RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub
+`
+
+type LinkOIDCParams struct {
+	ID          uuid.UUID
+	OidcSub     *string
+	DisplayName string
+	AvatarURL   *string
+}
+
+func (q *Queries) LinkOIDC(ctx context.Context, arg LinkOIDCParams) (User, error) {
+	row := q.db.QueryRow(ctx, linkOIDC,
+		arg.ID,
+		arg.OidcSub,
+		arg.DisplayName,
+		arg.AvatarURL,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.DisplayName,
+		&i.AvatarURL,
+		&i.GoogleSub,
+		&i.PasswordHash,
+		&i.IsAdmin,
+		&i.CreatedAt,
+		&i.CalendarToken,
+		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const setCalendarToken = `-- name: SetCalendarToken :one
 UPDATE users SET calendar_token = $2 WHERE id = $1
-RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token
+RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub
 `
 
 type SetCalendarTokenParams struct {
@@ -123,13 +164,14 @@ func (q *Queries) SetCalendarToken(ctx context.Context, arg SetCalendarTokenPara
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const setMCPToken = `-- name: SetMCPToken :one
 UPDATE users SET mcp_token = $2 WHERE id = $1
-RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token
+RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub
 `
 
 type SetMCPTokenParams struct {
@@ -152,13 +194,14 @@ func (q *Queries) SetMCPToken(ctx context.Context, arg SetMCPTokenParams) (User,
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const setPassword = `-- name: SetPassword :one
 UPDATE users SET password_hash = $2 WHERE id = $1
-RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token
+RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub
 `
 
 type SetPasswordParams struct {
@@ -180,13 +223,14 @@ func (q *Queries) SetPassword(ctx context.Context, arg SetPasswordParams) (User,
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE users SET display_name = $2, avatar_url = $3 WHERE id = $1
-RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token
+RETURNING id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub
 `
 
 type UpdateUserProfileParams struct {
@@ -209,12 +253,13 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const userByCalendarToken = `-- name: UserByCalendarToken :one
-SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token FROM users WHERE calendar_token = $1
+SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub FROM users WHERE calendar_token = $1
 `
 
 func (q *Queries) UserByCalendarToken(ctx context.Context, calendarToken *string) (User, error) {
@@ -231,12 +276,13 @@ func (q *Queries) UserByCalendarToken(ctx context.Context, calendarToken *string
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const userByEmail = `-- name: UserByEmail :one
-SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token FROM users WHERE email = $1
+SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub FROM users WHERE email = $1
 `
 
 func (q *Queries) UserByEmail(ctx context.Context, email string) (User, error) {
@@ -253,12 +299,13 @@ func (q *Queries) UserByEmail(ctx context.Context, email string) (User, error) {
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const userByGoogleSub = `-- name: UserByGoogleSub :one
-SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token FROM users WHERE google_sub = $1
+SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub FROM users WHERE google_sub = $1
 `
 
 func (q *Queries) UserByGoogleSub(ctx context.Context, googleSub *string) (User, error) {
@@ -275,12 +322,13 @@ func (q *Queries) UserByGoogleSub(ctx context.Context, googleSub *string) (User,
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const userByID = `-- name: UserByID :one
-SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token FROM users WHERE id = $1
+SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub FROM users WHERE id = $1
 `
 
 func (q *Queries) UserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -297,12 +345,13 @@ func (q *Queries) UserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
 
 const userByMCPToken = `-- name: UserByMCPToken :one
-SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token FROM users WHERE mcp_token = $1
+SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub FROM users WHERE mcp_token = $1
 `
 
 func (q *Queries) UserByMCPToken(ctx context.Context, mcpToken *string) (User, error) {
@@ -319,6 +368,30 @@ func (q *Queries) UserByMCPToken(ctx context.Context, mcpToken *string) (User, e
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
+	)
+	return i, err
+}
+
+const userByOIDCSub = `-- name: UserByOIDCSub :one
+SELECT id, email, display_name, avatar_url, google_sub, password_hash, is_admin, created_at, calendar_token, mcp_token, oidc_sub FROM users WHERE oidc_sub = $1
+`
+
+func (q *Queries) UserByOIDCSub(ctx context.Context, oidcSub *string) (User, error) {
+	row := q.db.QueryRow(ctx, userByOIDCSub, oidcSub)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.DisplayName,
+		&i.AvatarURL,
+		&i.GoogleSub,
+		&i.PasswordHash,
+		&i.IsAdmin,
+		&i.CreatedAt,
+		&i.CalendarToken,
+		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }
