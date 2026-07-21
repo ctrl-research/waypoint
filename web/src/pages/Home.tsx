@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate } from '@tanstack/react-router'
-import { ApiError, createTrip, fetchMe, listTrips, type EffectiveStatus, type Trip } from '../api'
+import { ApiError, createTrip, fetchMe, listHomes, listTrips, type EffectiveStatus, type Trip } from '../api'
 import { geometryContains, loadCountries } from '../geo'
 
 export const statusStyles: Record<EffectiveStatus, string> = {
@@ -13,6 +13,7 @@ export const statusStyles: Record<EffectiveStatus, string> = {
 export function HomePage() {
   const { data: me, isLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
   const trips = useQuery({ queryKey: ['trips'], queryFn: listTrips, enabled: !!me })
+  const homes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: !!me })
   const [creating, setCreating] = useState(false)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<'' | EffectiveStatus>('')
@@ -79,6 +80,19 @@ export function HomePage() {
       </div>
 
       {creating && <NewTripForm onDone={() => setCreating(false)} />}
+
+      {homes.data?.length === 0 && (
+        <div className="mt-6 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          <span aria-hidden="true">⚠️</span>
+          <span>
+            No home city set — flights and trains can't depart from or return home, and travel
+            stats lose their starting point.
+          </span>
+          <Link to="/settings" className="font-medium underline underline-offset-2 hover:text-amber-950 dark:hover:text-amber-100">
+            Add one in Settings →
+          </Link>
+        </div>
+      )}
 
       {trips.data && trips.data.length > 0 && (
         <div className="mt-6 flex flex-wrap gap-2" data-tour="trip-search">
