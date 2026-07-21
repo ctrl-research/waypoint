@@ -21,6 +21,13 @@ type Config struct {
 	// both are set.
 	GoogleClientID     string
 	GoogleClientSecret string
+	// Generic OIDC provider (Authentik, Keycloak, …). All three of issuer,
+	// client id, and client secret must be set together; Name labels the
+	// login button (defaults to "SSO").
+	OIDCIssuerURL    string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCName         string
 	// LocalAuth enables email/password sign-in (intended for dev/testing).
 	LocalAuth bool
 	// AllowedEmails restricts who may sign up beyond the first user. Empty
@@ -61,6 +68,10 @@ func Load() (Config, error) {
 		BaseURL:            strings.TrimSuffix(getenv("WAYPOINT_BASE_URL", "http://localhost:8080"), "/"),
 		GoogleClientID:     os.Getenv("WAYPOINT_GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("WAYPOINT_GOOGLE_CLIENT_SECRET"),
+		OIDCIssuerURL:      strings.TrimSuffix(os.Getenv("WAYPOINT_OIDC_ISSUER_URL"), "/"),
+		OIDCClientID:       os.Getenv("WAYPOINT_OIDC_CLIENT_ID"),
+		OIDCClientSecret:   os.Getenv("WAYPOINT_OIDC_CLIENT_SECRET"),
+		OIDCName:           os.Getenv("WAYPOINT_OIDC_NAME"),
 		LocalAuth:          os.Getenv("WAYPOINT_LOCAL_AUTH") == "true",
 		AllowedEmails:      splitList(os.Getenv("WAYPOINT_ALLOWED_EMAILS")),
 		NominatimURL:       strings.TrimSuffix(getenv("WAYPOINT_NOMINATIM_URL", "https://nominatim.openstreetmap.org"), "/"),
@@ -75,6 +86,15 @@ func Load() (Config, error) {
 	}
 	if (cfg.GoogleClientID == "") != (cfg.GoogleClientSecret == "") {
 		return Config{}, fmt.Errorf("WAYPOINT_GOOGLE_CLIENT_ID and WAYPOINT_GOOGLE_CLIENT_SECRET must be set together")
+	}
+	oidcSet := 0
+	for _, v := range []string{cfg.OIDCIssuerURL, cfg.OIDCClientID, cfg.OIDCClientSecret} {
+		if v != "" {
+			oidcSet++
+		}
+	}
+	if oidcSet != 0 && oidcSet != 3 {
+		return Config{}, fmt.Errorf("WAYPOINT_OIDC_ISSUER_URL, WAYPOINT_OIDC_CLIENT_ID, and WAYPOINT_OIDC_CLIENT_SECRET must be set together")
 	}
 	return cfg, nil
 }

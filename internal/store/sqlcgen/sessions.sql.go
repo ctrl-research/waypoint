@@ -64,7 +64,7 @@ FROM users
 WHERE sessions.token_hash = $1
   AND sessions.expires_at > now()
   AND users.id = sessions.user_id
-RETURNING users.id, users.email, users.display_name, users.avatar_url, users.google_sub, users.password_hash, users.is_admin, users.created_at, users.calendar_token, users.mcp_token
+RETURNING users.id, users.email, users.display_name, users.avatar_url, users.google_sub, users.password_hash, users.is_admin, users.created_at, users.calendar_token, users.mcp_token, users.oidc_sub
 `
 
 // Resolves an unexpired session to its user and bumps last_seen_at.
@@ -82,6 +82,7 @@ func (q *Queries) SessionUserByToken(ctx context.Context, tokenHash []byte) (Use
 		&i.CreatedAt,
 		&i.CalendarToken,
 		&i.McpToken,
+		&i.OidcSub,
 	)
 	return i, err
 }

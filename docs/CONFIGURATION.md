@@ -13,6 +13,9 @@ template).
 | `WAYPOINT_BASE_URL` | `http://localhost:8080` | Public URL of the instance. OAuth redirect URIs derive from it; session cookies are `Secure` when it is `https`. No trailing slash. |
 | `WAYPOINT_GOOGLE_CLIENT_ID` | — | Google OAuth client id. Set together with the secret to enable Sign in with Google. |
 | `WAYPOINT_GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret. |
+| `WAYPOINT_OIDC_ISSUER_URL` | — | Generic OIDC issuer URL (Authentik, Keycloak, …), used for discovery. Set together with the client id and secret. |
+| `WAYPOINT_OIDC_CLIENT_ID` / `WAYPOINT_OIDC_CLIENT_SECRET` | — | Client credentials for the generic OIDC provider. |
+| `WAYPOINT_OIDC_NAME` | `SSO` | Label for the generic provider's login button. |
 | `WAYPOINT_LOCAL_AUTH` | `false` | Enable email/password accounts (intended for dev/testing; `make seed` creates one). |
 | `WAYPOINT_ALLOWED_EMAILS` | — | Comma-separated emails allowed to **sign up** after the first user. Empty means the instance is closed to new accounts. |
 | `WAYPOINT_DATA_DIR` | `data` | Directory for journal photo uploads. The container image uses `/data` — mount a volume there. |
@@ -47,6 +50,16 @@ sign-in: after the first user, only listed addresses can create accounts
 (case-insensitive, exact addresses — no domain wildcards), while existing
 accounts always keep working. An empty allowlist closes the instance to new
 accounts entirely.
+
+**Generic OIDC (Authentik, Keycloak, …).** Register Waypoint in your IdP as a
+confidential OAuth2/OIDC client with redirect URI
+`$WAYPOINT_BASE_URL/auth/oidc/callback` and scopes `openid email profile`,
+then set `WAYPOINT_OIDC_ISSUER_URL` (the issuer, e.g. Authentik's
+`https://auth.example.com/application/o/waypoint/`), the client id/secret,
+and optionally `WAYPOINT_OIDC_NAME` for the button label. Discovery,
+PKCE, the allowlist, and email-based account linking all work exactly like
+the Google flow; an id token that explicitly reports `email_verified: false`
+is rejected.
 
 **Local accounts.** `WAYPOINT_LOCAL_AUTH=true` enables email/password login,
 meant for development. `make seed` creates `dev@waypoint.local` /

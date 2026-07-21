@@ -1,6 +1,6 @@
 -- name: CreateUser :one
-INSERT INTO users (email, display_name, avatar_url, google_sub, password_hash, is_admin)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO users (email, display_name, avatar_url, google_sub, oidc_sub, password_hash, is_admin)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: UserByID :one
@@ -43,3 +43,11 @@ RETURNING *;
 
 -- name: UserByMCPToken :one
 SELECT * FROM users WHERE mcp_token = $1;
+
+-- name: UserByOIDCSub :one
+SELECT * FROM users WHERE oidc_sub = $1;
+
+-- name: LinkOIDC :one
+UPDATE users SET oidc_sub = $2, display_name = $3, avatar_url = $4
+WHERE id = $1
+RETURNING *;

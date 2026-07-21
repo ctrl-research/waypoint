@@ -5,7 +5,9 @@ import { ApiError, fetchMe, fetchProviders, login } from '../api'
 
 export function LoginPage() {
   const { data: me, isLoading: meLoading } = useQuery({ queryKey: ['me'], queryFn: fetchMe })
-  const { data: providers } = useQuery({ queryKey: ['providers'], queryFn: fetchProviders })
+  const { data } = useQuery({ queryKey: ['providers'], queryFn: fetchProviders })
+  const providers = data?.providers
+  const sso = providers?.includes('google') || providers?.includes('oidc')
 
   if (meLoading) return null
   if (me) return <Navigate to="/" />
@@ -26,7 +28,16 @@ export function LoginPage() {
           </a>
         )}
 
-        {providers?.includes('google') && providers?.includes('local') && (
+        {providers?.includes('oidc') && (
+          <a
+            href="/auth/oidc"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            🔑 Sign in with {data?.oidcName || 'SSO'}
+          </a>
+        )}
+
+        {sso && providers?.includes('local') && (
           <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
             <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
             or
@@ -39,7 +50,8 @@ export function LoginPage() {
         {providers && providers.length === 0 && (
           <p className="text-sm text-amber-700 dark:text-amber-300">
             No sign-in methods are configured. Set <code>WAYPOINT_GOOGLE_CLIENT_ID</code>/
-            <code>SECRET</code> or <code>WAYPOINT_LOCAL_AUTH=true</code> on the server.
+            <code>SECRET</code>, <code>WAYPOINT_OIDC_*</code>, or{' '}
+            <code>WAYPOINT_LOCAL_AUTH=true</code> on the server.
           </p>
         )}
       </div>

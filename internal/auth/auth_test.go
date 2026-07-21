@@ -194,7 +194,7 @@ func TestGoogleStart(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	svc.handleGoogleStart(rec, httptest.NewRequest("GET", "/auth/google", nil))
+	svc.handleSSOStart(svc.google)(rec, httptest.NewRequest("GET", "/auth/google", nil))
 	if rec.Code != http.StatusFound {
 		t.Fatalf("status = %d, want 302", rec.Code)
 	}
@@ -216,7 +216,7 @@ func TestGoogleStart(t *testing.T) {
 
 	var gotState bool
 	for _, c := range rec.Result().Cookies() {
-		if c.Name == stateCookie && c.Value == q.Get("state") && c.Value != "" {
+		if c.Name == svc.google.stateCookie() && c.Value == q.Get("state") && c.Value != "" {
 			gotState = true
 		}
 	}

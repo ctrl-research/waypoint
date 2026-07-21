@@ -273,4 +273,5 @@ type User struct {
 	CreatedAt     time.Time
 	CalendarToken *string
 	McpToken      *string
+	OidcSub       *string
 }

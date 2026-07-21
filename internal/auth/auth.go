@@ -1,6 +1,7 @@
-// Package auth implements sign-in (Google OIDC, and local accounts in #3),
-// server-side sessions, and the middleware that resolves the session cookie
-// to a user. See docs/ARCHITECTURE.md → Authentication.
+// Package auth implements sign-in (Google OIDC, a generic OIDC provider,
+// and local accounts), server-side sessions, and the middleware that
+// resolves the session cookie to a user. See docs/ARCHITECTURE.md →
+// Authentication.
 package auth
 
 import (
@@ -25,7 +26,8 @@ const (
 type Service struct {
 	users    *store.Users
 	sessions *store.Sessions
-	google   *googleProvider // nil when Google sign-in is not configured
+	google   *ssoProvider // nil when Google sign-in is not configured
+	oidc     *ssoProvider // nil when no generic OIDC provider is configured
 	// secureCookies is false only for plain-http development instances.
 	secureCookies bool
 	baseURL       string
@@ -53,7 +55,22 @@ func NewService(ctx context.Context, users *store.Users, sessions *store.Session
 		if err != nil {
 			return nil, err
 		}
+		g.upsert = s.upsertGoogleUser
 		s.google = g
+	}
+	if opts.OIDCIssuerURL != "" {
+		name := opts.OIDCName
+		if name == "" {
+			name = "SSO"
+		}
+		// Self-hosted IdPs often omit email_verified; only an explicit
+		// false is rejected (see handleSSOCallback).
+		p, err := newSSOProvider(ctx, "oidc", name, opts.OIDCIssuerURL, opts.OIDCClientID, opts.OIDCClientSecret, opts.BaseURL, false)
+		if err != nil {
+			return nil, err
+		}
+		p.upsert = s.upsertOIDCUser
+		s.oidc = p
 	}
 	return s, nil
 }
@@ -63,6 +80,13 @@ type Options struct {
 	BaseURL            string
 	GoogleClientID     string
 	GoogleClientSecret string
+	// Generic OIDC provider (Authentik, Keycloak, …): issuer URL for
+	// discovery, client credentials, and a display name for the login
+	// button. Issuer, ID, and secret must be set together.
+	OIDCIssuerURL    string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCName         string
 	// LocalAuth enables POST /auth/login for email/password accounts.
 	LocalAuth bool
 	// AllowedEmails restricts sign-ups beyond the first user.
@@ -74,8 +98,12 @@ func (s *Service) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /auth/providers", s.handleProviders)
 	mux.HandleFunc("POST /auth/logout", s.handleLogout)
 	if s.google != nil {
-		mux.HandleFunc("GET /auth/google", s.handleGoogleStart)
-		mux.HandleFunc("GET /auth/google/callback", s.handleGoogleCallback)
+		mux.HandleFunc("GET /auth/google", s.handleSSOStart(s.google))
+		mux.HandleFunc("GET /auth/google/callback", s.handleSSOCallback(s.google))
+	}
+	if s.oidc != nil {
+		mux.HandleFunc("GET /auth/oidc", s.handleSSOStart(s.oidc))
+		mux.HandleFunc("GET /auth/oidc/callback", s.handleSSOCallback(s.oidc))
 	}
 	if s.localAuth {
 		mux.HandleFunc("POST /auth/login", s.handleLogin)
@@ -88,10 +116,15 @@ func (s *Service) handleProviders(w http.ResponseWriter, r *http.Request) {
 	if s.google != nil {
 		providers = append(providers, "google")
 	}
+	oidcName := ""
+	if s.oidc != nil {
+		providers = append(providers, "oidc")
+		oidcName = s.oidc.display
+	}
 	if s.localAuth {
 		providers = append(providers, "local")
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"providers": providers})
+	writeJSON(w, http.StatusOK, map[string]any{"providers": providers, "oidcName": oidcName})
 }
 
 // emailAllowed reports whether email may create a new account. The first

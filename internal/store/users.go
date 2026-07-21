@@ -92,3 +92,18 @@ func (s *Users) ByMCPToken(ctx context.Context, token string) (User, error) {
 	u, err := s.q.UserByMCPToken(ctx, &token)
 	return u, translate(err)
 }
+
+// ByOIDCSub finds the user linked to a generic OIDC provider subject.
+func (s *Users) ByOIDCSub(ctx context.Context, sub string) (User, error) {
+	u, err := s.q.UserByOIDCSub(ctx, &sub)
+	return u, translate(err)
+}
+
+// LinkOIDC attaches a generic OIDC subject to an existing account and
+// refreshes the profile from the provider's claims.
+func (s *Users) LinkOIDC(ctx context.Context, id uuid.UUID, sub string, displayName string, avatarURL *string) (User, error) {
+	u, err := s.q.LinkOIDC(ctx, sqlcgen.LinkOIDCParams{
+		ID: id, OidcSub: &sub, DisplayName: displayName, AvatarURL: avatarURL,
+	})
+	return u, translate(err)
+}

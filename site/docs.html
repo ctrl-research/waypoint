@@ -70,6 +70,7 @@ docker compose up -d</code></pre>
         <tr><td><code>WAYPOINT_ADDR</code></td><td><code>:8080</code></td><td>Listen address.</td></tr>
         <tr><td><code>WAYPOINT_BASE_URL</code></td><td><code>http://localhost:8080</code></td><td>Public URL of the instance. OAuth redirect URIs derive from it; cookies are Secure when it's https.</td></tr>
         <tr><td><code>WAYPOINT_GOOGLE_CLIENT_ID</code> / <code>WAYPOINT_GOOGLE_CLIENT_SECRET</code></td><td>—</td><td>Enable Sign in with Google (both together). See <a href="#google-sign-in">Google sign-in</a>.</td></tr>
+        <tr><td><code>WAYPOINT_OIDC_ISSUER_URL</code> + <code>_CLIENT_ID</code> / <code>_CLIENT_SECRET</code></td><td>—</td><td>Generic OIDC provider (Authentik, Keycloak, …); redirect URI <code>$BASE_URL/auth/oidc/callback</code>. <code>WAYPOINT_OIDC_NAME</code> labels the button.</td></tr>
         <tr><td><code>WAYPOINT_LOCAL_AUTH</code></td><td><code>false</code></td><td>Email/password accounts, intended for dev/testing.</td></tr>
         <tr><td><code>WAYPOINT_ALLOWED_EMAILS</code></td><td>—</td><td>Comma-separated emails allowed to sign up after the first user. Empty = closed instance.</td></tr>
         <tr><td><code>WAYPOINT_DATA_DIR</code></td><td><code>data</code></td><td>Where journal photo uploads are stored (<code>/data</code> in the image).</td></tr>

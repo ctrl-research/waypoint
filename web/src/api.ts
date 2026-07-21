@@ -41,11 +41,11 @@ export async function fetchMe(): Promise<Me | null> {
   return res.json()
 }
 
-export async function fetchProviders(): Promise<string[]> {
+export async function fetchProviders(): Promise<{ providers: string[]; oidcName: string }> {
   const res = await fetch('/auth/providers')
   if (!res.ok) await throwApiError(res)
   const body = await res.json()
-  return body.providers
+  return { providers: body.providers, oidcName: body.oidcName ?? '' }
 }
 
 export async function login(email: string, password: string): Promise<void> {

@@ -64,6 +64,10 @@ func run() error {
 		BaseURL:            cfg.BaseURL,
 		GoogleClientID:     cfg.GoogleClientID,
 		GoogleClientSecret: cfg.GoogleClientSecret,
+		OIDCIssuerURL:      cfg.OIDCIssuerURL,
+		OIDCClientID:       cfg.OIDCClientID,
+		OIDCClientSecret:   cfg.OIDCClientSecret,
+		OIDCName:           cfg.OIDCName,
 		LocalAuth:          cfg.LocalAuth,
 		AllowedEmails:      cfg.AllowedEmails,
 	})
