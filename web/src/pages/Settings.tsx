@@ -109,7 +109,7 @@ function MCPSection() {
   return (
     <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
       <h2 className="font-medium text-slate-900 dark:text-slate-100">AI access (MCP)</h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 [overflow-wrap:anywhere]">
         Let an AI assistant backfill and manage your trips over MCP. Point a client at{' '}
         <code className="rounded bg-slate-100 dark:bg-slate-800 px-1">{url}</code> with the token
         below as a bearer Authorization header — e.g.{' '}

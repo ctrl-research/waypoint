@@ -21,17 +21,17 @@ export function Shell() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 print:hidden">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
-          <div className="flex items-center gap-5">
+        <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-2 px-3 sm:px-4">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-5">
             <Link
               to="/"
-              className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100"
+              className="flex shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100"
             >
-              <CompassLogo size={32} /> Waypoint
+              <CompassLogo size={32} /> <span className="hidden sm:inline">Waypoint</span>
             </Link>
             <NavLinks />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <UserMenu />
           </div>
         </div>
@@ -50,7 +50,7 @@ function NavLinks() {
   const link =
     'text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 [&.active]:font-medium [&.active]:text-slate-900 dark:[&.active]:text-slate-100'
   return (
-    <>
+    <div className="flex items-center gap-3 sm:gap-5">
       <Link to="/" activeOptions={{ exact: true }} className={link}>
         Trips
       </Link>
@@ -63,7 +63,7 @@ function NavLinks() {
       <Link to="/settings" className={link}>
         Settings
       </Link>
-    </>
+    </div>
   )
 }
 
@@ -91,7 +91,9 @@ function UserMenu() {
           {(me.displayName || me.email).charAt(0).toUpperCase()}
         </div>
       )}
-      <span className="text-sm text-slate-700 dark:text-slate-300">{me.displayName || me.email}</span>
+      <span className="hidden text-sm text-slate-700 dark:text-slate-300 md:inline">
+        {me.displayName || me.email}
+      </span>
       <button
         type="button"
         onClick={() => signOut.mutate()}

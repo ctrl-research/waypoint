@@ -245,6 +245,6 @@ export function StatsMap({
     if (mapRef.current && ready) mapRef.current.setProjection({ type: projection })
   }, [ready, projection])
 
-  return <div ref={container} className="h-[28rem] w-full rounded-xl border border-slate-200 dark:border-slate-700" />
+  return <div ref={container} className="h-80 w-full rounded-xl border border-slate-200 dark:border-slate-700 sm:h-[28rem]" />
 }
 
