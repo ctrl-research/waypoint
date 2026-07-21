@@ -103,7 +103,7 @@ export function TripDetailPage() {
       </div>
 
       <section className="mt-10">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Itinerary</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">Everything on the visible layers, day by day.</p>
