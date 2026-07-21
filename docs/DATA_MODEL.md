@@ -59,9 +59,9 @@ extension before something uses it.
 ### itinerary_items (M2) — what happens at a stop, day by day
 `id · trip_id FK · stop_id FK NULL (ON DELETE SET NULL) ·
 destination_stop_id FK NULL · origin_home_id / destination_home_id FK NULL
-(flight/train legs travel stop-or-home → stop-or-home) · day (date) ·
+(flight/train/ferry/driving legs travel stop-or-home → stop-or-home) · day (date) ·
 start_time NULL · end_time NULL · title · category (enum: activity, food,
-lodging, transport, flight, train, other) · notes · cost_cents NULL ·
+lodging, transport, flight, train, ferry, driving, other) · notes · cost_cents NULL ·
 currency (char(3)) · address · lat/lon NULL (venue, both-or-neither CHECK) ·
 position`
 

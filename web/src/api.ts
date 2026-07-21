@@ -99,7 +99,7 @@ export type Stop = {
   kind: string
 }
 
-export type ItineraryCategory = 'activity' | 'food' | 'lodging' | 'transport' | 'flight' | 'train' | 'other'
+export type ItineraryCategory = 'activity' | 'food' | 'lodging' | 'transport' | 'flight' | 'train' | 'ferry' | 'driving' | 'other'
 
 export type ItineraryItem = {
   id: string

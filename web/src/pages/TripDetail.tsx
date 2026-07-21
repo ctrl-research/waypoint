@@ -541,12 +541,14 @@ function StopRow({
 function legVenueKind(category: ItineraryCategory, isLeg: boolean): '' | 'station' | 'airport' {
   if (!isLeg) return ''
   if (category === 'flight') return 'airport'
+  if (category === 'driving') return ''
   return 'station'
 }
 
 function legVenueNoun(category: ItineraryCategory): string {
   if (category === 'flight') return 'airport'
   if (category === 'train') return 'station'
+  if (category === 'ferry') return 'terminal'
   return 'stop / station'
 }
 
@@ -795,7 +797,7 @@ export function NewItemForm({
       : null,
   )
   const [itemLayerId, setItemLayerId] = useState(item?.layerId ?? layers?.[0]?.id ?? '')
-  const isLeg = category === 'flight' || category === 'train' || category === 'transport'
+  const isLeg = category === 'flight' || category === 'train' || category === 'ferry' || category === 'driving' || category === 'transport'
   const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
   const add = useMutation({
