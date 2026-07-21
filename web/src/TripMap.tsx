@@ -30,6 +30,8 @@ type PathPoint = {
 const TRANSPORT_EMOJI: Partial<Record<ItineraryCategory, string>> = {
   flight: categoryIcons.flight,
   train: categoryIcons.train,
+  ferry: categoryIcons.ferry,
+  driving: categoryIcons.driving,
   transport: categoryIcons.transport,
 }
 type LngLat = [number, number]
@@ -252,8 +254,8 @@ export function TripMap({
       const to = pts[i]
       const km = haversineKm(from.lat, from.lon, to.lat, to.lon)
       // Constant pacing by default: every leg plays the same, with only
-      // long-distance legs (flights and trains) slower — local transit
-      // keeps the normal pace. Proportional pacing (distance / timetable
+      // long-distance legs (flights, trains, ferries, and drives) slower — local
+      // transit keeps the normal pace. Proportional pacing (distance / timetable
       // duration) is opt-in from Settings.
       const move = proportional
         ? from.minutes
@@ -261,11 +263,11 @@ export function TripMap({
           : Math.min(4200, Math.max(1400, km * 12))
         : from.category === 'flight'
           ? 4000
-          : from.category === 'train'
+          : from.category === 'train' || from.category === 'ferry' || from.category === 'driving'
             ? 6000
             : 800
       // Flights pull the camera out well past the shared curve — a wide
-      // frame reads as flying; trains and activities keep their scale.
+      // frame reads as flying; trains, ferries, drives, and activities keep their scale.
       const zoom =
         from.category === 'flight' ? Math.max(3, zoomForKm(km) - 2.5) : zoomForKm(km)
       const prevZoom = legs.length ? legs[legs.length - 1].zoom : zoom

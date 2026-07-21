@@ -8,6 +8,8 @@ export const categoryIcons: Record<ItineraryCategory, string> = {
   transport: '🚌',
   flight: '✈️',
   train: '🚆',
+  ferry: '⛴️',
+  driving: '🚗',
   other: '📌',
 }
 

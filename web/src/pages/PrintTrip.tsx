@@ -179,7 +179,7 @@ function printRoute(item: ItineraryItem, stops: Stop[], homes: TripHome[]): stri
     return h ? `(home) ${h.name}` : undefined
   }
   const from = homeName(item.originHomeId) ?? stopName(item.stopId)
-  if (item.category !== 'flight' && item.category !== 'train') {
+  if (item.category !== 'flight' && item.category !== 'train' && item.category !== 'ferry' && item.category !== 'driving') {
     return from ? `@ ${from}` : undefined
   }
   const to = homeName(item.destinationHomeId) ?? stopName(item.destinationStopId)

@@ -354,7 +354,7 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		TripID             string `json:"tripId"`
 		Title              string `json:"title"`
 		Day                string `json:"day" jsonschema:"YYYY-MM-DD"`
-		Category           string `json:"category,omitempty" jsonschema:"activity (default), food, lodging, transport, flight, train, or other"`
+		Category           string `json:"category,omitempty" jsonschema:"activity (default), food, lodging, transport, flight, train, ferry, driving, or other"`
 		StartTime          string `json:"startTime,omitempty" jsonschema:"HH:MM, 24h"`
 		EndTime            string `json:"endTime,omitempty" jsonschema:"HH:MM; for flights/trains this is the arrival time"`
 		Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`

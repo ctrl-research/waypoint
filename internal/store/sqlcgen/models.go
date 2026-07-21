@@ -22,6 +22,8 @@ const (
 	ItineraryCategoryOther     ItineraryCategory = "other"
 	ItineraryCategoryFlight    ItineraryCategory = "flight"
 	ItineraryCategoryTrain     ItineraryCategory = "train"
+	ItineraryCategoryFerry     ItineraryCategory = "ferry"
+	ItineraryCategoryDriving   ItineraryCategory = "driving"
 )
 
 func (e *ItineraryCategory) Scan(src interface{}) error {
