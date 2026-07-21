@@ -1,11 +1,19 @@
 package server
 
 import (
+	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/ctrl-research/waypoint/internal/auth"
+	"github.com/ctrl-research/waypoint/internal/geocode"
+	"github.com/ctrl-research/waypoint/internal/store"
+	"github.com/ctrl-research/waypoint/internal/store/storetest"
 )
 
 func TestCalendarICS(t *testing.T) {
@@ -99,3 +107,63 @@ func TestCalendarICS(t *testing.T) {
 		}
 	})
 }
+
+func TestCalendarICSTimezone(t *testing.T) {
+	pool := storetest.Pool(t)
+	ctx := context.Background()
+
+	users := store.NewUsers(pool)
+	sessions := store.NewSessions(pool)
+	authSvc, err := auth.NewService(ctx, users, sessions, auth.Options{BaseURL: "http://localhost:8080"})
+	if err != nil {
+		t.Fatalf("auth.NewService: %v", err)
+	}
+
+	u, err := users.Create(ctx, store.CreateUserParams{Email: "tz@example.com", GoogleSub: ptrStr("tz@example.com")})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	h := sha256.Sum256([]byte("tok-tz"))
+	if err := sessions.Create(ctx, h[:], u.ID, time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	cookie := &http.Cookie{Name: "waypoint_session", Value: "tok-tz"}
+
+	handler := New(pool, authSvc, geocode.New("http://unused.invalid", ""),
+		Options{TileURL: "https://tiles.test/{z}/{x}/{y}.png", DataDir: t.TempDir(), EnableMCP: true, Timezone: "America/Edmonton"})
+
+	// Create trip and item with 8am start time
+	_, trip := call(t, handler, cookie, "POST", "/api/v1/trips",
+		`{"title":"Vancouver trip","startDate":"2027-07-22","endDate":"2027-07-25"}`)
+	tripPath := "/api/v1/trips/" + trip["id"].(string)
+	if code, resp := call(t, handler, cookie, "POST", tripPath+"/items",
+		`{"title":"Morning meeting","day":"2027-07-22","startTime":"08:00","endTime":"09:30"}`); code != 201 {
+		t.Fatalf("create item: code = %d %v", code, resp)
+	}
+
+	req := httptest.NewRequest("GET", tripPath+"/export/ics", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("export ics: code = %d", rec.Code)
+	}
+	body := rec.Body.String()
+
+	// 8am MDT (UTC-6) = 14:00 UTC, 9:30am MDT = 15:30 UTC
+	for _, want := range []string{
+		"DTSTART:20270722T140000Z",
+		"DTEND:20270722T153000Z",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("ics missing %q in:\n%s", want, body)
+		}
+	}
+
+	// Verify all-day trip span is still floating (no Z)
+	if !strings.Contains(body, "DTSTART;VALUE=DATE:20270722") {
+		t.Fatalf("all-day event should not have timezone in:\n%s", body)
+	}
+}
+
+func ptrStr(s string) *string { return &s }

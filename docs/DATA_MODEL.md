@@ -60,10 +60,14 @@ extension before something uses it.
 `id · trip_id FK · stop_id FK NULL (ON DELETE SET NULL) ·
 destination_stop_id FK NULL · origin_home_id / destination_home_id FK NULL
 (flight/train legs travel stop-or-home → stop-or-home) · day (date) ·
-start_time NULL · end_time NULL · title · category (enum: activity, food,
-lodging, transport, flight, train, other) · notes · cost_cents NULL ·
+start_time NULL · end_time NULL · timezone NULL (IANA name, e.g. America/Vancouver) ·
+title · category (enum: activity, food, lodging, transport, flight, train, other) · notes · cost_cents NULL ·
 currency (char(3)) · address · lat/lon NULL (venue, both-or-neither CHECK) ·
 position`
+
+The `timezone` column is used for ICS export: when set, item times are
+converted to UTC and emitted with a Z suffix so Google Calendar imports them
+correctly. Falls back to `WAYPOINT_TIMEZONE` env var, then floating time.
 
 ### homes
 `id · user_id FK · name · lat/lon (NOT NULL) · created_at`
