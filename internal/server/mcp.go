@@ -599,6 +599,7 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		Address            string `json:"address,omitempty"`
 		DestinationAddress string `json:"destinationAddress,omitempty"`
 		Notes              string `json:"notes,omitempty"`
+		Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to keep current"`
 		Layer              string `json:"layer,omitempty" jsonschema:"layer name; omit to keep current layer"`
 	}
 	mcp.AddTool(srv, &mcp.Tool{
@@ -637,6 +638,7 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 			DestinationAddress: current.DestinationAddress,
 			DestinationLat:     current.DestinationLat,
 			DestinationLon:     current.DestinationLon,
+			Timezone:           derefStr(current.Timezone),
 		}
 		if in.Title != "" {
 			params.Title = in.Title
@@ -668,6 +670,9 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		}
 		if in.Notes != "" {
 			params.Notes = in.Notes
+		}
+		if in.Timezone != "" {
+			params.Timezone = in.Timezone
 		}
 		if in.AreaID != "" {
 			id, err := uuid.Parse(in.AreaID)
