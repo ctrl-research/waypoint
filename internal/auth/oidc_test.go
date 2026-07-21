@@ -26,6 +26,9 @@ type fakeIdP struct {
 	srv    *httptest.Server
 	key    *rsa.PrivateKey
 	claims map[string]any
+	// issuer overrides the advertised issuer (default srv.URL) — lets tests
+	// model Authentik-style issuers that end with a trailing slash.
+	issuer string
 }
 
 func newFakeIdP(t *testing.T) *fakeIdP {
@@ -37,8 +40,12 @@ func newFakeIdP(t *testing.T) *fakeIdP {
 	idp := &fakeIdP{key: key}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		issuer := idp.srv.URL
+		if idp.issuer != "" {
+			issuer = idp.issuer
+		}
 		json.NewEncoder(w).Encode(map[string]any{
-			"issuer":                                idp.srv.URL,
+			"issuer":                                issuer,
 			"authorization_endpoint":                idp.srv.URL + "/authorize",
 			"token_endpoint":                        idp.srv.URL + "/token",
 			"jwks_uri":                              idp.srv.URL + "/jwks",
@@ -193,6 +200,49 @@ func TestGenericOIDC(t *testing.T) {
 		idp.claims = claims
 		if rec := ssoRoundTrip(t, svc); rec.Code != http.StatusForbidden {
 			t.Fatalf("unverified = %d, want 403", rec.Code)
+		}
+	})
+}
+
+// Providers disagree on trailing slashes in issuer URLs (Authentik ends with
+// one, Keycloak and Google don't), and the mismatch crash-loops the server
+// over a single character (#108). Discovery already returns the canonical
+// form, so newSSOProvider retries with the slash toggled.
+func TestOIDCIssuerSlashSelfHeals(t *testing.T) {
+	t.Run("extra slash in config is dropped", func(t *testing.T) {
+		idp := newFakeIdP(t) // canonical issuer has no trailing slash
+		if _, err := newSSOProvider(context.Background(), "oidc", "Test", idp.srv.URL+"/", "cid", "secret", "http://localhost:8080", false); err != nil {
+			t.Fatalf("expected slash mismatch to self-heal: %v", err)
+		}
+	})
+
+	t.Run("missing slash still signs in end to end", func(t *testing.T) {
+		idp := newFakeIdP(t)
+		idp.issuer = idp.srv.URL + "/" // Authentik-style canonical issuer
+
+		pool := storetest.Pool(t)
+		users := store.NewUsers(pool)
+		svc, err := NewService(context.Background(), users, store.NewSessions(pool), Options{
+			BaseURL:          "http://localhost:8080",
+			OIDCIssuerURL:    idp.srv.URL, // configured WITHOUT the slash
+			OIDCClientID:     "waypoint-client",
+			OIDCClientSecret: "shhh",
+			OIDCName:         "Authentik",
+		})
+		if err != nil {
+			t.Fatalf("NewService: %v", err)
+		}
+
+		idp.claims = map[string]any{
+			"iss": idp.issuer, "aud": "waypoint-client", "sub": "slash-sub-1",
+			"exp": time.Now().Add(time.Hour).Unix(), "iat": time.Now().Unix(),
+			"email": "healed@example.com", "name": "Healed",
+		}
+		if rec := ssoRoundTrip(t, svc); rec.Code != http.StatusFound {
+			t.Fatalf("callback = %d: %s", rec.Code, rec.Body.String())
+		}
+		if _, err := users.ByOIDCSub(context.Background(), "slash-sub-1"); err != nil {
+			t.Fatalf("user not created: %v", err)
 		}
 	})
 }

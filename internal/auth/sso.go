@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -34,6 +35,23 @@ type ssoProvider struct {
 
 func newSSOProvider(ctx context.Context, key, display, issuer, clientID, clientSecret, baseURL string, requireVerified bool) (*ssoProvider, error) {
 	provider, err := oidc.NewProvider(ctx, issuer)
+	if err != nil {
+		// Issuers are exact-match identifiers and providers disagree on
+		// trailing slashes (Authentik ends with one, Keycloak doesn't).
+		// When the ONLY difference is that slash, discovery has already
+		// proven which form is canonical — retry with it rather than
+		// crash-looping over one character (#108).
+		alt := strings.TrimSuffix(issuer, "/")
+		if alt == issuer {
+			alt = issuer + "/"
+		}
+		if p2, err2 := oidc.NewProvider(ctx, alt); err2 == nil {
+			slog.Warn("oidc issuer normalized to the provider's canonical form — update the configured issuer",
+				"provider", key, "configured", issuer, "canonical", alt)
+			provider, err = p2, nil
+			issuer = alt
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%s oidc discovery: %w", key, err)
 	}

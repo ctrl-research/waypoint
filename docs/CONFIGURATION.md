@@ -13,7 +13,7 @@ template).
 | `WAYPOINT_BASE_URL` | `http://localhost:8080` | Public URL of the instance. OAuth redirect URIs derive from it; session cookies are `Secure` when it is `https`. No trailing slash. |
 | `WAYPOINT_GOOGLE_CLIENT_ID` | — | Google OAuth client id. Set together with the secret to enable Sign in with Google. |
 | `WAYPOINT_GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret. |
-| `WAYPOINT_OIDC_ISSUER_URL` | — | Generic OIDC issuer URL (Authentik, Keycloak, …), used for discovery. Must match the provider's discovery document **exactly, trailing slash included** — copy it from the IdP. Set together with the client id and secret. |
+| `WAYPOINT_OIDC_ISSUER_URL` | — | Generic OIDC issuer URL (Authentik, Keycloak, …), used for discovery. Should match the provider's discovery document exactly — copy it from the IdP. A mismatch that is *only* a trailing slash (Authentik's issuer ends with one, Keycloak's doesn't) is auto-corrected at startup with a warning in the logs. Set together with the client id and secret. |
 | `WAYPOINT_OIDC_CLIENT_ID` / `WAYPOINT_OIDC_CLIENT_SECRET` | — | Client credentials for the generic OIDC provider. |
 | `WAYPOINT_OIDC_NAME` | `SSO` | Label for the generic provider's login button. |
 | `WAYPOINT_LOCAL_AUTH` | `false` | Enable email/password accounts (intended for dev/testing; `make seed` creates one). |
