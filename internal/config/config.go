@@ -54,6 +54,10 @@ type Config struct {
 	// DataDir is where uploaded files (journal photos) are stored. The
 	// docker image mounts a volume at /data.
 	DataDir string
+	// Timezone is the IANA timezone name used as a fallback for ICS export
+	// when an itinerary item has no timezone of its own. Empty means "no
+	// global TZ; emit floating times".
+	Timezone string
 }
 
 // GoogleEnabled reports whether Google sign-in is configured.
@@ -82,6 +86,7 @@ func Load() (Config, error) {
 		MapStyleURL:        os.Getenv("WAYPOINT_MAP_STYLE_URL"),
 		DataDir:            getenv("WAYPOINT_DATA_DIR", "data"),
 		EnableMCP:          os.Getenv("WAYPOINT_MCP") == "true",
+		Timezone:           os.Getenv("WAYPOINT_TIMEZONE"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("WAYPOINT_DATABASE_URL is required")

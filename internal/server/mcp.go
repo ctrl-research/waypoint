@@ -154,6 +154,7 @@ type mcpItem struct {
 	Category           string `json:"category"`
 	StartTime          string `json:"startTime,omitempty"`
 	EndTime            string `json:"endTime,omitempty"`
+	Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`
 	AreaID             string `json:"areaId,omitempty"`
 	DestinationAreaID  string `json:"destinationAreaId,omitempty"`
 	Address            string `json:"address,omitempty"`
@@ -168,6 +169,9 @@ func toMCPItem(it store.ItineraryItem, layerNames map[uuid.UUID]string) mcpItem 
 		Category: string(it.Category), StartTime: it.StartTime, EndTime: it.EndTime,
 		Address: it.Address, DestinationAddress: it.DestinationAddress, Notes: it.Notes,
 		Layer: layerNames[it.LayerID],
+	}
+	if it.Timezone != nil {
+		out.Timezone = *it.Timezone
 	}
 	if it.StopID != nil {
 		out.AreaID = it.StopID.String()
@@ -353,6 +357,7 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		Category           string `json:"category,omitempty" jsonschema:"activity (default), food, lodging, transport, flight, train, ferry, driving, or other"`
 		StartTime          string `json:"startTime,omitempty" jsonschema:"HH:MM, 24h"`
 		EndTime            string `json:"endTime,omitempty" jsonschema:"HH:MM; for flights/trains this is the arrival time"`
+		Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`
 		AreaID             string `json:"areaId,omitempty" jsonschema:"the area this happens in; for flights/trains the departure area"`
 		DestinationAreaID  string `json:"destinationAreaId,omitempty" jsonschema:"flights/trains only: the arrival area"`
 		Address            string `json:"address,omitempty" jsonschema:"venue address; for flights/trains the departure station/airport"`
@@ -383,6 +388,9 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		}
 		if in.EndTime != "" {
 			req.EndTime = &in.EndTime
+		}
+		if in.Timezone != "" {
+			req.Timezone = &in.Timezone
 		}
 		if in.Address != "" {
 			req.Address = &in.Address
@@ -455,6 +463,256 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 			return nil, empty{}, err
 		}
 		return nil, empty{}, nil
+	})
+
+	// ---- update_trip --------------------------------------------------------
+
+	type updateTripIn struct {
+		TripID      string `json:"tripId"`
+		Title       string `json:"title,omitempty"`
+		Description string `json:"description,omitempty"`
+		StartDate   string `json:"startDate,omitempty" jsonschema:"YYYY-MM-DD"`
+		EndDate     string `json:"endDate,omitempty" jsonschema:"YYYY-MM-DD"`
+		Status      string `json:"status,omitempty" jsonschema:"planning, active, or completed"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "update_trip",
+		Description: "Update a trip's title, description, dates, or status. Only provided fields are changed.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in updateTripIn) (*mcp.CallToolResult, mcpTripSummary, error) {
+		trip, err := api.mcpTrip(ctx, in.TripID, "editor")
+		if err != nil {
+			return nil, mcpTripSummary{}, err
+		}
+		params := store.TripParams{
+			Title: trip.Title, Description: trip.Description, Status: trip.Status,
+			StartDate: trip.StartDate, EndDate: trip.EndDate, CoverPhoto: trip.CoverPhoto,
+		}
+		if in.Title != "" {
+			params.Title = in.Title
+		}
+		if in.Description != "" {
+			params.Description = in.Description
+		}
+		if in.Status != "" {
+			if !store.ValidTripStatus(in.Status) {
+				return nil, mcpTripSummary{}, errors.New("status must be planning, active, or completed")
+			}
+			params.Status = store.TripStatus(in.Status)
+		}
+		var parsedStart, parsedEnd *time.Time
+		if in.StartDate != "" {
+			parsedStart, err = parseMCPDate(in.StartDate, "startDate")
+			if err != nil {
+				return nil, mcpTripSummary{}, err
+			}
+			params.StartDate = parsedStart
+		}
+		if in.EndDate != "" {
+			parsedEnd, err = parseMCPDate(in.EndDate, "endDate")
+			if err != nil {
+				return nil, mcpTripSummary{}, err
+			}
+			params.EndDate = parsedEnd
+		}
+		if params.StartDate != nil && params.EndDate != nil && params.EndDate.Before(*params.StartDate) {
+			return nil, mcpTripSummary{}, errors.New("endDate must not be before startDate")
+		}
+		updated, err := api.trips.Update(ctx, trip.ID, params)
+		if err != nil {
+			return nil, mcpTripSummary{}, err
+		}
+		return nil, toMCPTrip(updated), nil
+	})
+
+	// ---- update_area --------------------------------------------------------
+
+	type updateAreaIn struct {
+		TripID        string   `json:"tripId"`
+		AreaID        string   `json:"areaId"`
+		Name          string   `json:"name,omitempty"`
+		Lat           *float64 `json:"lat,omitempty"`
+		Lon           *float64 `json:"lon,omitempty"`
+		ArrivalDate   string   `json:"arrivalDate,omitempty" jsonschema:"YYYY-MM-DD"`
+		DepartureDate string   `json:"departureDate,omitempty" jsonschema:"YYYY-MM-DD"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "update_area",
+		Description: "Update an area's name, coordinates, or dates. Only provided fields are changed.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in updateAreaIn) (*mcp.CallToolResult, mcpArea, error) {
+		trip, err := api.mcpTrip(ctx, in.TripID, "editor")
+		if err != nil {
+			return nil, mcpArea{}, err
+		}
+		stopID, err := uuid.Parse(in.AreaID)
+		if err != nil {
+			return nil, mcpArea{}, errors.New("areaId is not a valid id")
+		}
+		stop, err := api.trips.StopByID(ctx, trip.ID, stopID)
+		if err != nil {
+			return nil, mcpArea{}, err
+		}
+		params := store.StopParams{
+			Name: stop.Name, Lat: stop.Lat, Lon: stop.Lon,
+			ArrivalDate: stop.ArrivalDate, DepartureDate: stop.DepartureDate,
+			Notes: stop.Notes, Kind: stop.Kind,
+		}
+		if in.Name != "" {
+			params.Name = in.Name
+		}
+		if in.Lat != nil {
+			params.Lat = in.Lat
+		}
+		if in.Lon != nil {
+			params.Lon = in.Lon
+		}
+		if in.ArrivalDate != "" {
+			params.ArrivalDate, err = parseMCPDate(in.ArrivalDate, "arrivalDate")
+			if err != nil {
+				return nil, mcpArea{}, err
+			}
+		}
+		if in.DepartureDate != "" {
+			params.DepartureDate, err = parseMCPDate(in.DepartureDate, "departureDate")
+			if err != nil {
+				return nil, mcpArea{}, err
+			}
+		}
+		updated, err := api.trips.UpdateStop(ctx, trip.ID, stopID, params)
+		if err != nil {
+			return nil, mcpArea{}, err
+		}
+		return nil, toMCPArea(updated), nil
+	})
+
+	// ---- update_item --------------------------------------------------------
+
+	type updateItemIn struct {
+		TripID             string `json:"tripId"`
+		ItemID             string `json:"itemId"`
+		Title              string `json:"title,omitempty"`
+		Day                string `json:"day,omitempty" jsonschema:"YYYY-MM-DD"`
+		Category           string `json:"category,omitempty" jsonschema:"activity, food, lodging, transport, flight, train, or other"`
+		StartTime          string `json:"startTime,omitempty" jsonschema:"HH:MM, 24h"`
+		EndTime            string `json:"endTime,omitempty" jsonschema:"HH:MM"`
+		AreaID             string `json:"areaId,omitempty" jsonschema:"the area this happens in"`
+		DestinationAreaID  string `json:"destinationAreaId,omitempty" jsonschema:"flights/trains only: the arrival area"`
+		Address            string `json:"address,omitempty"`
+		DestinationAddress string `json:"destinationAddress,omitempty"`
+		Notes              string `json:"notes,omitempty"`
+		Layer              string `json:"layer,omitempty" jsonschema:"layer name; omit to keep current layer"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "update_item",
+		Description: "Update an itinerary item. Only provided fields are changed; layer name can be moved.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in updateItemIn) (*mcp.CallToolResult, mcpItem, error) {
+		trip, err := api.mcpTrip(ctx, in.TripID, "editor")
+		if err != nil {
+			return nil, mcpItem{}, err
+		}
+		itemID, err := uuid.Parse(in.ItemID)
+		if err != nil {
+			return nil, mcpItem{}, errors.New("itemId is not a valid id")
+		}
+		current, err := api.trips.ItemByID(ctx, trip.ID, itemID)
+		if err != nil {
+			return nil, mcpItem{}, err
+		}
+		params := store.ItineraryItemParams{
+			StopID:             current.StopID,
+			DestinationStopID:  current.DestinationStopID,
+			OriginHomeID:       current.OriginHomeID,
+			DestinationHomeID:  current.DestinationHomeID,
+			Day:                current.Day,
+			StartTime:          current.StartTime,
+			EndTime:            current.EndTime,
+			Title:              current.Title,
+			Category:           current.Category,
+			Notes:              current.Notes,
+			CostCents:          current.CostCents,
+			Currency:           current.Currency,
+			Address:            current.Address,
+			Lat:                current.Lat,
+			Lon:                current.Lon,
+			LayerID:            current.LayerID,
+			DestinationAddress: current.DestinationAddress,
+			DestinationLat:     current.DestinationLat,
+			DestinationLon:     current.DestinationLon,
+		}
+		if in.Title != "" {
+			params.Title = in.Title
+		}
+		if in.Day != "" {
+			day, err := parseMCPDate(in.Day, "day")
+			if err != nil {
+				return nil, mcpItem{}, err
+			}
+			params.Day = *day
+		}
+		if in.Category != "" {
+			if !store.ValidItineraryCategory(in.Category) {
+				return nil, mcpItem{}, errors.New("category must be activity, food, lodging, transport, flight, train, or other")
+			}
+			params.Category = store.ItineraryCategory(in.Category)
+		}
+		if in.StartTime != "" {
+			params.StartTime = in.StartTime
+		}
+		if in.EndTime != "" {
+			params.EndTime = in.EndTime
+		}
+		if in.Address != "" {
+			params.Address = in.Address
+		}
+		if in.DestinationAddress != "" {
+			params.DestinationAddress = in.DestinationAddress
+		}
+		if in.Notes != "" {
+			params.Notes = in.Notes
+		}
+		if in.AreaID != "" {
+			id, err := uuid.Parse(in.AreaID)
+			if err != nil {
+				return nil, mcpItem{}, errors.New("areaId is not a valid id")
+			}
+			params.StopID = &id
+		}
+		if in.DestinationAreaID != "" {
+			id, err := uuid.Parse(in.DestinationAreaID)
+			if err != nil {
+				return nil, mcpItem{}, errors.New("destinationAreaId is not a valid id")
+			}
+			params.DestinationStopID = &id
+		}
+		if ok, err := api.stopBelongsToTrip2(ctx, trip.ID, params.StopID); err != nil || !ok {
+			if err != nil {
+				return nil, mcpItem{}, err
+			}
+			return nil, mcpItem{}, errors.New("areaId does not belong to this trip")
+		}
+		if ok, err := api.stopBelongsToTrip2(ctx, trip.ID, params.DestinationStopID); err != nil || !ok {
+			if err != nil {
+				return nil, mcpItem{}, err
+			}
+			return nil, mcpItem{}, errors.New("destinationAreaId does not belong to this trip")
+		}
+		var layer store.ItineraryLayer
+		if in.Layer != "" {
+			layer, err = api.mcpResolveLayer(ctx, trip.ID, in.Layer)
+			if err != nil {
+				return nil, mcpItem{}, err
+			}
+			params.LayerID = layer.ID
+		} else {
+			layer, err = api.trips.LayerByID(ctx, trip.ID, current.LayerID)
+			if err != nil {
+				return nil, mcpItem{}, err
+			}
+		}
+		updated, err := api.trips.UpdateItem(ctx, trip.ID, itemID, params)
+		if err != nil {
+			return nil, mcpItem{}, err
+		}
+		return nil, toMCPItem(updated, map[uuid.UUID]string{layer.ID: layer.Name}), nil
 	})
 }
 

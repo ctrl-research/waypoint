@@ -65,6 +65,10 @@ lodging, transport, flight, train, ferry, driving, other) · notes · cost_cents
 currency (char(3)) · address · lat/lon NULL (venue, both-or-neither CHECK) ·
 position`
 
+The `timezone` column is used for ICS export: when set, item times are
+converted to UTC and emitted with a Z suffix so Google Calendar imports them
+correctly. Falls back to `WAYPOINT_TIMEZONE` env var, then floating time.
+
 ### homes
 `id · user_id FK · name · lat/lon (NOT NULL) · created_at`
 
