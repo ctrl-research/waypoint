@@ -180,6 +180,7 @@ type itemJSON struct {
 	Day                string     `json:"day"`
 	StartTime          *string    `json:"startTime"`
 	EndTime            *string    `json:"endTime"`
+	Timezone           string     `json:"timezone"`
 	Title              string     `json:"title"`
 	Category           string     `json:"category"`
 	Notes              string     `json:"notes"`
@@ -200,6 +201,7 @@ func toItemJSON(it store.ItineraryItem) itemJSON {
 		ID: it.ID, StopID: it.StopID, DestinationStopID: it.DestinationStopID,
 		OriginHomeID: it.OriginHomeID, DestinationHomeID: it.DestinationHomeID,
 		Day: it.Day.Format(dateFormat), StartTime: nilIfEmpty(it.StartTime), EndTime: nilIfEmpty(it.EndTime),
+		Timezone: derefStr(it.Timezone),
 		Title: it.Title, Category: string(it.Category), Notes: it.Notes,
 		CostCents: it.CostCents, Currency: it.Currency, Position: it.Position,
 		Address: it.Address, Lat: it.Lat, Lon: it.Lon, LayerID: it.LayerID,
@@ -472,6 +474,13 @@ func nilIfEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func apiError(w http.ResponseWriter, status int, code, message string) {

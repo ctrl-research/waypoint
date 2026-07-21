@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ctrl-research/waypoint/internal/auth"
 	"github.com/ctrl-research/waypoint/internal/store"
@@ -65,7 +67,7 @@ func (api *tripsAPI) serveCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	var b strings.Builder
 	icsHeader(&b, "Waypoint trips")
 	for _, t := range trips {
-		icsTripEvents(&b, api.trips, r, t.Trip)
+		icsTripEvents(&b, api.trips, r, t.Trip, api.opts.Timezone)
 	}
 	icsFooter(&b)
 	serveICS(w, "waypoint.ics", b.String())
@@ -79,7 +81,7 @@ func (api *tripsAPI) exportICS(w http.ResponseWriter, r *http.Request) {
 	}
 	var b strings.Builder
 	icsHeader(&b, trip.Title)
-	icsTripEvents(&b, api.trips, r, trip)
+	icsTripEvents(&b, api.trips, r, trip, api.opts.Timezone)
 	icsFooter(&b)
 	serveICS(w, slugify(trip.Title)+".ics", b.String())
 }
@@ -99,9 +101,11 @@ func icsFooter(b *strings.Builder) {
 }
 
 // icsTripEvents emits the trip's all-day span plus its visible itinerary
-// items. Item times are written as floating local time — travel happens in
-// the destination's timezone, which the itinerary times already use.
-func icsTripEvents(b *strings.Builder, trips *store.Trips, r *http.Request, trip store.Trip) {
+// items. When a timezone is available (per-item or global fallback), item
+// times are converted to UTC and emitted with a Z suffix so Google Calendar
+// imports them correctly. Without a timezone, floating times are used for
+// backward compatibility.
+func icsTripEvents(b *strings.Builder, trips *store.Trips, r *http.Request, trip store.Trip, configTimezone string) {
 	stamp := trip.UpdatedAt.UTC().Format("20060102T150405Z")
 	if trip.StartDate != nil {
 		end := *trip.StartDate
@@ -132,14 +136,27 @@ func icsTripEvents(b *strings.Builder, trips *store.Trips, r *http.Request, trip
 		fmt.Fprintf(b, "DTSTAMP:%s\r\n", stamp)
 		day := it.Day.Format("20060102")
 		if it.StartTime != "" {
-			start := strings.ReplaceAll(it.StartTime, ":", "") + "00"
-			fmt.Fprintf(b, "DTSTART:%sT%s\r\n", day, start)
-			if it.EndTime != "" {
-				endDay := it.Day
-				if it.EndTime < it.StartTime { // overnight leg wraps
-					endDay = endDay.AddDate(0, 0, 1)
+			tzName := effectiveTimezone(it.Timezone, configTimezone)
+			loc := loadLocation(tzName)
+			if loc != nil {
+				writeICSTimeUTC(b, "DTSTART", it.Day, it.StartTime, loc)
+				if it.EndTime != "" {
+					endDay := it.Day
+					if it.EndTime < it.StartTime {
+						endDay = endDay.AddDate(0, 0, 1)
+					}
+					writeICSTimeUTC(b, "DTEND", endDay, it.EndTime, loc)
 				}
-				fmt.Fprintf(b, "DTEND:%sT%s00\r\n", endDay.Format("20060102"), strings.ReplaceAll(it.EndTime, ":", ""))
+			} else {
+				start := strings.ReplaceAll(it.StartTime, ":", "") + "00"
+				fmt.Fprintf(b, "DTSTART:%sT%s\r\n", day, start)
+				if it.EndTime != "" {
+					endDay := it.Day
+					if it.EndTime < it.StartTime {
+						endDay = endDay.AddDate(0, 0, 1)
+					}
+					fmt.Fprintf(b, "DTEND:%sT%s00\r\n", endDay.Format("20060102"), strings.ReplaceAll(it.EndTime, ":", ""))
+				}
 			}
 		} else {
 			fmt.Fprintf(b, "DTSTART;VALUE=DATE:%s\r\n", day)
@@ -153,6 +170,43 @@ func icsTripEvents(b *strings.Builder, trips *store.Trips, r *http.Request, trip
 		}
 		b.WriteString("END:VEVENT\r\n")
 	}
+}
+
+// effectiveTimezone returns the timezone to use for ICS export: per-item
+// first, then global config, then "" (floating).
+func effectiveTimezone(itemTimezone *string, configTimezone string) string {
+	if itemTimezone != nil && *itemTimezone != "" {
+		return *itemTimezone
+	}
+	return configTimezone
+}
+
+// loadLocation loads an IANA timezone, logging a warning and returning nil
+// on failure so the export degrades gracefully to floating time.
+func loadLocation(name string) *time.Location {
+	if name == "" {
+		return nil
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		slog.Warn("invalid timezone in ICS export, using floating time", "timezone", name, "err", err)
+		return nil
+	}
+	return loc
+}
+
+// writeICSTimeUTC converts a local date+time to UTC and emits it as
+// DTSTART/DTEND:YYYYMMDDTHHMMSSZ.
+func writeICSTimeUTC(b *strings.Builder, prop string, day time.Time, localTime string, loc *time.Location) {
+	var hh, mm int
+	_, err := fmt.Sscanf(localTime, "%d:%d", &hh, &mm)
+	if err != nil {
+		slog.Warn("invalid time format in ICS export", "time", localTime, "err", err)
+		return
+	}
+	t := time.Date(day.Year(), day.Month(), day.Day(), hh, mm, 0, 0, loc)
+	utc := t.UTC()
+	fmt.Fprintf(b, "%s:%sT%sZ\r\n", prop, utc.Format("20060102"), utc.Format("150405"))
 }
 
 // icsEscape covers RFC 5545 TEXT: backslash, separators, and newlines.

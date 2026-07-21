@@ -29,6 +29,8 @@ type Options struct {
 	DataDir string
 	// EnableMCP serves the /mcp endpoint and its token management (#92).
 	EnableMCP bool
+	// Timezone is the IANA timezone fallback for ICS export.
+	Timezone string
 }
 
 func New(pool *pgxpool.Pool, authSvc *auth.Service, geo *geocode.Client, opts Options) http.Handler {

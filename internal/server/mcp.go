@@ -154,6 +154,7 @@ type mcpItem struct {
 	Category           string `json:"category"`
 	StartTime          string `json:"startTime,omitempty"`
 	EndTime            string `json:"endTime,omitempty"`
+	Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`
 	AreaID             string `json:"areaId,omitempty"`
 	DestinationAreaID  string `json:"destinationAreaId,omitempty"`
 	Address            string `json:"address,omitempty"`
@@ -168,6 +169,9 @@ func toMCPItem(it store.ItineraryItem, layerNames map[uuid.UUID]string) mcpItem 
 		Category: string(it.Category), StartTime: it.StartTime, EndTime: it.EndTime,
 		Address: it.Address, DestinationAddress: it.DestinationAddress, Notes: it.Notes,
 		Layer: layerNames[it.LayerID],
+	}
+	if it.Timezone != nil {
+		out.Timezone = *it.Timezone
 	}
 	if it.StopID != nil {
 		out.AreaID = it.StopID.String()
@@ -353,6 +357,7 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		Category           string `json:"category,omitempty" jsonschema:"activity (default), food, lodging, transport, flight, train, or other"`
 		StartTime          string `json:"startTime,omitempty" jsonschema:"HH:MM, 24h"`
 		EndTime            string `json:"endTime,omitempty" jsonschema:"HH:MM; for flights/trains this is the arrival time"`
+		Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`
 		AreaID             string `json:"areaId,omitempty" jsonschema:"the area this happens in; for flights/trains the departure area"`
 		DestinationAreaID  string `json:"destinationAreaId,omitempty" jsonschema:"flights/trains only: the arrival area"`
 		Address            string `json:"address,omitempty" jsonschema:"venue address; for flights/trains the departure station/airport"`
@@ -383,6 +388,9 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		}
 		if in.EndTime != "" {
 			req.EndTime = &in.EndTime
+		}
+		if in.Timezone != "" {
+			req.Timezone = &in.Timezone
 		}
 		if in.Address != "" {
 			req.Address = &in.Address

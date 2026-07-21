@@ -46,6 +46,7 @@ type itemRequest struct {
 	DestinationLon     *float64   `json:"destinationLon"`
 	ClearDestLatLon    bool       `json:"clearDestinationLatLon"`
 	LayerID            *uuid.UUID `json:"layerId"`
+	Timezone           *string    `json:"timezone"`
 }
 
 func (req itemRequest) merge(p *store.ItineraryItemParams) error {
@@ -164,6 +165,9 @@ func (req itemRequest) merge(p *store.ItineraryItemParams) error {
 		if p.Currency != nil && len(*p.Currency) != 3 {
 			return errors.New("currency must be a 3-letter ISO code")
 		}
+	}
+	if req.Timezone != nil {
+		p.Timezone = *req.Timezone
 	}
 	return nil
 }
@@ -315,6 +319,7 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		DestinationAddress: current.DestinationAddress,
 		DestinationLat:     current.DestinationLat,
 		DestinationLon:     current.DestinationLon,
+		Timezone:           derefStr(current.Timezone),
 	}
 	if err := req.merge(&params); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid", err.Error())
