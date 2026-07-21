@@ -22,3 +22,20 @@ func TestLoad(t *testing.T) {
 		}
 	})
 }
+
+// The OIDC issuer must be preserved byte-for-byte: providers like Authentik
+// publish issuers with a trailing slash, and go-oidc requires an exact
+// match with the discovery document (#108).
+func TestOIDCIssuerNotNormalized(t *testing.T) {
+	t.Setenv("WAYPOINT_DATABASE_URL", "postgres://localhost/waypoint")
+	t.Setenv("WAYPOINT_OIDC_ISSUER_URL", "https://sso.example.com/application/o/waypoint/")
+	t.Setenv("WAYPOINT_OIDC_CLIENT_ID", "id")
+	t.Setenv("WAYPOINT_OIDC_CLIENT_SECRET", "secret")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.OIDCIssuerURL != "https://sso.example.com/application/o/waypoint/" {
+		t.Fatalf("issuer = %q, trailing slash must be preserved", cfg.OIDCIssuerURL)
+	}
+}
