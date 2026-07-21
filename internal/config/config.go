@@ -68,7 +68,9 @@ func Load() (Config, error) {
 		BaseURL:            strings.TrimSuffix(getenv("WAYPOINT_BASE_URL", "http://localhost:8080"), "/"),
 		GoogleClientID:     os.Getenv("WAYPOINT_GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("WAYPOINT_GOOGLE_CLIENT_SECRET"),
-		OIDCIssuerURL:      strings.TrimSuffix(os.Getenv("WAYPOINT_OIDC_ISSUER_URL"), "/"),
+		// The OIDC issuer is an exact-match identifier (Authentik's ends
+		// with a slash) — never normalize it; see #108.
+		OIDCIssuerURL:      os.Getenv("WAYPOINT_OIDC_ISSUER_URL"),
 		OIDCClientID:       os.Getenv("WAYPOINT_OIDC_CLIENT_ID"),
 		OIDCClientSecret:   os.Getenv("WAYPOINT_OIDC_CLIENT_SECRET"),
 		OIDCName:           os.Getenv("WAYPOINT_OIDC_NAME"),
