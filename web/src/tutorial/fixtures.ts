@@ -53,6 +53,7 @@ const baseItem = {
   destinationStopId: null, originHomeId: null, destinationHomeId: null,
   endTime: null, notes: '', costCents: null, currency: null,
   destinationAddress: '', destinationLat: null, destinationLon: null,
+  confirmationCode: null,
 } as const
 
 const items: ItineraryItem[] = [

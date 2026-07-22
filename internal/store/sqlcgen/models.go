@@ -179,6 +179,7 @@ type ItineraryItem struct {
 	DestinationLat     *float64
 	DestinationLon     *float64
 	Timezone           *string
+	ConfirmationCode   *string
 }
 
 type ItineraryLayer struct {

@@ -124,6 +124,7 @@ export type ItineraryItem = {
   destinationLat: number | null
   destinationLon: number | null
   position: number
+  confirmationCode: string | null
 }
 
 export type TripHome = { id: string; name: string }
@@ -237,6 +238,7 @@ export type ItemInput = Partial<{
   destinationAddress: string
   destinationLat: number
   destinationLon: number
+  confirmationCode: string
   /** Clear flags for PATCH: unset the referenced field server-side. */
   clearStop: boolean
   clearDestination: boolean

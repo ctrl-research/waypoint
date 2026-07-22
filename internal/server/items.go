@@ -47,6 +47,7 @@ type itemRequest struct {
 	ClearDestLatLon    bool       `json:"clearDestinationLatLon"`
 	LayerID            *uuid.UUID `json:"layerId"`
 	Timezone           *string    `json:"timezone"`
+	ConfirmationCode   *string    `json:"confirmationCode"`
 }
 
 func (req itemRequest) merge(p *store.ItineraryItemParams) error {
@@ -168,6 +169,9 @@ func (req itemRequest) merge(p *store.ItineraryItemParams) error {
 	}
 	if req.Timezone != nil {
 		p.Timezone = *req.Timezone
+	}
+	if req.ConfirmationCode != nil {
+		p.ConfirmationCode = *req.ConfirmationCode
 	}
 	return nil
 }
@@ -320,6 +324,7 @@ func (api *tripsAPI) updateItem(w http.ResponseWriter, r *http.Request) {
 		DestinationLat:     current.DestinationLat,
 		DestinationLon:     current.DestinationLon,
 		Timezone:           derefStr(current.Timezone),
+		ConfirmationCode:   derefStr(current.ConfirmationCode),
 	}
 	if err := req.merge(&params); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid", err.Error())

@@ -208,12 +208,15 @@ func TestTripsAPI(t *testing.T) {
 
 	// Itinerary items.
 	code, item := call(t, h, alice, "POST", tripPath+"/items",
-		fmt.Sprintf(`{"title":"Fushimi Inari","day":"2027-03-24","startTime":"09:00","stopId":%q,"category":"activity","costCents":0,"currency":"JPY","address":"68 Fukakusa Yabunouchicho, Kyoto","lat":34.9671,"lon":135.7727}`, stopIDs[1]))
+		fmt.Sprintf(`{"title":"Fushimi Inari","day":"2027-03-24","startTime":"09:00","stopId":%q,"category":"activity","costCents":0,"currency":"JPY","address":"68 Fukakusa Yabunouchicho, Kyoto","lat":34.9671,"lon":135.7727,"confirmationCode":"TKT-42"}`, stopIDs[1]))
 	if code != 201 {
 		t.Fatalf("create item: code = %d %v", code, item)
 	}
 	if item["startTime"] != "09:00" {
 		t.Fatalf("startTime = %v, want 09:00", item["startTime"])
+	}
+	if item["confirmationCode"] != "TKT-42" {
+		t.Fatalf("confirmationCode = %v, want TKT-42", item["confirmationCode"])
 	}
 	if item["address"] != "68 Fukakusa Yabunouchicho, Kyoto" || item["lat"].(float64) != 34.9671 {
 		t.Fatalf("venue = %v / %v", item["address"], item["lat"])
