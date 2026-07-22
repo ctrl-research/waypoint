@@ -157,7 +157,7 @@ func TestMCPServer(t *testing.T) {
 
 	item2 := callTool("add_item", map[string]any{
 		"tripId": tripID, "title": "Fushimi Inari", "day": "2024-04-03",
-		"category": "activity", "areaId": area2["id"],
+		"category": "activity", "areaId": area2["id"], "timezone": "Asia/Tokyo",
 	})
 	updatedItem := callTool("update_item", map[string]any{
 		"tripId": tripID, "itemId": item2["id"], "title": "Fushimi Inari Shrine", "category": "food",
@@ -167,6 +167,15 @@ func TestMCPServer(t *testing.T) {
 	}
 	if updatedItem["category"] != "food" {
 		t.Fatalf("update_item category = %v, want food", updatedItem["category"])
+	}
+	if updatedItem["timezone"] != "Asia/Tokyo" {
+		t.Fatalf("update_item timezone = %v, want Asia/Tokyo", updatedItem["timezone"])
+	}
+	updatedItem2 := callTool("update_item", map[string]any{
+		"tripId": tripID, "itemId": item2["id"], "timezone": "Asia/Hokkaido",
+	})
+	if updatedItem2["timezone"] != "Asia/Hokkaido" {
+		t.Fatalf("update_item timezone change = %v, want Asia/Hokkaido", updatedItem2["timezone"])
 	}
 
 	// ---- confirmation_code round-trip ----------------------------------------
