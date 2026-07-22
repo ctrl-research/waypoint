@@ -155,6 +155,7 @@ type mcpItem struct {
 	StartTime          string `json:"startTime,omitempty"`
 	EndTime            string `json:"endTime,omitempty"`
 	Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`
+	ConfirmationCode   string `json:"confirmationCode,omitempty"`
 	AreaID             string `json:"areaId,omitempty"`
 	DestinationAreaID  string `json:"destinationAreaId,omitempty"`
 	Address            string `json:"address,omitempty"`
@@ -168,7 +169,7 @@ func toMCPItem(it store.ItineraryItem, layerNames map[uuid.UUID]string) mcpItem 
 		ID: it.ID.String(), Title: it.Title, Day: it.Day.Format(dateFormat),
 		Category: string(it.Category), StartTime: it.StartTime, EndTime: it.EndTime,
 		Address: it.Address, DestinationAddress: it.DestinationAddress, Notes: it.Notes,
-		Layer: layerNames[it.LayerID],
+		Layer: layerNames[it.LayerID], ConfirmationCode: derefStr(it.ConfirmationCode),
 	}
 	if it.Timezone != nil {
 		out.Timezone = *it.Timezone
@@ -358,6 +359,7 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		StartTime          string `json:"startTime,omitempty" jsonschema:"HH:MM, 24h"`
 		EndTime            string `json:"endTime,omitempty" jsonschema:"HH:MM; for flights/trains this is the arrival time"`
 		Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`
+		ConfirmationCode   string `json:"confirmationCode,omitempty"`
 		AreaID             string `json:"areaId,omitempty" jsonschema:"the area this happens in; for flights/trains the departure area"`
 		DestinationAreaID  string `json:"destinationAreaId,omitempty" jsonschema:"flights/trains only: the arrival area"`
 		Address            string `json:"address,omitempty" jsonschema:"venue address; for flights/trains the departure station/airport"`
@@ -400,6 +402,9 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		}
 		if in.Notes != "" {
 			req.Notes = &in.Notes
+		}
+		if in.ConfirmationCode != "" {
+			req.ConfirmationCode = &in.ConfirmationCode
 		}
 		if in.AreaID != "" {
 			id, err := uuid.Parse(in.AreaID)
@@ -594,6 +599,7 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		Category           string `json:"category,omitempty" jsonschema:"activity, food, lodging, transport, flight, train, or other"`
 		StartTime          string `json:"startTime,omitempty" jsonschema:"HH:MM, 24h"`
 		EndTime            string `json:"endTime,omitempty" jsonschema:"HH:MM"`
+		ConfirmationCode   string `json:"confirmationCode,omitempty"`
 		AreaID             string `json:"areaId,omitempty" jsonschema:"the area this happens in"`
 		DestinationAreaID  string `json:"destinationAreaId,omitempty" jsonschema:"flights/trains only: the arrival area"`
 		Address            string `json:"address,omitempty"`
@@ -637,6 +643,7 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 			DestinationAddress: current.DestinationAddress,
 			DestinationLat:     current.DestinationLat,
 			DestinationLon:     current.DestinationLon,
+			ConfirmationCode:   derefStr(current.ConfirmationCode),
 		}
 		if in.Title != "" {
 			params.Title = in.Title
@@ -668,6 +675,9 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		}
 		if in.Notes != "" {
 			params.Notes = in.Notes
+		}
+		if in.ConfirmationCode != "" {
+			params.ConfirmationCode = in.ConfirmationCode
 		}
 		if in.AreaID != "" {
 			id, err := uuid.Parse(in.AreaID)

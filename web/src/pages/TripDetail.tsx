@@ -797,6 +797,7 @@ export function NewItemForm({
       : null,
   )
   const [itemLayerId, setItemLayerId] = useState(item?.layerId ?? layers?.[0]?.id ?? '')
+  const [confirmationCode, setConfirmationCode] = useState(item?.confirmationCode ?? '')
   const isLeg = category === 'flight' || category === 'train' || category === 'ferry' || category === 'driving' || category === 'transport'
   const myHomes = useQuery({ queryKey: ['homes'], queryFn: listHomes, enabled: isLeg })
 
@@ -839,6 +840,7 @@ export function NewItemForm({
           category,
           startTime,
           endTime,
+          confirmationCode: confirmationCode || undefined,
           ...(itemLayerId && itemLayerId !== item.layerId ? { layerId: itemLayerId } : {}),
           ...venueFields,
           // Untouched endpoints stay as they are — they may reference
@@ -856,6 +858,7 @@ export function NewItemForm({
         ...(itemLayerId ? { layerId: itemLayerId } : {}),
         ...(startTime ? { startTime } : {}),
         ...(endTime ? { endTime } : {}),
+        ...(confirmationCode ? { confirmationCode } : {}),
         ...(venue
           ? {
               address: venue.address,
@@ -943,6 +946,12 @@ export function NewItemForm({
           className={field}
         />
       </div>
+      <input
+        value={confirmationCode}
+        onChange={(e) => setConfirmationCode(e.target.value)}
+        placeholder="Confirmation code / PNR (optional)"
+        className={`${field} w-full`}
+      />
       <VenueField
         venue={venue}
         onChange={setVenue}

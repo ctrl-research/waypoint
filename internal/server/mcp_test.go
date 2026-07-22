@@ -90,9 +90,13 @@ func TestMCPServer(t *testing.T) {
 	item := callTool("add_item", map[string]any{
 		"tripId": tripID, "title": "Nishiki market", "day": "2024-04-03",
 		"category": "food", "areaId": area["id"], "layer": "Ideas",
+		"confirmationCode": "ABC123",
 	})
 	if item["layer"] != "Ideas" || item["category"] != "food" {
 		t.Fatalf("add_item = %v", item)
+	}
+	if item["confirmationCode"] != "ABC123" {
+		t.Fatalf("add_item confirmationCode = %v, want ABC123", item["confirmationCode"])
 	}
 
 	detail := callTool("get_trip", map[string]any{"tripId": tripID})
@@ -163,6 +167,22 @@ func TestMCPServer(t *testing.T) {
 	}
 	if updatedItem["category"] != "food" {
 		t.Fatalf("update_item category = %v, want food", updatedItem["category"])
+	}
+
+	// ---- confirmation_code round-trip ----------------------------------------
+
+	item3 := callTool("add_item", map[string]any{
+		"tripId": tripID, "title": "Hotel Kyoto", "day": "2024-04-02",
+		"category": "lodging", "confirmationCode": "HTL-98765",
+	})
+	if item3["confirmationCode"] != "HTL-98765" {
+		t.Fatalf("add_item confirmationCode = %v, want HTL-98765", item3["confirmationCode"])
+	}
+	item3Updated := callTool("update_item", map[string]any{
+		"tripId": tripID, "itemId": item3["id"], "confirmationCode": "HTL-11111",
+	})
+	if item3Updated["confirmationCode"] != "HTL-11111" {
+		t.Fatalf("update_item confirmationCode = %v, want HTL-11111", item3Updated["confirmationCode"])
 	}
 
 	t.Run("rotating the token cuts access", func(t *testing.T) {

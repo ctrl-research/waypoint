@@ -57,6 +57,8 @@ type ItineraryItemParams struct {
 	// Timezone is an IANA timezone name (e.g. "America/Vancouver") for ICS
 	// export. Empty means use the server's global fallback or floating time.
 	Timezone string
+	// ConfirmationCode is a booking reference, PNR, or reservation code.
+	ConfirmationCode string
 }
 
 // CreateItem appends the item at the end of its day's ordering.
@@ -64,6 +66,10 @@ func (s *Trips) CreateItem(ctx context.Context, tripID uuid.UUID, p ItineraryIte
 	var tzPtr *string
 	if p.Timezone != "" {
 		tzPtr = &p.Timezone
+	}
+	var ccPtr *string
+	if p.ConfirmationCode != "" {
+		ccPtr = &p.ConfirmationCode
 	}
 	row, err := s.q.CreateItem(ctx, sqlcgen.CreateItemParams{
 		TripID: tripID, StopID: p.StopID, DestinationStopID: p.DestinationStopID,
@@ -73,7 +79,7 @@ func (s *Trips) CreateItem(ctx context.Context, tripID uuid.UUID, p ItineraryIte
 		CostCents: p.CostCents, Currency: p.Currency,
 		Address: p.Address, Lat: p.Lat, Lon: p.Lon, LayerID: p.LayerID,
 		DestinationAddress: p.DestinationAddress, DestinationLat: p.DestinationLat, DestinationLon: p.DestinationLon,
-		Timezone: tzPtr,
+		Timezone: tzPtr, ConfirmationCode: ccPtr,
 	})
 	if err == nil {
 		s.touch(ctx, tripID)
@@ -100,6 +106,10 @@ func (s *Trips) UpdateItem(ctx context.Context, tripID, itemID uuid.UUID, p Itin
 	if p.Timezone != "" {
 		tzPtr = &p.Timezone
 	}
+	var ccPtr *string
+	if p.ConfirmationCode != "" {
+		ccPtr = &p.ConfirmationCode
+	}
 	row, err := s.q.UpdateItem(ctx, sqlcgen.UpdateItemParams{
 		TripID: tripID, ID: itemID, StopID: p.StopID, DestinationStopID: p.DestinationStopID,
 		OriginHomeID: p.OriginHomeID, DestinationHomeID: p.DestinationHomeID,
@@ -108,7 +118,7 @@ func (s *Trips) UpdateItem(ctx context.Context, tripID, itemID uuid.UUID, p Itin
 		CostCents: p.CostCents, Currency: p.Currency,
 		Address: p.Address, Lat: p.Lat, Lon: p.Lon, LayerID: p.LayerID,
 		DestinationAddress: p.DestinationAddress, DestinationLat: p.DestinationLat, DestinationLon: p.DestinationLon,
-		Timezone: tzPtr,
+		Timezone: tzPtr, ConfirmationCode: ccPtr,
 	})
 	if err == nil {
 		s.touch(ctx, tripID)

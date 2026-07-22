@@ -194,6 +194,7 @@ type itemJSON struct {
 	DestinationLat     *float64   `json:"destinationLat"`
 	DestinationLon     *float64   `json:"destinationLon"`
 	Position           int32      `json:"position"`
+	ConfirmationCode   string     `json:"confirmationCode"`
 }
 
 func toItemJSON(it store.ItineraryItem) itemJSON {
@@ -206,6 +207,7 @@ func toItemJSON(it store.ItineraryItem) itemJSON {
 		CostCents: it.CostCents, Currency: it.Currency, Position: it.Position,
 		Address: it.Address, Lat: it.Lat, Lon: it.Lon, LayerID: it.LayerID,
 		DestinationAddress: it.DestinationAddress, DestinationLat: it.DestinationLat, DestinationLon: it.DestinationLon,
+		ConfirmationCode: derefStr(it.ConfirmationCode),
 	}
 }
 

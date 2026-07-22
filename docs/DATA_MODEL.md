@@ -63,7 +63,11 @@ destination_stop_id FK NULL · origin_home_id / destination_home_id FK NULL
 start_time NULL · end_time NULL · title · category (enum: activity, food,
 lodging, transport, flight, train, ferry, driving, other) · notes · cost_cents NULL ·
 currency (char(3)) · address · lat/lon NULL (venue, both-or-neither CHECK) ·
-position`
+position · confirmation_code NULL`
+
+The `confirmation_code` column stores a booking reference, PNR, or reservation
+code for hotels, ferries, flights, trains, and other reservable items. Nullable;
+empty string is treated as unset by the application layer.
 
 The `timezone` column is used for ICS export: when set, item times are
 converted to UTC and emitted with a Z suffix so Google Calendar imports them
