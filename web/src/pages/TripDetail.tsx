@@ -69,6 +69,16 @@ export function TripDetailPage() {
     return allItems.filter((i) => !hiddenLayers.has(i.layerId))
   }, [allItems, allLayers])
 
+  const costTotals = useMemo(() => {
+    const totals: Record<string, number> = {}
+    for (const item of planItems) {
+      if (item.costCents != null && item.currency) {
+        totals[item.currency] = (totals[item.currency] ?? 0) + item.costCents
+      }
+    }
+    return totals
+  }, [planItems])
+
   if (meLoading) return null
   if (!me) return <Navigate to="/login" />
   if (detail.error) {
@@ -118,6 +128,17 @@ export function TripDetailPage() {
             </Link>
           )}
         </div>
+        {Object.keys(costTotals).length > 0 && (
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Trip total:{' '}
+            {Object.entries(costTotals).map(([ccy, cents], i) => (
+              <span key={ccy}>
+                {i > 0 && ' · '}
+                {ccy} {(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            ))}
+          </p>
+        )}
         <div className="mt-4" data-tour="areas-list">
           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Areas</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">

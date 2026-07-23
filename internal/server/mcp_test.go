@@ -165,6 +165,26 @@ func TestMCPServer(t *testing.T) {
 		t.Fatalf("update_item category = %v, want food", updatedItem["category"])
 	}
 
+	// ---- cost ---------------------------------------------------------------
+
+	costItem := callTool("add_item", map[string]any{
+		"tripId": tripID, "title": "Lunch", "day": "2024-04-03",
+		"costCents": 2500, "currency": "JPY",
+	})
+	if v, ok := costItem["costCents"].(float64); !ok || v != 2500 {
+		t.Fatalf("add_item costCents = %v, want 2500", costItem["costCents"])
+	}
+	if v := costItem["currency"]; v != "JPY" {
+		t.Fatalf("add_item currency = %v, want JPY", v)
+	}
+
+	costUpdate := callTool("update_item", map[string]any{
+		"tripId": tripID, "itemId": costItem["id"], "costCents": 3000, "currency": "JPY",
+	})
+	if v, ok := costUpdate["costCents"].(float64); !ok || v != 3000 {
+		t.Fatalf("update_item costCents = %v, want 3000", costUpdate["costCents"])
+	}
+
 	t.Run("rotating the token cuts access", func(t *testing.T) {
 		call(t, h, alice, "POST", "/api/v1/mcp/token", "")
 		res, err := (&http.Client{Transport: &bearerTransport{token}}).Post(

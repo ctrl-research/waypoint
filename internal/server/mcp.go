@@ -148,26 +148,29 @@ func toMCPArea(s store.Stop) mcpArea {
 }
 
 type mcpItem struct {
-	ID                 string `json:"id"`
-	Title              string `json:"title"`
-	Day                string `json:"day"`
-	Category           string `json:"category"`
-	StartTime          string `json:"startTime,omitempty"`
-	EndTime            string `json:"endTime,omitempty"`
-	Timezone           string `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`
-	AreaID             string `json:"areaId,omitempty"`
-	DestinationAreaID  string `json:"destinationAreaId,omitempty"`
-	Address            string `json:"address,omitempty"`
-	DestinationAddress string `json:"destinationAddress,omitempty"`
-	Notes              string `json:"notes,omitempty"`
-	Layer              string `json:"layer,omitempty"`
+	ID                 string  `json:"id"`
+	Title              string  `json:"title"`
+	Day                string  `json:"day"`
+	Category           string  `json:"category"`
+	StartTime          string  `json:"startTime,omitempty"`
+	EndTime            string  `json:"endTime,omitempty"`
+	Timezone           string  `json:"timezone,omitempty" jsonschema:"IANA timezone name, e.g. America/Vancouver; omit to use WAYPOINT_TIMEZONE or floating time"`
+	AreaID             string  `json:"areaId,omitempty"`
+	DestinationAreaID  string  `json:"destinationAreaId,omitempty"`
+	Address            string  `json:"address,omitempty"`
+	DestinationAddress string  `json:"destinationAddress,omitempty"`
+	Notes              string  `json:"notes,omitempty"`
+	CostCents          *int64  `json:"costCents,omitempty"`
+	Currency           *string `json:"currency,omitempty"`
+	Layer              string  `json:"layer,omitempty"`
 }
 
 func toMCPItem(it store.ItineraryItem, layerNames map[uuid.UUID]string) mcpItem {
 	out := mcpItem{
 		ID: it.ID.String(), Title: it.Title, Day: it.Day.Format(dateFormat),
 		Category: string(it.Category), StartTime: it.StartTime, EndTime: it.EndTime,
-		Address: it.Address, DestinationAddress: it.DestinationAddress, Notes: it.Notes,
+		Address: it.Address, 		DestinationAddress: it.DestinationAddress, Notes: it.Notes,
+		CostCents: it.CostCents, Currency: it.Currency,
 		Layer: layerNames[it.LayerID],
 	}
 	if it.Timezone != nil {
@@ -361,9 +364,11 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		AreaID             string `json:"areaId,omitempty" jsonschema:"the area this happens in; for flights/trains the departure area"`
 		DestinationAreaID  string `json:"destinationAreaId,omitempty" jsonschema:"flights/trains only: the arrival area"`
 		Address            string `json:"address,omitempty" jsonschema:"venue address; for flights/trains the departure station/airport"`
-		DestinationAddress string `json:"destinationAddress,omitempty" jsonschema:"flights/trains only: arrival station/airport"`
-		Notes              string `json:"notes,omitempty"`
-		Layer              string `json:"layer,omitempty" jsonschema:"layer name; omit for the trip's Main layer, unknown names are created"`
+		DestinationAddress string  `json:"destinationAddress,omitempty" jsonschema:"flights/trains only: arrival station/airport"`
+		Notes              string  `json:"notes,omitempty"`
+		CostCents          *int64  `json:"costCents,omitempty" jsonschema:"cost in cents; -1 to clear"`
+		Currency           *string `json:"currency,omitempty" jsonschema:"ISO 4217 currency code, e.g. CAD"`
+		Layer              string  `json:"layer,omitempty" jsonschema:"layer name; omit for the trip's Main layer, unknown names are created"`
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_item",
@@ -400,6 +405,12 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		}
 		if in.Notes != "" {
 			req.Notes = &in.Notes
+		}
+		if in.CostCents != nil {
+			req.CostCents = in.CostCents
+		}
+		if in.Currency != nil {
+			req.Currency = in.Currency
 		}
 		if in.AreaID != "" {
 			id, err := uuid.Parse(in.AreaID)
@@ -591,15 +602,17 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		ItemID             string `json:"itemId"`
 		Title              string `json:"title,omitempty"`
 		Day                string `json:"day,omitempty" jsonschema:"YYYY-MM-DD"`
-		Category           string `json:"category,omitempty" jsonschema:"activity, food, lodging, transport, flight, train, or other"`
+		Category           string `json:"category,omitempty" jsonschema:"activity, food, lodging, transport, flight, train, ferry, driving, or other"`
 		StartTime          string `json:"startTime,omitempty" jsonschema:"HH:MM, 24h"`
 		EndTime            string `json:"endTime,omitempty" jsonschema:"HH:MM"`
 		AreaID             string `json:"areaId,omitempty" jsonschema:"the area this happens in"`
 		DestinationAreaID  string `json:"destinationAreaId,omitempty" jsonschema:"flights/trains only: the arrival area"`
 		Address            string `json:"address,omitempty"`
-		DestinationAddress string `json:"destinationAddress,omitempty"`
-		Notes              string `json:"notes,omitempty"`
-		Layer              string `json:"layer,omitempty" jsonschema:"layer name; omit to keep current layer"`
+		DestinationAddress string  `json:"destinationAddress,omitempty"`
+		Notes              string  `json:"notes,omitempty"`
+		CostCents          *int64  `json:"costCents,omitempty" jsonschema:"cost in cents; -1 to clear"`
+		Currency           *string `json:"currency,omitempty" jsonschema:"ISO 4217 currency code"`
+		Layer              string  `json:"layer,omitempty" jsonschema:"layer name; omit to keep current layer"`
 	}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "update_item",
@@ -668,6 +681,12 @@ func (api *tripsAPI) registerMCPTools(srv *mcp.Server, geo *geocode.Client) {
 		}
 		if in.Notes != "" {
 			params.Notes = in.Notes
+		}
+		if in.CostCents != nil {
+			params.CostCents = in.CostCents
+		}
+		if in.Currency != nil {
+			params.Currency = in.Currency
 		}
 		if in.AreaID != "" {
 			id, err := uuid.Parse(in.AreaID)
